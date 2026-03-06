@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.1] - 2026-03-06
+
+### Added
+- Repository workflow scaffolding for local `bd` task tracking.
+- A repo-specific `AGENTS.md` aligned with the required task lifecycle.
+- An episodic note recording the initial beads roadmap and local tracker setup.
+
 ## [0.1.0] - 2026-03-06
 
 ### Added

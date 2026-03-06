@@ -19,6 +19,7 @@ Use these to install and exercise the plugin.
 Use these as compact project memory snapshots that can be injected later.
 
 - `episodes/0001-bootstrap.md` - why the repository starts with connection and handshake primitives
+- `episodes/0002-beads-bootstrap.md` - how local beads tracking was initialized and what the first roadmap looks like
 
 ## Update Rule
 
