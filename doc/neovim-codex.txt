@@ -1,0 +1,32 @@
+*neovim-codex.txt*  NeoVim Codex integration
+
+==============================================================================
+INTRODUCTION                                                  *neovim-codex*
+
+neovim-codex is a NeoVim-hosted client for `codex app-server`.
+
+==============================================================================
+COMMANDS                                               *neovim-codex-commands*
+
+:CodexStart
+    Start `codex app-server` and complete the initialize handshake.
+
+:CodexStop
+    Stop the running app-server process.
+
+:CodexStatus
+    Print the current connection state.
+
+:CodexEvents
+    Open a scratch buffer with the current protocol event log.
+
+==============================================================================
+CONFIGURATION                                         *neovim-codex-configuration*
+
+Call >
+    lua require('neovim_codex').setup({})
+<
+from your plugin manager configuration to override defaults.
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:

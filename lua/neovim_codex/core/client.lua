@@ -1,0 +1,171 @@
+local jsonrpc = require("neovim_codex.core.jsonrpc")
+
+local M = {}
+M.__index = M
+
+local function log_entry(direction, body)
+  return {
+    at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+    kind = "protocol",
+    direction = direction,
+    body = body,
+  }
+end
+
+function M.new(opts)
+  assert(opts and opts.store, "store is required")
+  assert(opts and opts.transport, "transport is required")
+  assert(opts and opts.json, "json codec is required")
+  assert(opts and opts.client_info, "client_info is required")
+
+  local self = setmetatable({
+    store = opts.store,
+    transport = opts.transport,
+    json = opts.json,
+    client_info = opts.client_info,
+    experimental_api = opts.experimental_api ~= false,
+    decoder = jsonrpc.new_decoder({ json = opts.json }),
+    next_id = 1,
+    pending = {},
+  }, M)
+
+  return self
+end
+
+function M:_request(method, params, on_result)
+  local id = self.next_id
+  self.next_id = self.next_id + 1
+  self.pending[id] = on_result
+  local payload = jsonrpc.encode_request(self.json, id, method, params)
+  self.store:dispatch({
+    type = "request_sent",
+    log_entry = log_entry("outgoing", payload:gsub("\n$", "")),
+  })
+  self.transport:write(payload)
+  return id
+end
+
+function M:_notify(method, params)
+  local payload = jsonrpc.encode_notification(self.json, method, params)
+  self.store:dispatch({
+    type = "notification_sent",
+    log_entry = log_entry("outgoing", payload:gsub("\n$", "")),
+  })
+  self.transport:write(payload)
+end
+
+function M:_handle_message(message)
+  local encoded = self.json.encode(message)
+  self.store:dispatch({
+    type = "message_received",
+    log_entry = log_entry("incoming", encoded),
+  })
+
+  if message.id ~= nil then
+    local callback = self.pending[message.id]
+    self.pending[message.id] = nil
+    if callback then
+      callback(message)
+    end
+    return
+  end
+
+  if message.method == "initialized" then
+    return
+  end
+end
+
+function M:_on_stdout(chunk)
+  local messages, err = self.decoder:push(chunk)
+  if err then
+    self.store:dispatch({ type = "protocol_error", message = err })
+    return
+  end
+
+  for _, message in ipairs(messages) do
+    self:_handle_message(message)
+  end
+end
+
+function M:_on_stderr(chunk)
+  if not chunk or chunk == "" then
+    return
+  end
+
+  self.store:dispatch({
+    type = "transport_error",
+    message = chunk,
+    log_entry = log_entry("stderr", chunk:gsub("\n$", "")),
+  })
+end
+
+function M:_on_exit(code, signal)
+  self.store:dispatch({
+    type = "transport_stopped",
+    reason = string.format("process exited with code=%s signal=%s", code, signal),
+  })
+end
+
+function M:start()
+  if self.transport:is_running() then
+    return false, "app-server is already running"
+  end
+
+  local ok, err, pid = self.transport:start({
+    on_stdout = function(chunk)
+      self:_on_stdout(chunk)
+    end,
+    on_stderr = function(chunk)
+      self:_on_stderr(chunk)
+    end,
+    on_exit = function(code, signal)
+      self:_on_exit(code, signal)
+    end,
+  })
+
+  if not ok then
+    self.store:dispatch({ type = "transport_error", message = err })
+    return false, err
+  end
+
+  self.store:dispatch({ type = "transport_started", pid = pid })
+  self.store:dispatch({ type = "initialize_requested" })
+
+  self:_request("initialize", {
+    clientInfo = self.client_info,
+    capabilities = {
+      experimentalApi = self.experimental_api,
+    },
+  }, function(message)
+    if message.error then
+      self.store:dispatch({
+        type = "protocol_error",
+        message = message.error.message or "initialize failed",
+      })
+      return
+    end
+
+    local result = message.result or {}
+    self.store:dispatch({
+      type = "initialize_succeeded",
+      user_agent = result.userAgent,
+    })
+    self:_notify("initialized")
+  end)
+
+  return true, nil
+end
+
+function M:stop()
+  self.transport:stop()
+end
+
+function M:status()
+  return self.store:get_state().connection
+end
+
+function M:get_state()
+  return self.store:get_state()
+end
+
+return M
