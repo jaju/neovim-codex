@@ -12,10 +12,10 @@ From the repository root:
 
 This runs:
 
-1. pure Lua unit checks for the JSON-RPC decoder and state store
+1. pure Lua unit checks for the JSON-RPC decoder, state store, and chat-document projection
 2. a headless NeoVim integration run that validates:
    - plugin load
-   - chat buffer creation
+   - overlay chat creation
    - thread start/list/read/resume command surface
    - clean shutdown
 
@@ -30,7 +30,7 @@ Use this when iterating on the plugin from your normal editor session.
 :CodexThreadNew
 ```
 
-Then type a short prompt in the prompt buffer and press `<Enter>`.
+Then write a short prompt in the composer and send it with `<C-s>` or `:CodexSend`.
 
 Recommended loop:
 
@@ -39,7 +39,7 @@ Recommended loop:
 3. `:checkhealth neovim_codex`
 4. `:CodexChat`
 5. `:CodexThreadNew`
-6. type a short prompt and press `<Enter>`
+6. write a short prompt and press `<C-s>`
 7. inspect `:CodexEvents` if the transcript or thread state looks wrong
 8. use `:CodexThreadRead` to inspect the stored view of a thread when debugging history behavior
 
@@ -49,9 +49,10 @@ The current workflow validates:
 
 - plugin load
 - app-server startup and handshake
-- chat buffer and prompt buffer creation
+- markdown transcript and multiline composer creation
+- overlay toggle behavior
 - thread start, list, read, and resume APIs
-- basic read/report fallback behavior for empty threads
+- semantic chat-document rendering for live assistant replies and compact activity summaries
 
 It does not yet validate:
 

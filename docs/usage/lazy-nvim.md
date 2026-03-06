@@ -10,13 +10,16 @@ Add this to your plugin list:
 {
   dir = "/Users/jaju/github/neovim-codex",
   name = "neovim-codex",
+  dependencies = {
+    "MunifTanjim/nui.nvim",
+  },
   config = function()
     require("neovim_codex").setup({
       codex_cmd = { "codex", "app-server" },
       client_info = {
         name = "neovim_codex",
         title = "NeoVim Codex",
-        version = "0.2.0-dev",
+        version = "0.3.0-dev",
       },
       experimental_api = true,
       max_log_entries = 400,
@@ -33,6 +36,8 @@ Add this to your plugin list:
   end,
 }
 ```
+
+If you already use `render-markdown.nvim`, it will apply automatically because the transcript and composer are plain markdown buffers.
 
 If you want global mappings immediately, add them here instead of leaving them disabled:
 
@@ -88,7 +93,7 @@ Run:
 
 Expected behavior:
 
-- `checkhealth neovim_codex` reports the environment and handshake viability
+- `checkhealth neovim_codex` reports the environment, `nui.nvim`, and handshake viability
 - `CodexSmoke` opens a report buffer and reports pass/fail
 
 ## 5. Start chatting
@@ -101,9 +106,10 @@ Run:
 
 Then:
 
-1. type in the prompt buffer at the bottom of the chat split
-2. press `<Enter>` to send
-3. watch the transcript buffer update above it
+1. write in the composer at the bottom of the overlay
+2. send with `<C-s>` or `:CodexSend`
+3. watch the transcript update above it
+4. run `:CodexChat` again to hide the overlay
 
 Useful commands while dogfooding:
 

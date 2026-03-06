@@ -22,6 +22,10 @@ vim.api.nvim_create_user_command("CodexChat", function()
   require("neovim_codex").chat()
 end, {})
 
+vim.api.nvim_create_user_command("CodexSend", function()
+  require("neovim_codex").send()
+end, {})
+
 vim.api.nvim_create_user_command("CodexThreadNew", function()
   require("neovim_codex").new_thread()
 end, {})

@@ -1,8 +1,13 @@
 local script_path = debug.getinfo(1, "S").source:sub(2)
 local repo_root = vim.fs.dirname(vim.fs.dirname(script_path))
+local nui_path = vim.fs.joinpath(vim.fn.stdpath("data"), "lazy", "nui.nvim")
 
 vim.opt.runtimepath:append(repo_root)
+if vim.fn.isdirectory(nui_path) == 1 then
+  vim.opt.runtimepath:append(nui_path)
+end
 vim.cmd("runtime plugin/neovim_codex.lua")
+vim.o.showmode = false
 
 local codex = require("neovim_codex")
 codex.setup({})
@@ -10,10 +15,12 @@ codex.setup({})
 assert(vim.fn.exists(":CodexStart") == 2, "CodexStart command should exist")
 assert(vim.fn.exists(":CodexSmoke") == 2, "CodexSmoke command should exist")
 assert(vim.fn.exists(":CodexChat") == 2, "CodexChat command should exist")
+assert(vim.fn.exists(":CodexSend") == 2, "CodexSend command should exist")
 assert(vim.fn.exists(":CodexThreadNew") == 2, "CodexThreadNew command should exist")
 assert(vim.fn.exists(":CodexThreads") == 2, "CodexThreads command should exist")
 assert(vim.fn.exists(":CodexThreadRead") == 2, "CodexThreadRead command should exist")
 assert(type(require("neovim_codex.health").check) == "function", "health module should expose check()")
+assert(pcall(require, "nui.popup"), "nui.nvim should be available on runtimepath")
 
 local report = codex.run_smoke({
   open_report = false,
@@ -27,8 +34,18 @@ assert(report.connection.initialized == true, "smoke should reach initialized st
 
 codex.chat()
 local chat_state = codex.get_chat_state()
+assert(chat_state.visible == true, "chat overlay should be visible after opening")
 assert(chat_state.transcript_buf and vim.api.nvim_buf_is_valid(chat_state.transcript_buf), "chat transcript buffer should exist")
-assert(chat_state.prompt_buf and vim.api.nvim_buf_is_valid(chat_state.prompt_buf), "chat prompt buffer should exist")
+assert(chat_state.composer_buf and vim.api.nvim_buf_is_valid(chat_state.composer_buf), "chat composer buffer should exist")
+assert(vim.bo[chat_state.transcript_buf].filetype == "markdown", "transcript should use markdown")
+assert(vim.bo[chat_state.composer_buf].filetype == "markdown", "composer should use markdown")
+assert(vim.bo[chat_state.composer_buf].buftype == "nofile", "composer should be a normal scratch buffer")
+
+codex.chat()
+assert(codex.get_chat_state().visible == false, "chat command should toggle the overlay closed")
+
+codex.chat()
+assert(codex.get_chat_state().visible == true, "chat command should toggle the overlay open again")
 
 local thread_result, thread_err = codex.new_thread({
   notify = false,
@@ -77,4 +94,4 @@ vim.wait(4000, function()
 end, 50)
 assert(codex.get_state().connection.status == "stopped", "runtime should stop cleanly")
 
-print("ok - integration smoke and thread lifecycle")
+print("ok - integration smoke and overlay chat lifecycle")

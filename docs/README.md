@@ -29,6 +29,7 @@ Use these as compact project memory snapshots that can be injected later.
 - `episodes/0002-beads-bootstrap.md` - how local beads tracking was initialized and what the first roadmap looks like
 - `episodes/0003-dogfood-loop.md` - how the initial smoke and health loop was established
 - `episodes/0004-thread-turn-chat.md` - how the first in-editor chat loop and thread lifecycle support landed
+- `episodes/0005-overlay-chat-ui.md` - how the split prompt UI was refactored into a markdown overlay with semantic rendering
 
 ## Update Rule
 

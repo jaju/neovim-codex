@@ -14,7 +14,7 @@ local defaults = {
   client_info = {
     name = "neovim_codex",
     title = "NeoVim Codex",
-    version = "0.2.0-dev",
+    version = "0.3.0-dev",
   },
   experimental_api = true,
   max_log_entries = 400,
@@ -30,10 +30,20 @@ local defaults = {
   },
   ui = {
     chat = {
-      width = 64,
-      prompt_height = 4,
-      prompt_prefix = "codex> ",
-      wrap = true,
+      layout = {
+        width = 0.88,
+        height = 0.84,
+        border = "rounded",
+      },
+      transcript = {
+        wrap = true,
+      },
+      composer = {
+        min_height = 6,
+        max_height = 12,
+        default_height = 8,
+        wrap = true,
+      },
     },
   },
   keymaps = {
@@ -46,12 +56,14 @@ local defaults = {
     },
     transcript = {
       close = "q",
-      focus_prompt = "i",
+      focus_composer = "i",
       next_turn = "]]",
       prev_turn = "[[",
       help = "g?",
     },
-    prompt = {
+    composer = {
+      send = "<C-s>",
+      send_normal = "gS",
       close = "q",
       help = "g?",
     },
@@ -312,12 +324,20 @@ local function build_turn_start_params(thread_id, text, opts)
   return params
 end
 
-local function open_chat(rt)
-  chat.open(rt.store, config, {
+local function chat_actions()
+  return {
     submit_text = function(text)
-      require("neovim_codex").submit_text(text)
+      return require("neovim_codex").submit_text(text)
     end,
-  })
+  }
+end
+
+local function reveal_chat(rt)
+  return chat.open(rt.store, config, chat_actions())
+end
+
+local function toggle_chat(rt)
+  return chat.toggle(rt.store, config, chat_actions())
 end
 
 local function format_thread_label(thread)
@@ -351,8 +371,52 @@ local function merge_current_thread(threads, active_thread)
   return merged
 end
 
+local function normalize_legacy_config(opts)
+  opts = vim.deepcopy(opts or {})
+  local chat_opts = ((opts.ui or {}).chat) or {}
+
+  if chat_opts.width ~= nil or chat_opts.prompt_height ~= nil or chat_opts.wrap ~= nil then
+    chat_opts.layout = chat_opts.layout or {}
+    chat_opts.transcript = chat_opts.transcript or {}
+    chat_opts.composer = chat_opts.composer or {}
+
+    if chat_opts.width ~= nil and chat_opts.layout.width == nil then
+      chat_opts.layout.width = chat_opts.width
+    end
+    if chat_opts.wrap ~= nil and chat_opts.transcript.wrap == nil then
+      chat_opts.transcript.wrap = chat_opts.wrap
+    end
+    if chat_opts.wrap ~= nil and chat_opts.composer.wrap == nil then
+      chat_opts.composer.wrap = chat_opts.wrap
+    end
+    if chat_opts.prompt_height ~= nil and chat_opts.composer.default_height == nil then
+      chat_opts.composer.default_height = chat_opts.prompt_height
+    end
+    if chat_opts.prompt_height ~= nil and chat_opts.composer.min_height == nil then
+      chat_opts.composer.min_height = math.max(4, chat_opts.prompt_height)
+    end
+    if chat_opts.prompt_height ~= nil and chat_opts.composer.max_height == nil then
+      chat_opts.composer.max_height = math.max(12, chat_opts.prompt_height)
+    end
+
+    opts.ui = opts.ui or {}
+    opts.ui.chat = chat_opts
+  end
+
+  local keymaps = opts.keymaps or {}
+  if keymaps.prompt and not keymaps.composer then
+    keymaps.composer = vim.deepcopy(keymaps.prompt)
+  end
+  if keymaps.transcript and keymaps.transcript.focus_prompt and not keymaps.transcript.focus_composer then
+    keymaps.transcript.focus_composer = keymaps.transcript.focus_prompt
+  end
+  opts.keymaps = keymaps
+
+  return opts
+end
+
 function M.setup(opts)
-  config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
+  config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), normalize_legacy_config(opts))
   apply_global_keymaps()
 end
 
@@ -395,11 +459,21 @@ end
 
 function M.chat()
   local rt = ensure_runtime()
-  if not rt.client:status().initialized then
+  if not chat.is_visible() and not rt.client:status().initialized then
     M.start()
   end
-  open_chat(rt)
-  return true
+  return toggle_chat(rt)
+end
+
+function M.send()
+  local rt, err = ensure_ready(4000)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, true)
+    return nil, err
+  end
+
+  reveal_chat(rt)
+  return chat.submit()
 end
 
 function M.new_thread(opts)
@@ -411,7 +485,7 @@ function M.new_thread(opts)
   end
 
   if opts.open_chat ~= false then
-    open_chat(rt)
+    reveal_chat(rt)
   end
 
   local result, request_err = request_with_wait(function(done)
@@ -449,7 +523,7 @@ function M.resume_thread(opts)
   end
 
   if opts.open_chat ~= false then
-    open_chat(rt)
+    reveal_chat(rt)
   end
 
   notify(string.format("Resumed thread %s", result.thread.id), vim.log.levels.INFO, opts.notify)
@@ -543,7 +617,11 @@ function M.pick_thread(opts)
     if opts.action == "read" then
       M.open_thread_report({ thread_id = choice.id, notify = opts.notify })
     elseif choice.id == M.get_state().threads.active_id then
-      M.chat()
+      local rt = ensure_runtime()
+      if not rt.client:status().initialized then
+        M.start()
+      end
+      reveal_chat(rt)
     else
       M.resume_thread({ thread_id = choice.id, open_chat = true, notify = opts.notify })
     end
@@ -554,8 +632,8 @@ end
 
 function M.submit_text(text, opts)
   opts = opts or {}
-  local prompt = text and vim.trim(text) or ""
-  if prompt == "" then
+  local prompt = text and tostring(text) or ""
+  if vim.trim(prompt) == "" then
     notify("Prompt is empty", vim.log.levels.INFO, opts.notify)
     return nil, "prompt is empty"
   end
@@ -567,7 +645,7 @@ function M.submit_text(text, opts)
   end
 
   if opts.open_chat ~= false then
-    open_chat(rt)
+    reveal_chat(rt)
   end
 
   local active_thread = selectors.get_active_thread(rt.client:get_state())

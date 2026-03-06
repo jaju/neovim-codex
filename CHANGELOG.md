@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-03-06
+
+### Added
+- Centered overlay chat UI built on `nui.nvim` instead of the earlier split layout.
+- A multiline markdown composer with explicit send via `:CodexSend`, `<C-s>`, or `gS`.
+- Semantic `ChatDocument` projection and markdown renderer between raw app-server state and the chat UI.
+- Buffer tagging for transcript/composer/event buffers so user markdown customization can target Codex buffers cleanly.
+- Unit coverage for markdown chat projection and internal-activity compaction.
+
+### Changed
+- `:CodexChat` now toggles the overlay instead of only opening a side split.
+- The main transcript is now conversation-first markdown with compact activity summaries instead of raw item dumps.
+- The thread report renderer now uses the same markdown projection path as the live chat UI.
+- Health checks now verify `nui.nvim` in addition to the existing app-server smoke path.
+- Legacy chat config keys are normalized into the new overlay/composer configuration shape.
+
 ## [0.2.0] - 2026-03-06
 
 ### Added

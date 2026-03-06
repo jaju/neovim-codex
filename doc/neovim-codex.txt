@@ -24,7 +24,10 @@ COMMANDS                                               *neovim-codex-commands*
     Run the current smoke checks and open a report buffer.
 
 :CodexChat
-    Open or focus the Codex chat split.
+    Toggle the Codex overlay.
+
+:CodexSend
+    Send the current composer contents.
 
 :CodexThreadNew
     Start a fresh thread and make it active.
@@ -41,35 +44,60 @@ COMMANDS                                               *neovim-codex-commands*
 ==============================================================================
 CHAT                                                           *neovim-codex-chat*
 
-The current chat UI is a split view:
+The current chat UI is a centered overlay:
 
-- transcript buffer above
-- prompt buffer below
+- markdown transcript above
+- multiline markdown composer below
 
 Usage:
 
 1. Run >
     :CodexChat
 <
-2. Type in the prompt buffer.
-3. Press <Enter> to send the turn.
+2. Write in the composer.
+3. Press <C-s> or run >
+    :CodexSend
+<
+4. Use <CR> for newlines.
+5. Run >
+    :CodexChat
+<
+   again to hide the overlay.
 
 Default transcript mappings:
 
-- `q` close the chat split
-- `i` focus the prompt buffer
+- `q` hide the overlay
+- `i` focus the composer
 - `[[` jump to the previous turn
 - `]]` jump to the next turn
 - `g?` open this help topic
 
-Default prompt mappings:
+Default composer mappings:
 
-- `<Enter>` submit the prompt
-- `q` in normal mode closes the chat split
+- `<C-s>` send the current draft from normal or insert mode
+- `gS` send the current draft from normal mode
+- `q` in normal mode hides the overlay
 - `g?` in normal mode opens this help topic
+- `<CR>` inserts a newline
 
 These mappings are configurable through `setup()` and can be disabled by setting
 individual mappings to `false`.
+
+If `<C-s>` is captured by terminal flow control, remap
+`keymaps.composer.send` or run `stty -ixon`.
+
+==============================================================================
+MARKDOWN CONTRACT                                     *neovim-codex-markdown*
+
+The transcript and composer are normal markdown scratch buffers with these
+buffer variables:
+
+- `b:neovim_codex = true`
+- `b:neovim_codex_role = "transcript" | "composer" | "events"`
+- `b:neovim_codex_thread_id = <thread-id>`
+
+This lets normal markdown filetype, treesitter, and render plugins apply
+without a custom filetype.
 
 ==============================================================================
 HEALTH                                                 *neovim-codex-health*
@@ -81,6 +109,7 @@ to verify:
 
 - NeoVim version support
 - `codex` executable discovery
+- `nui.nvim` availability
 - app-server handshake viability
 
 ==============================================================================
@@ -91,7 +120,7 @@ Call >
 <
 from your plugin manager configuration to override defaults.
 
-Global mappings are disabled by default. Buffer-local chat mappings have
+Global mappings are disabled by default. Buffer-local overlay mappings have
 conservative defaults.
 
 ==============================================================================
@@ -104,6 +133,8 @@ Current known limits:
 - a brand-new empty thread may not be resumable yet
 - `thread/read includeTurns=true` can fail before the first user message is
   persisted; the plugin falls back to a metadata-only read for reports
+- raw protocol stays in `:CodexEvents`; the main transcript keeps internal
+  activity compact by default
 
 ==============================================================================
 DOGFOOD LOOP                                            *neovim-codex-dogfood*
@@ -114,7 +145,7 @@ When iterating locally with `lazy.nvim`, the expected loop is: >
     :CodexChat
     :CodexThreadNew
 <
-Then type a short prompt in the prompt buffer and press <Enter>.
+Then write a short prompt in the composer and send it with `<C-s>`.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

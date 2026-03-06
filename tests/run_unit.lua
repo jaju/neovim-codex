@@ -67,8 +67,9 @@ test("store clears errors on expected stop", function()
   eq(state.connection.last_error, nil)
 end)
 
-test("store reconstructs a live thread transcript from items and deltas", function()
-  local selectors = require("neovim_codex.core.selectors")
+test("chat document renders assistant replies as markdown blocks", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local render = require("neovim_codex.nvim.chat.render")
   local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
 
   store:dispatch({
@@ -85,16 +86,11 @@ test("store reconstructs a live thread transcript from items and deltas", functi
       cwd = "/tmp/demo",
       cliVersion = "0.0.0",
       source = { type = "appServer" },
-      agentNickname = nil,
-      agentRole = nil,
-      gitInfo = nil,
-      name = nil,
       turns = {},
     },
     activate = true,
     replace_turns = false,
   })
-
   store:dispatch({
     type = "turn_received",
     thread_id = "thr_1",
@@ -119,34 +115,65 @@ test("store reconstructs a live thread transcript from items and deltas", functi
     item = {
       type = "agentMessage",
       id = "item_agent",
-      text = "",
-      phase = nil,
+      text = "First line\nSecond line",
     },
   })
+
+  local doc = document.project_active(store:get_state())
+  eq(doc.thread_id, "thr_1")
+  eq(doc.blocks[1].kind, "turn_boundary")
+  eq(doc.blocks[2].kind, "user_message")
+  eq(doc.blocks[3].kind, "assistant_message")
+
+  local result = render.render(doc)
+  local body = table.concat(result.lines, "\n")
+  assert(body:find("## Turn 1", 1, true), "render should include a turn heading")
+  assert(body:find("### You", 1, true), "render should include a user heading")
+  assert(body:find("### Codex", 1, true), "render should include an assistant heading")
+  assert(body:find("First line", 1, true), "render should include assistant text")
+end)
+
+test("chat document collapses internal command noise into an activity summary", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
   store:dispatch({
-    type = "agent_message_delta",
-    thread_id = "thr_1",
-    turn_id = "turn_1",
-    item_id = "item_agent",
-    delta = "First line",
+    type = "thread_received",
+    thread = {
+      id = "thr_2",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
   })
   store:dispatch({
-    type = "agent_message_delta",
-    thread_id = "thr_1",
-    turn_id = "turn_1",
-    item_id = "item_agent",
-    delta = "\nSecond line",
+    type = "turn_received",
+    thread_id = "thr_2",
+    turn = { id = "turn_2", status = "completed", items = {}, error = nil },
+  })
+  store:dispatch({
+    type = "item_received",
+    thread_id = "thr_2",
+    turn_id = "turn_2",
+    item = {
+      type = "commandExecution",
+      id = "item_command",
+      status = "completed",
+      command = "sed -n '1,120p' /Users/jaju/.codex/skills/prompt-control/SKILL.md",
+      aggregatedOutput = "# Prompt Control",
+    },
   })
 
-  local state = store:get_state()
-  local thread = selectors.get_active_thread(state)
-  eq(thread.id, "thr_1")
-
-  local turn = selectors.get_active_turn(state)
-  eq(turn.id, "turn_1")
-  eq(turn.items_by_id.item_agent.text, "First line\nSecond line")
-  eq(turn.items_order[1], "item_user")
-  eq(turn.items_order[2], "item_agent")
+  local doc = document.project_active(store:get_state())
+  eq(doc.blocks[2].kind, "activity_summary")
+  assert(doc.blocks[2].lines[2]:find("Loaded local instructions", 1, true), "internal command should collapse into an activity summary")
 end)
 
 for _, case in ipairs(tests) do
