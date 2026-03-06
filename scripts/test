@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "$0")/.." && pwd)
+
+nvim --headless -u NONE -i NONE -l "$repo_root/tests/run_unit.lua"
+nvim --headless -u NONE -i NONE -l "$repo_root/tests/run_integration.lua"

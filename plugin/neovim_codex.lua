@@ -13,3 +13,7 @@ end, {})
 vim.api.nvim_create_user_command("CodexEvents", function()
   require("neovim_codex").open_events()
 end, {})
+
+vim.api.nvim_create_user_command("CodexSmoke", function()
+  require("neovim_codex").smoke()
+end, {})

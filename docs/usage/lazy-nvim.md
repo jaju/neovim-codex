@@ -46,12 +46,13 @@ Inside NeoVim:
 
 ```vim
 :Lazy sync
+:Lazy load neovim-codex
 ```
 
-Then either restart NeoVim or run:
+If the plugin is already loaded and you are iterating on the code locally, reload it with:
 
 ```vim
-:Lazy load neovim-codex
+:Lazy reload neovim-codex
 ```
 
 ## 4. Exercise the current vertical slice
@@ -59,6 +60,8 @@ Then either restart NeoVim or run:
 Run:
 
 ```vim
+:checkhealth neovim_codex
+:CodexSmoke
 :CodexStart
 :CodexStatus
 :CodexEvents
@@ -66,7 +69,9 @@ Run:
 
 Expected behavior:
 
-- `CodexStart` notifies that the app-server started
+- `checkhealth neovim_codex` reports the environment and handshake viability
+- `CodexSmoke` opens a report buffer and reports pass/fail
+- `CodexStart` notifies that the app-server started, unless it is already ready
 - `CodexStatus` reports `status=ready`
 - `CodexEvents` opens a scratch buffer showing outgoing `initialize`, incoming response, and the `initialized` notification
 

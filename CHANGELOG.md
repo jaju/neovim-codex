@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2026-03-06
+
+### Added
+- `:CodexSmoke` for an in-editor smoke run of the bootstrap slice.
+- `:checkhealth neovim_codex` health reporting for prerequisites and handshake viability.
+- Headless unit and integration test runners under `tests/` plus `./scripts/test`.
+- Development workflow documentation for driving iteration from a real NeoVim session.
+
+### Changed
+- stderr from `codex app-server` is now logged without automatically forcing the connection into an error state.
+- expected process shutdown now clears stale error state instead of leaving the last stop reason as an error.
+
 ## [0.1.1] - 2026-03-06
 
 ### Added

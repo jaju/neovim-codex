@@ -34,12 +34,21 @@ local function reducer(state, event)
     next_state.connection.status = "initializing"
     next_state.connection.pid = event.pid
     next_state.connection.last_error = nil
+    next_state.connection.stop_requested = false
+  elseif event.type == "transport_stop_requested" then
+    next_state.connection.status = "stopping"
+    next_state.connection.stop_requested = true
   elseif event.type == "transport_stopped" then
     next_state.connection.status = "stopped"
     next_state.connection.pid = nil
     next_state.connection.initialized = false
     next_state.connection.user_agent = nil
-    next_state.connection.last_error = event.reason
+    next_state.connection.stop_requested = false
+    if event.expected then
+      next_state.connection.last_error = nil
+    else
+      next_state.connection.last_error = event.reason
+    end
   elseif event.type == "initialize_requested" then
     next_state.connection.status = "initializing"
   elseif event.type == "initialize_succeeded" then
@@ -53,6 +62,8 @@ local function reducer(state, event)
   elseif event.type == "transport_error" then
     next_state.connection.status = "error"
     next_state.connection.last_error = event.message
+  elseif event.type == "stderr_received" then
+    next_state.connection.last_stderr = event.message
   end
 
   if event.log_entry then
@@ -72,6 +83,8 @@ function M.new(opts)
       initialized = false,
       user_agent = nil,
       last_error = nil,
+      last_stderr = nil,
+      stop_requested = false,
     },
     logs = {},
     settings = {

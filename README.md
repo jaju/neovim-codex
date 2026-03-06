@@ -16,7 +16,9 @@ This repository currently implements the first usable slice:
 - starts `codex app-server`
 - performs the `initialize` / `initialized` handshake
 - tracks connection state in a pure Lua store
-- exposes NeoVim commands for start, stop, status, and event-log inspection
+- exposes connection diagnostics through `:checkhealth neovim_codex`
+- exposes `:CodexSmoke` for an in-editor smoke run
+- exposes `:CodexStart`, `:CodexStop`, `:CodexStatus`, and `:CodexEvents`
 
 It does **not** yet implement thread or turn management.
 
@@ -63,12 +65,10 @@ Then inside NeoVim:
 
 ```vim
 :Lazy sync
-:CodexStart
-:CodexStatus
-:CodexEvents
+:Lazy load neovim-codex
+:checkhealth neovim_codex
+:CodexSmoke
 ```
-
-`CodexStatus` should show `status=ready` after the handshake completes.
 
 A more explicit step-by-step guide lives in [`docs/usage/lazy-nvim.md`](docs/usage/lazy-nvim.md).
 
@@ -78,6 +78,19 @@ A more explicit step-by-step guide lives in [`docs/usage/lazy-nvim.md`](docs/usa
 - `:CodexStop` - stop the running app-server process
 - `:CodexStatus` - print current connection state
 - `:CodexEvents` - open a scratch buffer with the protocol event log
+- `:CodexSmoke` - run the current smoke checks and open a report buffer
+- `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, and handshake viability
+
+## Development Workflow
+
+- Run the automated checks with `./scripts/test`
+- Use the in-editor dogfood loop:
+  1. `:Lazy reload neovim-codex`
+  2. `:checkhealth neovim_codex`
+  3. `:CodexSmoke`
+  4. `:CodexEvents`
+
+A fuller workflow note lives in [`docs/development/workflow.md`](docs/development/workflow.md).
 
 ## Configuration
 
@@ -100,8 +113,11 @@ require("neovim_codex").setup({
 - `lua/neovim_codex/nvim/` - NeoVim runtime bridge and presentation
 - `plugin/` - user command registration
 - `docs/architecture/` - stable architecture notes
+- `docs/development/` - local development and dogfooding workflow
 - `docs/episodes/` - episodic progress notes for future context injection
 - `docs/usage/` - installation and usage flows
+- `tests/` - headless unit and integration test runners
+- `scripts/` - local development commands
 
 ## Next Steps
 

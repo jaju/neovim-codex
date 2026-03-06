@@ -1,12 +1,18 @@
 # Documentation Index
 
-This repository keeps documentation in three categories.
+This repository keeps documentation in four categories.
 
 ## Stable Architecture
 
 Use these when the structure or contracts matter.
 
 - `architecture/layers.md` - dependency order and module responsibilities
+
+## Development
+
+Use these when hacking on the plugin itself.
+
+- `development/workflow.md` - local test commands and the dogfood loop inside NeoVim
 
 ## Usage
 
@@ -28,5 +34,6 @@ Every meaningful architectural or workflow change should update:
 1. `README.md` if the user-facing behavior changed
 2. `CHANGELOG.md` if the repository state changed
 3. one `docs/architecture/*` file if contracts or layering changed
-4. one `docs/usage/*` file if installation or operation changed
-5. one `docs/episodes/*` file if the change is primarily historical or iterative
+4. one `docs/development/*` file if the developer workflow changed
+5. one `docs/usage/*` file if installation or operation changed
+6. one `docs/episodes/*` file if the change is primarily historical or iterative

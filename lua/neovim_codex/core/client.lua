@@ -27,9 +27,14 @@ function M.new(opts)
     decoder = jsonrpc.new_decoder({ json = opts.json }),
     next_id = 1,
     pending = {},
+    stop_requested = false,
   }, M)
 
   return self
+end
+
+function M:is_running()
+  return self.transport:is_running()
 end
 
 function M:_request(method, params, on_result)
@@ -93,7 +98,7 @@ function M:_on_stderr(chunk)
   end
 
   self.store:dispatch({
-    type = "transport_error",
+    type = "stderr_received",
     message = chunk,
     log_entry = log_entry("stderr", chunk:gsub("\n$", "")),
   })
@@ -102,8 +107,10 @@ end
 function M:_on_exit(code, signal)
   self.store:dispatch({
     type = "transport_stopped",
+    expected = self.stop_requested,
     reason = string.format("process exited with code=%s signal=%s", code, signal),
   })
+  self.stop_requested = false
 end
 
 function M:start()
@@ -111,6 +118,7 @@ function M:start()
     return false, "app-server is already running"
   end
 
+  self.stop_requested = false
   local ok, err, pid = self.transport:start({
     on_stdout = function(chunk)
       self:_on_stdout(chunk)
@@ -157,7 +165,14 @@ function M:start()
 end
 
 function M:stop()
+  if not self.transport:is_running() then
+    return false, "app-server is not running"
+  end
+
+  self.stop_requested = true
+  self.store:dispatch({ type = "transport_stop_requested" })
   self.transport:stop()
+  return true, nil
 end
 
 function M:status()
