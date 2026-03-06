@@ -151,6 +151,48 @@ function M:_handle_notification(message)
       item_id = params.itemId,
       delta = params.delta,
     })
+  elseif message.method == "item/plan/delta" then
+    self.store:dispatch({
+      type = "plan_delta",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      item_id = params.itemId,
+      delta = params.delta,
+    })
+  elseif message.method == "item/reasoning/summaryPartAdded" then
+    self.store:dispatch({
+      type = "reasoning_summary_part_added",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      item_id = params.itemId,
+      summary_index = params.summaryIndex,
+    })
+  elseif message.method == "item/reasoning/summaryTextDelta" then
+    self.store:dispatch({
+      type = "reasoning_summary_text_delta",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      item_id = params.itemId,
+      summary_index = params.summaryIndex,
+      delta = params.delta,
+    })
+  elseif message.method == "item/reasoning/textDelta" then
+    self.store:dispatch({
+      type = "reasoning_text_delta",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      item_id = params.itemId,
+      content_index = params.contentIndex,
+      delta = params.delta,
+    })
+  elseif message.method == "item/commandExecution/outputDelta" then
+    self.store:dispatch({
+      type = "command_execution_output_delta",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      item_id = params.itemId,
+      delta = params.delta,
+    })
   end
 end
 

@@ -118,15 +118,61 @@ end
 local function merge_item(turn, item)
   local current = turn.items_by_id[item.id] or {}
   turn.items_by_id[item.id] = clone(item)
+  local merged = turn.items_by_id[item.id]
 
-  if current.type == "agentMessage" and present(current.text) and item.type == "agentMessage" and item.text == "" then
-    turn.items_by_id[item.id].text = current.text
-  elseif item.type == "agentMessage" and not present(item.text) then
-    turn.items_by_id[item.id].text = present(current.text) and current.text or ""
+  if item.type == "agentMessage" then
+    if present(current.text) and item.text == "" then
+      merged.text = current.text
+    elseif not present(item.text) then
+      merged.text = present(current.text) and current.text or ""
+    end
+  elseif item.type == "plan" then
+    if present(current.text) and item.text == "" then
+      merged.text = current.text
+    elseif not present(item.text) then
+      merged.text = present(current.text) and current.text or ""
+    end
+  elseif item.type == "reasoning" then
+    if type(merged.summary) ~= "table" or #merged.summary == 0 then
+      merged.summary = type(current.summary) == "table" and clone(current.summary) or {}
+    end
+    if type(merged.content) ~= "table" or #merged.content == 0 then
+      merged.content = type(current.content) == "table" and clone(current.content) or {}
+    end
+  elseif item.type == "commandExecution" then
+    if not present(merged.aggregatedOutput) then
+      merged.aggregatedOutput = present(current.aggregatedOutput) and current.aggregatedOutput or ""
+    end
+    if type(merged.commandActions) ~= "table" or #merged.commandActions == 0 then
+      merged.commandActions = type(current.commandActions) == "table" and clone(current.commandActions) or {}
+    end
   end
 
   upsert_order(turn.items_order, item.id)
-  return turn.items_by_id[item.id]
+  return merged
+end
+
+local function ensure_item(turn, item_id, defaults)
+  local item = turn.items_by_id[item_id]
+  if item then
+    return item
+  end
+
+  item = clone(defaults or {})
+  item.id = item_id
+  turn.items_by_id[item_id] = item
+  upsert_order(turn.items_order, item_id)
+  return item
+end
+
+local function ensure_array_slot(list, index)
+  while #list < index do
+    list[#list + 1] = ""
+  end
+
+  if not present(list[index]) then
+    list[index] = ""
+  end
 end
 
 local function merge_turn(thread, turn, opts)
@@ -295,18 +341,69 @@ local function reducer(state, event)
   elseif event.type == "agent_message_delta" then
     local thread = ensure_thread(next_state, event.thread_id)
     local turn = ensure_turn(thread, event.turn_id)
-    local item = turn.items_by_id[event.item_id]
-    if not item then
-      item = {
-        type = "agentMessage",
-        id = event.item_id,
-        text = "",
-        phase = nil,
-      }
-      turn.items_by_id[event.item_id] = item
-      upsert_order(turn.items_order, event.item_id)
-    end
+    local item = ensure_item(turn, event.item_id, {
+      type = "agentMessage",
+      text = "",
+      phase = nil,
+    })
     item.text = (present(item.text) and item.text or "") .. event.delta
+  elseif event.type == "plan_delta" then
+    local thread = ensure_thread(next_state, event.thread_id)
+    local turn = ensure_turn(thread, event.turn_id)
+    local item = ensure_item(turn, event.item_id, {
+      type = "plan",
+      text = "",
+    })
+    item.text = (present(item.text) and item.text or "") .. event.delta
+  elseif event.type == "reasoning_summary_part_added" then
+    local thread = ensure_thread(next_state, event.thread_id)
+    local turn = ensure_turn(thread, event.turn_id)
+    local item = ensure_item(turn, event.item_id, {
+      type = "reasoning",
+      summary = {},
+      content = {},
+    })
+    item.summary = type(item.summary) == "table" and item.summary or {}
+    ensure_array_slot(item.summary, (tonumber(event.summary_index) or 0) + 1)
+  elseif event.type == "reasoning_summary_text_delta" then
+    local thread = ensure_thread(next_state, event.thread_id)
+    local turn = ensure_turn(thread, event.turn_id)
+    local item = ensure_item(turn, event.item_id, {
+      type = "reasoning",
+      summary = {},
+      content = {},
+    })
+    item.summary = type(item.summary) == "table" and item.summary or {}
+    local index = (tonumber(event.summary_index) or 0) + 1
+    ensure_array_slot(item.summary, index)
+    item.summary[index] = item.summary[index] .. event.delta
+  elseif event.type == "reasoning_text_delta" then
+    local thread = ensure_thread(next_state, event.thread_id)
+    local turn = ensure_turn(thread, event.turn_id)
+    local item = ensure_item(turn, event.item_id, {
+      type = "reasoning",
+      summary = {},
+      content = {},
+    })
+    item.content = type(item.content) == "table" and item.content or {}
+    local index = (tonumber(event.content_index) or 0) + 1
+    ensure_array_slot(item.content, index)
+    item.content[index] = item.content[index] .. event.delta
+  elseif event.type == "command_execution_output_delta" then
+    local thread = ensure_thread(next_state, event.thread_id)
+    local turn = ensure_turn(thread, event.turn_id)
+    local item = ensure_item(turn, event.item_id, {
+      type = "commandExecution",
+      command = "",
+      cwd = nil,
+      processId = nil,
+      status = "inProgress",
+      commandActions = {},
+      aggregatedOutput = "",
+      exitCode = nil,
+      durationMs = nil,
+    })
+    item.aggregatedOutput = (present(item.aggregatedOutput) and item.aggregatedOutput or "") .. event.delta
   end
 
   if event.log_entry then

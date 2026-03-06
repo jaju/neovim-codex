@@ -67,6 +67,48 @@ test("store clears errors on expected stop", function()
   eq(state.connection.last_error, nil)
 end)
 
+test("store accumulates streamed plan, reasoning, and command output deltas", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_stream",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+  store:dispatch({
+    type = "turn_received",
+    thread_id = "thr_stream",
+    turn = { id = "turn_stream", status = "inProgress", items = {}, error = nil },
+  })
+  store:dispatch({ type = "plan_delta", thread_id = "thr_stream", turn_id = "turn_stream", item_id = "plan_1", delta = "Step 1" })
+  store:dispatch({ type = "plan_delta", thread_id = "thr_stream", turn_id = "turn_stream", item_id = "plan_1", delta = "\nStep 2" })
+  store:dispatch({ type = "reasoning_summary_part_added", thread_id = "thr_stream", turn_id = "turn_stream", item_id = "reason_1", summary_index = 0 })
+  store:dispatch({ type = "reasoning_summary_text_delta", thread_id = "thr_stream", turn_id = "turn_stream", item_id = "reason_1", summary_index = 0, delta = "Thinking" })
+  store:dispatch({ type = "reasoning_text_delta", thread_id = "thr_stream", turn_id = "turn_stream", item_id = "reason_1", content_index = 0, delta = "Raw trace" })
+  store:dispatch({ type = "command_execution_output_delta", thread_id = "thr_stream", turn_id = "turn_stream", item_id = "cmd_1", delta = "line 1\n" })
+  store:dispatch({ type = "command_execution_output_delta", thread_id = "thr_stream", turn_id = "turn_stream", item_id = "cmd_1", delta = "line 2" })
+
+  local thread = selectors.get_active_thread(store:get_state())
+  local turn = selectors.get_turn(thread, "turn_stream")
+
+  eq(turn.items_by_id.plan_1.text, "Step 1\nStep 2")
+  eq(turn.items_by_id.reason_1.summary[1], "Thinking")
+  eq(turn.items_by_id.reason_1.content[1], "Raw trace")
+  eq(turn.items_by_id.cmd_1.aggregatedOutput, "line 1\nline 2")
+end)
+
 test("chat document renders assistant replies as markdown blocks", function()
   local document = require("neovim_codex.nvim.chat.document")
   local render = require("neovim_codex.nvim.chat.render")
@@ -131,9 +173,11 @@ test("chat document renders assistant replies as markdown blocks", function()
   assert(body:find("### You", 1, true), "render should include a user heading")
   assert(body:find("### Codex", 1, true), "render should include an assistant heading")
   assert(body:find("First line", 1, true), "render should include assistant text")
+  eq(result.blocks[3].surface, "message_assistant")
+  eq(result.blocks[3].protocol.item_type, "agentMessage")
 end)
 
-test("chat document collapses internal and inspection command noise into activity summaries", function()
+test("chat document uses structured command actions for compact activity summaries", function()
   local document = require("neovim_codex.nvim.chat.document")
   local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
 
@@ -164,33 +208,66 @@ test("chat document collapses internal and inspection command noise into activit
     turn_id = "turn_2",
     item = {
       type = "commandExecution",
-      id = "item_command",
+      id = "item_context",
       status = "completed",
-      command = "sed -n '1,120p' /Users/jaju/.codex/skills/prompt-control/SKILL.md",
+      command = [[/opt/homebrew/bin/zsh -lc "sed -n '1,120p' /Users/jaju/.codex/skills/prompt-control/SKILL.md"]],
+      commandActions = {
+        {
+          type = "read",
+          command = "sed -n '1,120p' /Users/jaju/.codex/skills/prompt-control/SKILL.md",
+          name = "sed",
+          path = "/Users/jaju/.codex/skills/prompt-control/SKILL.md",
+        },
+      },
       aggregatedOutput = "# Prompt Control",
+      durationMs = 28,
     },
   })
-
-  local doc = document.project_active(store:get_state())
-  eq(doc.blocks[2].kind, "activity_summary")
-  assert(doc.blocks[2].lines[2]:find("Loaded local instructions", 1, true), "internal command should collapse into an activity summary")
-
   store:dispatch({
     type = "item_received",
     thread_id = "thr_2",
     turn_id = "turn_2",
     item = {
       type = "commandExecution",
-      id = "item_inspect",
+      id = "item_search",
       status = "completed",
-      command = [[/opt/homebrew/bin/zsh -lc "sed -n '1,220p' docs/architecture/layers.md"]],
-      aggregatedOutput = "# Layering",
+      command = [[/opt/homebrew/bin/zsh -lc "rg -n \"neovim-codex|codex.nvim|Codex\" README.md doc docs lua plugin -g '!**/*.min.*'"]],
+      commandActions = {
+        {
+          type = "search",
+          command = "rg -n 'neovim-codex|codex.nvim|Codex' README.md doc docs lua plugin",
+          query = "neovim-codex|codex.nvim|Codex",
+          path = "README.md doc docs lua plugin",
+        },
+      },
+      aggregatedOutput = "README.md:1:# neovim-codex",
+      durationMs = 31,
+    },
+  })
+  store:dispatch({
+    type = "item_received",
+    thread_id = "thr_2",
+    turn_id = "turn_2",
+    item = {
+      type = "commandExecution",
+      id = "item_failed",
+      status = "failed",
+      command = "npm test",
+      commandActions = {
+        { type = "unknown", command = "npm test" },
+      },
+      aggregatedOutput = "tests failed",
+      exitCode = 1,
     },
   })
 
-  doc = document.project_active(store:get_state())
+  local doc = document.project_active(store:get_state())
+  eq(doc.blocks[2].kind, "activity_summary")
+  assert(doc.blocks[2].lines[2]:find("Loaded local instructions", 1, true), "context reads should collapse into a context activity")
   eq(doc.blocks[3].kind, "activity_summary")
-  assert(doc.blocks[3].lines[2]:find("Inspected local files", 1, true), "inspection commands should collapse into an activity summary")
+  assert(doc.blocks[3].lines[2]:find("Searched", 1, true), "search commands should summarize from structured command actions")
+  eq(doc.blocks[4].kind, "command_detail")
+  assert(doc.blocks[4].lines[1]:find("failed", 1, true), "failed commands should stay detailed")
 end)
 
 for _, case in ipairs(tests) do

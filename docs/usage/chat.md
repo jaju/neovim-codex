@@ -25,6 +25,24 @@ If no active thread exists yet, the plugin creates one first and then sends the 
 
 If `<C-s>` is captured by your terminal, remap `keymaps.composer.send` or run `stty -ixon` in that shell.
 
+## Transcript surfaces
+
+The main transcript is protocol-first and conversation-first.
+
+You should expect to see:
+
+- user messages
+- assistant messages
+- plan blocks
+- reasoning summaries
+- compact activity summaries for successful read/list/search command items
+- detailed command blocks for failed, declined, running, or unknown commands
+- file-change summaries and other typed status blocks
+
+You should not expect the main transcript to become a raw protocol dump.
+
+Use `:CodexEvents` when you need the underlying wire payloads or low-level event sequencing.
+
 ## Thread commands
 
 - `:CodexThreadNew` - start a fresh thread explicitly
@@ -97,9 +115,24 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 ```
 
+The overlay also exposes highlight groups for transcript headings, so colorschemes or user config can tune them without changing the markdown filetype contract:
+
+- `NeovimCodexChatTurnHeading`
+- `NeovimCodexChatUserHeading`
+- `NeovimCodexChatAssistantHeading`
+- `NeovimCodexChatPlanHeading`
+- `NeovimCodexChatReasoningHeading`
+- `NeovimCodexChatActivityHeading`
+- `NeovimCodexChatCommandHeading`
+- `NeovimCodexChatFileChangeHeading`
+- `NeovimCodexChatToolHeading`
+- `NeovimCodexChatReviewHeading`
+- `NeovimCodexChatNoticeHeading`
+
 ## Known behavior
 
 - a brand-new empty thread may not appear in `thread/list` yet
 - a brand-new empty thread may not be resumable yet because the rollout is not materialized
 - reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports
+- approval and question flows are not rendered yet; those arrive in the dedicated approval/request-user-input milestone
 - raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript keeps those details compact by default

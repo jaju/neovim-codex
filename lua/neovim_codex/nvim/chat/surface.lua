@@ -5,6 +5,22 @@ local M = {}
 
 local namespace = vim.api.nvim_create_namespace("neovim_codex.chat.surface")
 
+local HEADER_HIGHLIGHTS = {
+  turn_heading = "NeovimCodexChatTurnHeading",
+  message_user = "NeovimCodexChatUserHeading",
+  message_assistant = "NeovimCodexChatAssistantHeading",
+  plan = "NeovimCodexChatPlanHeading",
+  reasoning = "NeovimCodexChatReasoningHeading",
+  activity = "NeovimCodexChatActivityHeading",
+  command_detail = "NeovimCodexChatCommandHeading",
+  file_change = "NeovimCodexChatFileChangeHeading",
+  tool = "NeovimCodexChatToolHeading",
+  review = "NeovimCodexChatReviewHeading",
+  notice = "NeovimCodexChatNoticeHeading",
+  metadata = "NeovimCodexChatNoticeHeading",
+  unknown = "NeovimCodexChatNoticeHeading",
+}
+
 local function valid_buffer(bufnr)
   return bufnr and vim.api.nvim_buf_is_valid(bufnr)
 end
@@ -41,8 +57,41 @@ local function resolve_dimension(value, total, minimum)
   return math.max(minimum, total)
 end
 
+local function define_default_highlight(name, target)
+  vim.api.nvim_set_hl(0, name, {
+    default = true,
+    link = target,
+  })
+end
+
+local function clone_value(value)
+  if type(value) ~= "table" then
+    return value
+  end
+
+  local out = {}
+  for key, item in pairs(value) do
+    out[key] = clone_value(item)
+  end
+  return out
+end
+
 local Surface = {}
 Surface.__index = Surface
+
+function Surface:_ensure_highlights()
+  define_default_highlight("NeovimCodexChatTurnHeading", "Title")
+  define_default_highlight("NeovimCodexChatUserHeading", "Identifier")
+  define_default_highlight("NeovimCodexChatAssistantHeading", "Function")
+  define_default_highlight("NeovimCodexChatPlanHeading", "Type")
+  define_default_highlight("NeovimCodexChatReasoningHeading", "Comment")
+  define_default_highlight("NeovimCodexChatActivityHeading", "Special")
+  define_default_highlight("NeovimCodexChatCommandHeading", "Statement")
+  define_default_highlight("NeovimCodexChatFileChangeHeading", "PreProc")
+  define_default_highlight("NeovimCodexChatToolHeading", "Type")
+  define_default_highlight("NeovimCodexChatReviewHeading", "MoreMsg")
+  define_default_highlight("NeovimCodexChatNoticeHeading", "Comment")
+end
 
 function Surface:_ui_size()
   local ui = vim.api.nvim_list_uis()[1]
@@ -245,7 +294,7 @@ function Surface:_update_thread_context(thread_id)
 end
 
 function Surface:_render_blocks(blocks)
-  self.block_ranges = vim.deepcopy(blocks or {})
+  self.block_ranges = clone_value(blocks or {})
   vim.api.nvim_buf_clear_namespace(self.transcript_bufnr, namespace, 0, -1)
 
   for _, block in ipairs(self.block_ranges) do
@@ -254,6 +303,13 @@ function Surface:_render_blocks(blocks)
         end_row = block.line_end,
         hl_mode = "combine",
       })
+    end
+
+    local highlight = HEADER_HIGHLIGHTS[block.surface] or HEADER_HIGHLIGHTS[block.kind]
+    if highlight and block.header_line_start and block.header_line_end then
+      for line = block.header_line_start, block.header_line_end do
+        vim.api.nvim_buf_add_highlight(self.transcript_bufnr, namespace, highlight, line - 1, 0, -1)
+      end
     end
   end
 end
@@ -392,8 +448,8 @@ function Surface:inspect()
     composer_win = self.composer_popup and self.composer_popup.winid or nil,
     prompt_buf = self.composer:bufnr_value(),
     prompt_win = self.composer_popup and self.composer_popup.winid or nil,
-    blocks = vim.deepcopy(self.block_ranges or {}),
-    turn_lines = vim.deepcopy(self.last_render and self.last_render.turn_lines or {}),
+    blocks = clone_value(self.block_ranges or {}),
+    turn_lines = clone_value(self.last_render and self.last_render.turn_lines or {}),
   }
 end
 
@@ -414,6 +470,7 @@ function M.new(opts, handlers)
     augroup = vim.api.nvim_create_augroup("NeovimCodexChatSurface", { clear = false }),
   }, Surface)
 
+  surface:_ensure_highlights()
   surface:_ensure_components()
   return surface
 end

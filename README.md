@@ -21,7 +21,8 @@ This repository now implements the first usable in-editor Codex conversation loo
   - a markdown transcript buffer
   - a multiline markdown composer buffer
 - supports `thread/start`, `thread/list`, `thread/read`, and `thread/resume`
-- supports `turn/start` and streamed `item/agentMessage/delta` updates
+- supports `turn/start` and the app-server item delta notifications currently folded back into transcript state (`agentMessage`, `plan`, `reasoning`, `commandExecution`)
+- projects known app-server `ThreadItem` variants into dedicated transcript surfaces instead of rendering raw command noise
 - exposes health and smoke checks through `:checkhealth neovim_codex` and `:CodexSmoke`
 
 It does **not** yet implement approvals, request-user-input flows, rewind/fork UI, or dynamic tools.
@@ -175,6 +176,20 @@ require("neovim_codex").setup({
 
 If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for that shell or remap `keymaps.composer.send`.
 
+## Protocol-First Transcript Mapping
+
+The transcript is derived from the app-server protocol types, not from shell-string heuristics.
+
+Examples:
+
+- successful `commandExecution` items with typed `commandActions` like `read`, `listFiles`, or `search` are compacted into activity blocks
+- failed, declined, running, or unknown commands stay as detailed command blocks
+- typed item families such as file changes, tool calls, review mode, and context compaction each map to their own transcript surface
+
+The raw wire payload for each rendered item is preserved in transcript block metadata for future plucking, filtering, export, or enrichment flows.
+
+For the design contract, see [`docs/architecture/protocol-first.md`](docs/architecture/protocol-first.md).
+
 ## Markdown Buffer Contract
 
 The overlay transcript and composer are plain markdown buffers with normal NeoVim buffer contracts:
@@ -192,9 +207,23 @@ The plugin tags its buffers with buffer variables so your own markdown autocomma
 
 That means existing markdown treesitter, conceal, render-markdown, and ftplugin customization can apply naturally inside the overlay.
 
+The overlay also exposes heading highlight groups you can override in your own config:
+
+- `NeovimCodexChatTurnHeading`
+- `NeovimCodexChatUserHeading`
+- `NeovimCodexChatAssistantHeading`
+- `NeovimCodexChatPlanHeading`
+- `NeovimCodexChatReasoningHeading`
+- `NeovimCodexChatActivityHeading`
+- `NeovimCodexChatCommandHeading`
+- `NeovimCodexChatFileChangeHeading`
+- `NeovimCodexChatToolHeading`
+- `NeovimCodexChatReviewHeading`
+- `NeovimCodexChatNoticeHeading`
+
 ## Current Limitations
 
-- approval and request-user-input flows are not implemented yet; that arrives in task 4
+- approval and request-user-input flows are not implemented yet; that arrives in task 4 and will follow the server-request protocol shapes rather than transcript item surfaces
 - a newly created thread without a persisted user turn may not appear in `thread/list` yet and may not be resumable from storage yet
 - `thread/read` with `includeTurns=true` can fail for an empty thread before the first user message is persisted; the plugin falls back to a metadata-only read in that case
 - the transcript currently keeps activity summaries compact by default; raw protocol remains in `:CodexEvents`

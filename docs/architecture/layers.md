@@ -19,25 +19,46 @@
 
 The core layers must remain free of `vim` dependencies.
 
+## Semantic Seam
+
+`ChatDocument` is the semantic seam between app-server state and the UI.
+
+- the store keeps protocol truth for threads, turns, items, and streaming deltas
+- the projector converts that truth into semantic blocks with explicit UI surfaces
+- the renderer converts semantic blocks into markdown lines plus render metadata
+- the surface owns windows, highlights, navigation, and buffer contracts
+
+UI modules should not inspect raw store internals directly when the same information already exists in `ChatDocument`.
+
+## Protocol-First Rule
+
+The projector must conform to the app-server protocol as implemented in the Codex source tree.
+
+- use structured item fields first
+- preserve the original item payload in block metadata
+- compact only at presentation time
+- keep raw protocol available through `:CodexEvents`
+
+See `architecture/protocol-first.md` for the current mapping rules.
+
 ## Current Vertical Slice
 
-The current usable slice now includes:
+The current usable slice includes:
 
 - spawn `codex app-server`
 - perform `initialize`
 - send `initialized`
 - create, read, list, and resume threads
 - start turns from a NeoVim markdown composer
-- reconstruct streamed transcript state from `item/*` notifications and `item/agentMessage/delta`
-- project raw app-server state into a semantic `ChatDocument`
-- render that document into a markdown transcript inside a centered overlay
+- reconstruct streamed item state from the typed app-server delta notifications currently handled by the client
+- project app-server items into semantic transcript blocks
+- render those blocks into a markdown transcript inside a centered overlay
 
 ## Important Contract Notes
 
-- the pure store models app-server truth for threads, turns, and items; the NeoVim layer renders only projections derived from that state
-- `ChatDocument` is the seam between raw state and user-facing markdown; UI modules should not read store internals directly
-- request/response methods mutate state only through the store, never by direct UI-side shadow state
+- request/response methods mutate state only through the store
 - transcript and composer buffers intentionally use plain `markdown` so user filetype, treesitter, and markdown-renderer customization can apply naturally
 - plugin-owned markdown buffers are distinguished through buffer variables, not custom filetypes
-- optional app-server fields can arrive as `vim.NIL` through `vim.json.decode`, so rendering boundaries must treat null-like values explicitly
+- optional app-server fields can arrive as `vim.NIL` through `vim.json.decode`, so projection and render metadata must clone values safely
 - request failures are not the same thing as transport failures and should not poison connection state
+- server-initiated approval and question requests are not transcript items; they need dedicated UI surfaces later

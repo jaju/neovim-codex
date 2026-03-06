@@ -7,6 +7,7 @@ This repository keeps documentation in four categories.
 Use these when the structure or contracts matter.
 
 - `architecture/layers.md` - dependency order and module responsibilities
+- `architecture/protocol-first.md` - protocol-first transcript mapping and item-surface rules
 
 ## Development
 
@@ -30,6 +31,7 @@ Use these as compact project memory snapshots that can be injected later.
 - `episodes/0003-dogfood-loop.md` - how the initial smoke and health loop was established
 - `episodes/0004-thread-turn-chat.md` - how the first in-editor chat loop and thread lifecycle support landed
 - `episodes/0005-overlay-chat-ui.md` - how the split prompt UI was refactored into a markdown overlay with semantic rendering
+- `episodes/0006-protocol-first-projection.md` - why transcript projection now follows the app-server protocol types directly
 
 ## Update Rule
 

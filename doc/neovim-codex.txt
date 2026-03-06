@@ -64,6 +64,17 @@ Usage:
 <
    again to hide the overlay.
 
+The transcript is protocol-first. It projects app-server item types into stable
+surfaces instead of dumping shell output directly.
+
+Examples:
+
+- user and assistant messages stay primary
+- successful read/list/search commands become compact activity blocks
+- failed or unknown commands stay detailed
+- file changes, tool calls, review mode, and context compaction each get their
+  own summary blocks
+
 Default transcript mappings:
 
 - `q` hide the overlay
@@ -98,6 +109,20 @@ buffer variables:
 
 This lets normal markdown filetype, treesitter, and render plugins apply
 without a custom filetype.
+
+Heading highlight groups can also be overridden in user config:
+
+- `NeovimCodexChatTurnHeading`
+- `NeovimCodexChatUserHeading`
+- `NeovimCodexChatAssistantHeading`
+- `NeovimCodexChatPlanHeading`
+- `NeovimCodexChatReasoningHeading`
+- `NeovimCodexChatActivityHeading`
+- `NeovimCodexChatCommandHeading`
+- `NeovimCodexChatFileChangeHeading`
+- `NeovimCodexChatToolHeading`
+- `NeovimCodexChatReviewHeading`
+- `NeovimCodexChatNoticeHeading`
 
 ==============================================================================
 HEALTH                                                 *neovim-codex-health*
