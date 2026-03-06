@@ -17,6 +17,8 @@ Replace the first split-and-prompt chat surface with a NeoVim-native overlay tha
 - `:CodexChat` now toggles the overlay instead of only opening it
 - semantic `ChatDocument` projection between raw app-server thread state and transcript rendering
 - compact activity summaries for low-signal internal command noise
+- completed file-inspection commands now collapse into activity summaries instead of flooding the transcript
+- overlay hide/show now dismisses the outer frame cleanly
 - buffer variables for markdown personalization:
   - `b:neovim_codex`
   - `b:neovim_codex_role`

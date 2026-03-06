@@ -133,7 +133,7 @@ test("chat document renders assistant replies as markdown blocks", function()
   assert(body:find("First line", 1, true), "render should include assistant text")
 end)
 
-test("chat document collapses internal command noise into an activity summary", function()
+test("chat document collapses internal and inspection command noise into activity summaries", function()
   local document = require("neovim_codex.nvim.chat.document")
   local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
 
@@ -174,6 +174,23 @@ test("chat document collapses internal command noise into an activity summary", 
   local doc = document.project_active(store:get_state())
   eq(doc.blocks[2].kind, "activity_summary")
   assert(doc.blocks[2].lines[2]:find("Loaded local instructions", 1, true), "internal command should collapse into an activity summary")
+
+  store:dispatch({
+    type = "item_received",
+    thread_id = "thr_2",
+    turn_id = "turn_2",
+    item = {
+      type = "commandExecution",
+      id = "item_inspect",
+      status = "completed",
+      command = [[/opt/homebrew/bin/zsh -lc "sed -n '1,220p' docs/architecture/layers.md"]],
+      aggregatedOutput = "# Layering",
+    },
+  })
+
+  doc = document.project_active(store:get_state())
+  eq(doc.blocks[3].kind, "activity_summary")
+  assert(doc.blocks[3].lines[2]:find("Inspected local files", 1, true), "inspection commands should collapse into an activity summary")
 end)
 
 for _, case in ipairs(tests) do

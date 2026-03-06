@@ -42,7 +42,9 @@ assert(vim.bo[chat_state.composer_buf].filetype == "markdown", "composer should 
 assert(vim.bo[chat_state.composer_buf].buftype == "nofile", "composer should be a normal scratch buffer")
 
 codex.chat()
-assert(codex.get_chat_state().visible == false, "chat command should toggle the overlay closed")
+local hidden_chat_state = codex.get_chat_state()
+assert(hidden_chat_state.visible == false, "chat command should toggle the overlay closed")
+assert(hidden_chat_state.container_win == nil or not vim.api.nvim_win_is_valid(hidden_chat_state.container_win), "container window should be closed when the overlay hides")
 
 codex.chat()
 assert(codex.get_chat_state().visible == true, "chat command should toggle the overlay open again")

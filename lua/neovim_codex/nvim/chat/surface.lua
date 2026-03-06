@@ -291,7 +291,15 @@ function Surface:show()
     return
   end
 
-  self.layout:show()
+  if self.layout and self.layout._ and self.layout._.mounted then
+    if self.container and self.container.show then
+      self.container:show()
+    end
+    self.layout:show()
+  else
+    self.layout:show()
+  end
+
   self.visible = true
   self:_sync_windows()
 end
@@ -301,6 +309,9 @@ function Surface:hide()
     return
   end
   self.layout:hide()
+  if self.container and self.container.hide then
+    self.container:hide()
+  end
   self.visible = false
 end
 
@@ -376,6 +387,7 @@ function Surface:inspect()
     visible = self.visible,
     transcript_buf = self.transcript_bufnr,
     transcript_win = self.transcript_popup and self.transcript_popup.winid or nil,
+    container_win = self.container and self.container.winid or nil,
     composer_buf = self.composer:bufnr_value(),
     composer_win = self.composer_popup and self.composer_popup.winid or nil,
     prompt_buf = self.composer:bufnr_value(),

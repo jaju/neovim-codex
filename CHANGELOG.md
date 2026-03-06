@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - `:CodexChat` now toggles the overlay instead of only opening a side split.
 - The main transcript is now conversation-first markdown with compact activity summaries instead of raw item dumps.
+- Hiding the overlay now dismisses the outer container cleanly instead of leaving an empty frame behind.
+- Completed file-inspection commands are compacted into activity summaries instead of dumping their output into the main transcript.
 - The thread report renderer now uses the same markdown projection path as the live chat UI.
 - Health checks now verify `nui.nvim` in addition to the existing app-server smoke path.
 - Legacy chat config keys are normalized into the new overlay/composer configuration shape.

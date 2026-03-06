@@ -60,9 +60,9 @@ local function user_content_lines(content)
   return lines
 end
 
-local function command_is_internal(item)
+local function command_kind(item)
   local command = string.lower(value_or(item.command, ""))
-  local patterns = {
+  local context_patterns = {
     ".codex/skills",
     "agents.md",
     ".agent-kit",
@@ -70,24 +70,58 @@ local function command_is_internal(item)
     "prompt-control",
     "topics.agent.tsv",
   }
+  local inspection_patterns = {
+    "sed -n",
+    " cat ",
+    " rg ",
+    " rg --files",
+    " find ",
+    " fd ",
+    " ls ",
+    " pwd",
+    " test ",
+    " head ",
+    " tail ",
+    " stat ",
+  }
 
-  for _, pattern in ipairs(patterns) do
+  for _, pattern in ipairs(context_patterns) do
     if command:find(pattern, 1, true) then
-      return true
+      return "context"
     end
   end
 
-  return false
+  if value_or(item.status, "unknown") == "completed" then
+    for _, pattern in ipairs(inspection_patterns) do
+      if command:find(pattern, 1, true) then
+        return "inspection"
+      end
+    end
+  end
+
+  return "detail"
 end
 
 local function summarize_command(item)
-  if command_is_internal(item) then
+  local kind = command_kind(item)
+  if kind == "context" then
     return {
       kind = "activity_summary",
       collapsed_by_default = true,
       lines = {
         "#### Activity",
         "- Loaded local instructions and workspace context.",
+      },
+    }
+  end
+
+  if kind == "inspection" then
+    return {
+      kind = "activity_summary",
+      collapsed_by_default = true,
+      lines = {
+        "#### Activity",
+        "- Inspected local files and workspace state.",
       },
     }
   end
@@ -102,7 +136,7 @@ local function summarize_command(item)
   local output_lines = split_lines(item.aggregatedOutput)
   if #output_lines > 0 then
     lines[#lines + 1] = "```text"
-    local preview_limit = 12
+    local preview_limit = 6
     for index = 1, math.min(#output_lines, preview_limit) do
       lines[#lines + 1] = output_lines[index]
     end
