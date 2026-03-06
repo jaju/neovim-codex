@@ -1,3 +1,5 @@
+local selectors = require("neovim_codex.core.selectors")
+
 local M = {}
 
 local state = {
@@ -21,11 +23,14 @@ local function ensure_report_buffer(name, filetype)
 end
 
 local function render_lines(store_state)
+  local active_thread = selectors.get_active_thread(store_state)
   local lines = {
     string.format("status: %s", store_state.connection.status),
     string.format("pid: %s", store_state.connection.pid or "-"),
     string.format("initialized: %s", tostring(store_state.connection.initialized)),
     string.format("user_agent: %s", store_state.connection.user_agent or "-"),
+    string.format("active_thread: %s", active_thread and active_thread.id or "-"),
+    string.format("thread_count: %d", #store_state.threads.order),
     string.format("last_error: %s", store_state.connection.last_error or "-"),
     string.format("last_stderr: %s", store_state.connection.last_stderr or "-"),
     "",
@@ -40,8 +45,16 @@ local function render_lines(store_state)
 end
 
 local function set_buffer_lines(buf, lines)
+  local normalized = {}
+  for _, line in ipairs(lines) do
+    local parts = vim.split(tostring(line), "\n", { plain = true })
+    for _, part in ipairs(parts) do
+      normalized[#normalized + 1] = part
+    end
+  end
+
   vim.bo[buf].modifiable = true
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, normalized)
   vim.bo[buf].modifiable = false
 end
 
@@ -86,11 +99,15 @@ function M.open_report(name, lines, opts)
   return buf
 end
 
-function M.status_line(connection)
+function M.status_line(connection, threads)
   local pieces = {
     string.format("status=%s", connection.status),
     string.format("pid=%s", connection.pid or "-"),
   }
+
+  if threads and threads.active_id then
+    pieces[#pieces + 1] = string.format("thread=%s", threads.active_id)
+  end
 
   if connection.user_agent then
     pieces[#pieces + 1] = string.format("ua=%s", connection.user_agent)

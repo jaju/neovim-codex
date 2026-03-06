@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-03-06
+
+### Added
+- `:CodexChat` with a transcript buffer and a prompt buffer for in-editor Codex conversations.
+- Thread lifecycle support for `thread/start`, `thread/list`, `thread/read`, and `thread/resume`.
+- Turn lifecycle support for `turn/start` plus streamed `item/agentMessage/delta` updates.
+- `:CodexThreadNew`, `:CodexThreads`, `:CodexThreadRead`, and `:CodexInterrupt`.
+- A merged keymap configuration surface so defaults can be overridden or disabled cleanly.
+- Headless integration coverage for the command surface, chat buffer creation, and thread lifecycle round-trips.
+
+### Changed
+- Status reporting now includes the active thread id when one is selected.
+- Event presentation now includes thread counts and the active thread.
+- Read/report flows fall back when `thread/read includeTurns=true` is unavailable for an empty thread.
+- JSON-RPC request errors no longer poison the connection status as transport failures.
+
 ## [0.1.2] - 2026-03-06
 
 ### Added

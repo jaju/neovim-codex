@@ -12,6 +12,13 @@ local function log_entry(direction, body)
   }
 end
 
+local function error_message(error)
+  if type(error) == "table" then
+    return error.message or "request failed"
+  end
+  return error or "request failed"
+end
+
 function M.new(opts)
   assert(opts and opts.store, "store is required")
   assert(opts and opts.transport, "transport is required")
@@ -28,6 +35,7 @@ function M.new(opts)
     next_id = 1,
     pending = {},
     stop_requested = false,
+    on_server_request = opts.on_server_request,
   }, M)
 
   return self
@@ -59,6 +67,104 @@ function M:_notify(method, params)
   self.transport:write(payload)
 end
 
+function M:respond(id, result)
+  local payload = jsonrpc.encode_response(self.json, id, result)
+  self.store:dispatch({
+    type = "response_sent",
+    log_entry = log_entry("outgoing", payload:gsub("\n$", "")),
+  })
+  self.transport:write(payload)
+end
+
+function M:_dispatch_result(message, on_result)
+  if not on_result then
+    return
+  end
+
+  if message.error then
+    local err = error_message(message.error)
+    self.store:dispatch({ type = "request_failed", message = err })
+    on_result(err, nil, message)
+    return
+  end
+
+  on_result(nil, message.result or {}, message)
+end
+
+function M:_handle_notification(message)
+  local params = message.params or {}
+
+  if message.method == "initialized" then
+    return
+  elseif message.method == "thread/started" then
+    self.store:dispatch({
+      type = "thread_received",
+      thread = params.thread,
+      replace_turns = false,
+      activate = false,
+    })
+  elseif message.method == "thread/status/changed" then
+    self.store:dispatch({
+      type = "thread_status_changed",
+      thread_id = params.threadId,
+      status = params.status,
+    })
+  elseif message.method == "thread/archived" then
+    self.store:dispatch({ type = "thread_archived", thread_id = params.threadId })
+  elseif message.method == "thread/unarchived" then
+    self.store:dispatch({ type = "thread_unarchived", thread_id = params.threadId })
+  elseif message.method == "thread/closed" then
+    self.store:dispatch({ type = "thread_closed", thread_id = params.threadId })
+  elseif message.method == "turn/started" or message.method == "turn/completed" then
+    self.store:dispatch({
+      type = "turn_received",
+      thread_id = params.threadId,
+      turn = params.turn,
+      replace_items = false,
+    })
+  elseif message.method == "turn/diff/updated" then
+    self.store:dispatch({
+      type = "turn_diff_updated",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      diff = params.diff,
+    })
+  elseif message.method == "turn/plan/updated" then
+    self.store:dispatch({
+      type = "turn_plan_updated",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      plan = params.plan,
+    })
+  elseif message.method == "item/started" or message.method == "item/completed" then
+    self.store:dispatch({
+      type = "item_received",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      item = params.item,
+    })
+  elseif message.method == "item/agentMessage/delta" then
+    self.store:dispatch({
+      type = "agent_message_delta",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      item_id = params.itemId,
+      delta = params.delta,
+    })
+  end
+end
+
+function M:_handle_server_request(message)
+  self.store:dispatch({
+    type = "server_request_received",
+    request = message,
+  })
+
+  if self.on_server_request then
+    self.on_server_request(message, self)
+  end
+end
+
 function M:_handle_message(message)
   local encoded = self.json.encode(message)
   self.store:dispatch({
@@ -66,17 +172,20 @@ function M:_handle_message(message)
     log_entry = log_entry("incoming", encoded),
   })
 
-  if message.id ~= nil then
-    local callback = self.pending[message.id]
-    self.pending[message.id] = nil
-    if callback then
-      callback(message)
-    end
+  if message.method and message.id ~= nil then
+    self:_handle_server_request(message)
     return
   end
 
-  if message.method == "initialized" then
+  if message.id ~= nil then
+    local callback = self.pending[message.id]
+    self.pending[message.id] = nil
+    self:_dispatch_result(message, callback)
     return
+  end
+
+  if message.method then
+    self:_handle_notification(message)
   end
 end
 
@@ -144,16 +253,11 @@ function M:start()
     capabilities = {
       experimentalApi = self.experimental_api,
     },
-  }, function(message)
-    if message.error then
-      self.store:dispatch({
-        type = "protocol_error",
-        message = message.error.message or "initialize failed",
-      })
+  }, function(err_message, result)
+    if err_message then
       return
     end
 
-    local result = message.result or {}
     self.store:dispatch({
       type = "initialize_succeeded",
       user_agent = result.userAgent,
@@ -173,6 +277,93 @@ function M:stop()
   self.store:dispatch({ type = "transport_stop_requested" })
   self.transport:stop()
   return true, nil
+end
+
+function M:thread_start(params, on_result)
+  return self:_request("thread/start", params, function(err, result, message)
+    if not err and result.thread then
+      self.store:dispatch({
+        type = "thread_received",
+        thread = result.thread,
+        replace_turns = false,
+        activate = true,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_resume(params, on_result)
+  return self:_request("thread/resume", params, function(err, result, message)
+    if not err and result.thread then
+      self.store:dispatch({
+        type = "thread_received",
+        thread = result.thread,
+        replace_turns = true,
+        activate = true,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_read(params, on_result)
+  return self:_request("thread/read", params, function(err, result, message)
+    if not err and result.thread then
+      self.store:dispatch({
+        type = "thread_received",
+        thread = result.thread,
+        replace_turns = params.includeTurns == true,
+        activate = false,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_list(params, on_result)
+  return self:_request("thread/list", params, function(err, result, message)
+    if not err then
+      self.store:dispatch({
+        type = "threads_list_received",
+        threads = result.data or {},
+        next_cursor = result.nextCursor,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:turn_start(params, on_result)
+  return self:_request("turn/start", params, function(err, result, message)
+    if not err and result.turn then
+      self.store:dispatch({
+        type = "turn_received",
+        thread_id = params.threadId,
+        turn = result.turn,
+        replace_items = false,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:turn_interrupt(params, on_result)
+  return self:_request("turn/interrupt", params, function(err, result, message)
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
 end
 
 function M:status()

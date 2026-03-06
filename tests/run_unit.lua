@@ -67,6 +67,88 @@ test("store clears errors on expected stop", function()
   eq(state.connection.last_error, nil)
 end)
 
+test("store reconstructs a live thread transcript from items and deltas", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_1",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      path = nil,
+      cwd = "/tmp/demo",
+      cliVersion = "0.0.0",
+      source = { type = "appServer" },
+      agentNickname = nil,
+      agentRole = nil,
+      gitInfo = nil,
+      name = nil,
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+
+  store:dispatch({
+    type = "turn_received",
+    thread_id = "thr_1",
+    turn = { id = "turn_1", status = "inProgress", items = {}, error = nil },
+  })
+  store:dispatch({
+    type = "item_received",
+    thread_id = "thr_1",
+    turn_id = "turn_1",
+    item = {
+      type = "userMessage",
+      id = "item_user",
+      content = {
+        { type = "text", text = "Explain this change" },
+      },
+    },
+  })
+  store:dispatch({
+    type = "item_received",
+    thread_id = "thr_1",
+    turn_id = "turn_1",
+    item = {
+      type = "agentMessage",
+      id = "item_agent",
+      text = "",
+      phase = nil,
+    },
+  })
+  store:dispatch({
+    type = "agent_message_delta",
+    thread_id = "thr_1",
+    turn_id = "turn_1",
+    item_id = "item_agent",
+    delta = "First line",
+  })
+  store:dispatch({
+    type = "agent_message_delta",
+    thread_id = "thr_1",
+    turn_id = "turn_1",
+    item_id = "item_agent",
+    delta = "\nSecond line",
+  })
+
+  local state = store:get_state()
+  local thread = selectors.get_active_thread(state)
+  eq(thread.id, "thr_1")
+
+  local turn = selectors.get_active_turn(state)
+  eq(turn.id, "turn_1")
+  eq(turn.items_by_id.item_agent.text, "First line\nSecond line")
+  eq(turn.items_order[1], "item_user")
+  eq(turn.items_order[2], "item_agent")
+end)
+
 for _, case in ipairs(tests) do
   local ok, err = pcall(case.fn)
   if ok then

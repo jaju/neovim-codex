@@ -17,3 +17,28 @@ end, {})
 vim.api.nvim_create_user_command("CodexSmoke", function()
   require("neovim_codex").smoke()
 end, {})
+
+vim.api.nvim_create_user_command("CodexChat", function()
+  require("neovim_codex").chat()
+end, {})
+
+vim.api.nvim_create_user_command("CodexThreadNew", function()
+  require("neovim_codex").new_thread()
+end, {})
+
+vim.api.nvim_create_user_command("CodexThreads", function()
+  require("neovim_codex").pick_thread({ action = "resume" })
+end, {})
+
+vim.api.nvim_create_user_command("CodexThreadRead", function(command)
+  local args = vim.trim(command.args or "")
+  if args == "" then
+    require("neovim_codex").pick_thread({ action = "read" })
+    return
+  end
+  require("neovim_codex").open_thread_report({ thread_id = args })
+end, { nargs = "?" })
+
+vim.api.nvim_create_user_command("CodexInterrupt", function()
+  require("neovim_codex").interrupt()
+end, {})

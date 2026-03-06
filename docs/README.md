@@ -19,6 +19,7 @@ Use these when hacking on the plugin itself.
 Use these to install and exercise the plugin.
 
 - `usage/lazy-nvim.md` - step-by-step setup for a local `lazy.nvim` configuration
+- `usage/chat.md` - daily chat, thread, and report flows inside NeoVim
 
 ## Episodic Notes
 
@@ -26,6 +27,8 @@ Use these as compact project memory snapshots that can be injected later.
 
 - `episodes/0001-bootstrap.md` - why the repository starts with connection and handshake primitives
 - `episodes/0002-beads-bootstrap.md` - how local beads tracking was initialized and what the first roadmap looks like
+- `episodes/0003-dogfood-loop.md` - how the initial smoke and health loop was established
+- `episodes/0004-thread-turn-chat.md` - how the first in-editor chat loop and thread lifecycle support landed
 
 ## Update Rule
 

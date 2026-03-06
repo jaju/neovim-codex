@@ -16,13 +16,35 @@ Add this to your plugin list:
       client_info = {
         name = "neovim_codex",
         title = "NeoVim Codex",
-        version = "0.1.0-dev",
+        version = "0.2.0-dev",
       },
       experimental_api = true,
       max_log_entries = 400,
+      keymaps = {
+        global = {
+          chat = false,
+          new_thread = false,
+          threads = false,
+          read_thread = false,
+          interrupt = false,
+        },
+      },
     })
   end,
 }
+```
+
+If you want global mappings immediately, add them here instead of leaving them disabled:
+
+```lua
+keymaps = {
+  global = {
+    chat = "<leader>ac",
+    threads = "<leader>at",
+    read_thread = "<leader>aT",
+    interrupt = "<leader>ai",
+  },
+},
 ```
 
 ## 2. Verify prerequisites
@@ -55,27 +77,45 @@ If the plugin is already loaded and you are iterating on the code locally, reloa
 :Lazy reload neovim-codex
 ```
 
-## 4. Exercise the current vertical slice
+## 4. Smoke-check the environment
 
 Run:
 
 ```vim
 :checkhealth neovim_codex
 :CodexSmoke
-:CodexStart
-:CodexStatus
-:CodexEvents
 ```
 
 Expected behavior:
 
 - `checkhealth neovim_codex` reports the environment and handshake viability
 - `CodexSmoke` opens a report buffer and reports pass/fail
-- `CodexStart` notifies that the app-server started, unless it is already ready
-- `CodexStatus` reports `status=ready`
-- `CodexEvents` opens a scratch buffer showing outgoing `initialize`, incoming response, and the `initialized` notification
 
-## 5. Stop the process
+## 5. Start chatting
+
+Run:
+
+```vim
+:CodexChat
+```
+
+Then:
+
+1. type in the prompt buffer at the bottom of the chat split
+2. press `<Enter>` to send
+3. watch the transcript buffer update above it
+
+Useful commands while dogfooding:
+
+```vim
+:CodexThreadNew
+:CodexThreads
+:CodexThreadRead
+:CodexEvents
+:CodexStatus
+```
+
+## 6. Stop the process
 
 Run:
 

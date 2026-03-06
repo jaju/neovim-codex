@@ -15,13 +15,61 @@ COMMANDS                                               *neovim-codex-commands*
     Stop the running app-server process.
 
 :CodexStatus
-    Print the current connection state.
+    Print the current connection state and active thread id.
 
 :CodexEvents
     Open a scratch buffer with the current protocol event log.
 
 :CodexSmoke
     Run the current smoke checks and open a report buffer.
+
+:CodexChat
+    Open or focus the Codex chat split.
+
+:CodexThreadNew
+    Start a fresh thread and make it active.
+
+:CodexThreads
+    Pick and resume a stored thread.
+
+:CodexThreadRead [thread-id]
+    Read a thread into a report buffer without resuming it.
+
+:CodexInterrupt
+    Interrupt the current running turn, if one exists.
+
+==============================================================================
+CHAT                                                           *neovim-codex-chat*
+
+The current chat UI is a split view:
+
+- transcript buffer above
+- prompt buffer below
+
+Usage:
+
+1. Run >
+    :CodexChat
+<
+2. Type in the prompt buffer.
+3. Press <Enter> to send the turn.
+
+Default transcript mappings:
+
+- `q` close the chat split
+- `i` focus the prompt buffer
+- `[[` jump to the previous turn
+- `]]` jump to the next turn
+- `g?` open this help topic
+
+Default prompt mappings:
+
+- `<Enter>` submit the prompt
+- `q` in normal mode closes the chat split
+- `g?` in normal mode opens this help topic
+
+These mappings are configurable through `setup()` and can be disabled by setting
+individual mappings to `false`.
 
 ==============================================================================
 HEALTH                                                 *neovim-codex-health*
@@ -43,14 +91,30 @@ Call >
 <
 from your plugin manager configuration to override defaults.
 
+Global mappings are disabled by default. Buffer-local chat mappings have
+conservative defaults.
+
+==============================================================================
+LIMITATIONS                                            *neovim-codex-limits*
+
+Current known limits:
+
+- approval and request-user-input flows are not implemented yet
+- a brand-new empty thread may not appear in `thread/list` yet
+- a brand-new empty thread may not be resumable yet
+- `thread/read includeTurns=true` can fail before the first user message is
+  persisted; the plugin falls back to a metadata-only read for reports
+
 ==============================================================================
 DOGFOOD LOOP                                            *neovim-codex-dogfood*
 
 When iterating locally with `lazy.nvim`, the expected loop is: >
     :Lazy reload neovim-codex
     :checkhealth neovim_codex
-    :CodexSmoke
-    :CodexEvents
+    :CodexChat
+    :CodexThreadNew
 <
+Then type a short prompt in the prompt buffer and press <Enter>.
+
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

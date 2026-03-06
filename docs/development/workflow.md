@@ -13,7 +13,11 @@ From the repository root:
 This runs:
 
 1. pure Lua unit checks for the JSON-RPC decoder and state store
-2. a headless NeoVim integration smoke run that loads the plugin and validates the app-server handshake
+2. a headless NeoVim integration run that validates:
+   - plugin load
+   - chat buffer creation
+   - thread start/list/read/resume command surface
+   - clean shutdown
 
 ## Dogfood loop inside NeoVim
 
@@ -22,26 +26,43 @@ Use this when iterating on the plugin from your normal editor session.
 ```vim
 :Lazy reload neovim-codex
 :checkhealth neovim_codex
-:CodexSmoke
-:CodexEvents
+:CodexChat
+:CodexThreadNew
 ```
 
-Recommended flow:
+Then type a short prompt in the prompt buffer and press `<Enter>`.
+
+Recommended loop:
 
 1. edit code in the local checkout
 2. `:Lazy reload neovim-codex`
 3. `:checkhealth neovim_codex`
-4. `:CodexSmoke`
-5. inspect protocol traffic in `:CodexEvents`
+4. `:CodexChat`
+5. `:CodexThreadNew`
+6. type a short prompt and press `<Enter>`
+7. inspect `:CodexEvents` if the transcript or thread state looks wrong
+8. use `:CodexThreadRead` to inspect the stored view of a thread when debugging history behavior
 
 ## Current test scope
 
-The current workflow validates only the connection/bootstrap slice:
+The current workflow validates:
 
 - plugin load
-- app-server process startup
-- initialize/initialized handshake
-- status reporting
-- smoke report generation
+- app-server startup and handshake
+- chat buffer and prompt buffer creation
+- thread start, list, read, and resume APIs
+- basic read/report fallback behavior for empty threads
 
-It does not yet validate threads, turns, approvals, or dynamic tools.
+It does not yet validate:
+
+- approval flows
+- request-user-input flows
+- rollback/fork
+- dynamic tools
+- TypeScript adapter behavior
+
+## Current app-server behavior to remember
+
+- a freshly created thread without a persisted user turn may not appear in `thread/list` yet
+- that same empty thread may not be resumable from storage yet
+- `thread/read includeTurns=true` can fail before the first user message is persisted; the plugin falls back to metadata-only reads in that case
