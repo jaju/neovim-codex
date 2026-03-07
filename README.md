@@ -233,6 +233,18 @@ The overlay also exposes heading highlight groups you can override in your own c
 - `thread/read` with `includeTurns=true` can fail for an empty thread before the first user message is persisted; the plugin falls back to a metadata-only read in that case
 - the transcript now keeps activity terse by default and routes verbose execution detail through `:CodexInspect`; raw protocol remains in `:CodexEvents`
 
+
+## Contract Tracking
+
+The plugin keeps a narrow watched contract for the Codex app-server surface it depends on.
+
+- human-facing contract docs live under `docs/contracts/`
+- the machine-checked manifest lives at `contracts/codex-app-server/watch-manifest.json`
+- checked snapshots of the watched generated TypeScript files live under `contracts/codex-app-server/snapshots/`
+- `scripts/check_codex_app_server_contracts.py` compares the current Codex schema against those snapshots
+
+Use this when the local Codex source tree or the installed `codex` binary changes and you want to detect drift intentionally instead of discovering it later through broken UI behavior.
+
 ## Development Workflow
 
 - Run the automated checks with `./scripts/test`

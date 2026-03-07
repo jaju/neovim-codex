@@ -19,6 +19,29 @@ This runs:
    - thread start/list/read/resume command surface
    - clean shutdown
 
+
+## Contract drift checks
+
+Use this when the Codex source tree or local `codex` binary changes and you want to know whether the plugin's watched app-server surface drifted.
+
+Against a Codex source checkout:
+
+```bash
+python3 scripts/check_codex_app_server_contracts.py   --schema-dir /path/to/codex-rs/app-server-protocol/schema/typescript
+```
+
+Against the installed `codex` binary:
+
+```bash
+python3 scripts/check_codex_app_server_contracts.py --generate
+```
+
+Refresh the checked-in snapshots only after reviewing the drift and updating code/docs intentionally:
+
+```bash
+python3 scripts/check_codex_app_server_contracts.py   --schema-dir /path/to/codex-rs/app-server-protocol/schema/typescript   --update
+```
+
 ## Dogfood loop inside NeoVim
 
 Use this when iterating on the plugin from your normal editor session.

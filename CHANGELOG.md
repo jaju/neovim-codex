@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [0.3.0] - 2026-03-06
 
 ### Added
+- `docs/contracts/` as a stable boundary tree for Codex app-server and NeoVim-side contracts.
+- `contracts/codex-app-server/watch-manifest.json` and checked snapshots of the watched generated app-server TypeScript types.
+- `scripts/check_codex_app_server_contracts.py` to detect drift against either a Codex source tree or the installed `codex` binary.
 - `docs/vision/` as a stable design-memory tree with central tenets, workspace model, context-mobility, and composer-fragment vision docs.
 - Centered overlay chat UI built on `nui.nvim` instead of the earlier split layout.
 - A multiline markdown composer with explicit send via `:CodexSend`, `<C-s>`, or `gS`.
