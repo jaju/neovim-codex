@@ -137,6 +137,9 @@ local function attach(store)
 
   state.store = store
   state.unsubscribe = store:subscribe(function()
+    if not (state.surface and state.surface:is_visible()) then
+      return
+    end
     vim.schedule(render)
   end)
 end

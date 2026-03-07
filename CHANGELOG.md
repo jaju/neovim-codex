@@ -29,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - Verbose command, tool, and reasoning detail now lives behind `:CodexInspect` instead of occupying the main transcript by default.
 - Events, reports, transcript inspection, and blocking request prompts now share a stacked popup layer instead of opening as unrelated windows or hidden splits.
 - Command approval, file-change approval, and tool-question handling now follow the locked app-server request contracts instead of staying as planned-only UX.
+- The chat overlay now avoids redraw churn for store events that do not change the rendered conversation, reducing terminal flicker while Codex is streaming background state.
 - Legacy chat config keys are normalized into the new overlay/composer configuration shape.
 
 ## [0.2.0] - 2026-03-06

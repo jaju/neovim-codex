@@ -77,6 +77,44 @@ local function clone_value(value)
   return out
 end
 
+local function clone_lines(lines)
+  local out = {}
+  for _, line in ipairs(lines or {}) do
+    out[#out + 1] = tostring(line)
+  end
+  return out
+end
+
+local function block_signature(block)
+  return {
+    id = block.id,
+    kind = block.kind,
+    surface = block.surface,
+    turn_id = block.turn_id,
+    item_id = block.item_id,
+    collapsed_by_default = block.collapsed_by_default == true,
+    line_start = block.line_start,
+    line_end = block.line_end,
+    header_line_start = block.header_line_start,
+    header_line_end = block.header_line_end,
+  }
+end
+
+local function render_signature(render_result)
+  local block_signatures = {}
+  for _, block in ipairs(render_result.blocks or {}) do
+    block_signatures[#block_signatures + 1] = block_signature(block)
+  end
+
+  return {
+    thread_id = render_result.thread_id,
+    footer = render_result.footer,
+    lines = clone_lines(render_result.lines),
+    turn_lines = clone_value(render_result.turn_lines or {}),
+    blocks = block_signatures,
+  }
+end
+
 local Surface = {}
 Surface.__index = Surface
 
@@ -393,11 +431,36 @@ end
 
 function Surface:update(render_result)
   self:_ensure_components()
+
+  local next_signature = render_signature(render_result)
+  local previous_signature = self.last_signature
+  local thread_changed = not previous_signature or previous_signature.thread_id ~= next_signature.thread_id
+  local footer_changed = not previous_signature or previous_signature.footer ~= next_signature.footer
+  local lines_changed = not previous_signature or not vim.deep_equal(previous_signature.lines, next_signature.lines)
+  local blocks_changed = not previous_signature or not vim.deep_equal(previous_signature.blocks, next_signature.blocks)
+  local turn_lines_changed = not previous_signature or not vim.deep_equal(previous_signature.turn_lines, next_signature.turn_lines)
+
   self.last_render = render_result
-  self:_update_thread_context(render_result.thread_id)
-  self:_set_footer(render_result.footer)
-  self:_set_transcript_lines(render_result.lines)
-  self:_render_blocks(render_result.blocks)
+  self.last_signature = next_signature
+
+  if not (thread_changed or footer_changed or lines_changed or blocks_changed or turn_lines_changed) then
+    return
+  end
+
+  self.update_count = (self.update_count or 0) + 1
+
+  if thread_changed then
+    self:_update_thread_context(render_result.thread_id)
+  end
+  if footer_changed then
+    self:_set_footer(render_result.footer)
+  end
+  if lines_changed then
+    self:_set_transcript_lines(render_result.lines)
+  end
+  if lines_changed or blocks_changed then
+    self:_render_blocks(render_result.blocks)
+  end
 
   if self.visible then
     self:_refresh_layout()
@@ -482,6 +545,7 @@ function Surface:inspect()
     blocks = clone_value(self.block_ranges or {}),
     turn_lines = clone_value(self.last_render and self.last_render.turn_lines or {}),
     current_block = self:current_block(),
+    update_count = self.update_count or 0,
   }
 end
 
@@ -498,6 +562,7 @@ function M.new(opts, handlers)
     visible = false,
     block_ranges = {},
     last_render = nil,
+    last_signature = nil,
     last_line_count = 1,
     augroup = vim.api.nvim_create_augroup("NeovimCodexChatSurface", { clear = false }),
   }, Surface)
