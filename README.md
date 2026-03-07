@@ -27,7 +27,7 @@ This repository now implements the first usable in-editor Codex conversation loo
 - exposes health and smoke checks through `:checkhealth neovim_codex` and `:CodexSmoke`
 - handles blocking server-request flows for command approvals, file-change approvals, and tool `requestUserInput` through a dedicated stacked request surface
 
-It does **not** yet implement rewind/fork UI or dynamic tools.
+It does **not** yet implement rewind/fork UI or dynamic tools, but it now includes the first thread-local semantic-composition loop through a workbench tray and compose review overlay.
 
 ## Requirements
 
@@ -120,6 +120,14 @@ Useful thread commands:
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexRequest` - reopen the active approval or question request if one is pending
 
+Workbench and compose commands:
+
+- `:CodexWorkbench` - toggle the thread-local workbench tray
+- `:CodexCompose` - open compose review for the current thread
+- `:CodexCapturePath` - stage the current file as a `path_ref` fragment
+- `:CodexCaptureSelection` - stage the current visual selection as a `code_range` fragment
+- `:CodexCaptureBlock` - stage the selected transcript block as a `chat_block` fragment
+
 ## Commands
 
 - `:CodexStart` - start `codex app-server` and complete the initialize handshake
@@ -128,13 +136,18 @@ Useful thread commands:
 - `:CodexEvents` - open the protocol event log in the stacked viewer layer
 - `:CodexSmoke` - run the current smoke checks and open a report buffer
 - `:CodexChat` - toggle the Codex overlay
-- `:CodexSend` - send the current composer contents
+- `:CodexSend` - send the current composer contents, or open compose review if the workbench is non-empty
 - `:CodexThreadNew` - create a new thread and activate it
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
 - `:CodexRequest` - reopen the active pending Codex request
+- `:CodexWorkbench` - toggle the workbench tray for the active thread
+- `:CodexCompose` - open compose review for the active thread
+- `:CodexCapturePath` - stage the current file as a fragment
+- `:CodexCaptureSelection` - stage the current visual selection as a fragment
+- `:CodexCaptureBlock` - stage the selected transcript block as a fragment
 - `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, `nui.nvim`, and handshake viability
 
 ## Keymaps
@@ -148,6 +161,7 @@ Transcript buffer defaults:
 - `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
+- `gw` - add the selected transcript block to the workbench
 - `g?` - open help for the chat buffer
 
 Composer buffer defaults:
@@ -176,6 +190,10 @@ require("neovim_codex").setup({
       chat = "<leader>ac",
       threads = "<leader>at",
       read_thread = "<leader>aT",
+      workbench = "<leader>aw",
+      compose = "<leader>ap",
+      capture_path = "<leader>af",
+      capture_selection = "<leader>as",
     },
     transcript = {
       focus_composer = "i",
@@ -191,7 +209,7 @@ require("neovim_codex").setup({
 })
 ```
 
-If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for that shell or remap `keymaps.composer.send`.
+If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for that shell or remap `keymaps.composer.send` and `keymaps.compose_review.send`.
 
 ## Protocol-First Transcript Mapping
 

@@ -15,23 +15,43 @@ Use these names consistently in code, UI, docs, and task notes:
 ## `Fragment`
 
 Purpose:
-- represent one captured semantic unit that can be inspected, removed, rendered, and included in the next packet intentionally
+- represent one captured semantic unit that can be inspected, removed, rendered, and intentionally included in the next packet
 
-Minimum fields:
+Implemented v1 fields:
 - `id`
   - stable local identifier
-- `thread_id`
-  - owning thread
 - `kind`
   - one of the allowed fragment kinds
 - `label`
   - concise human-facing identifier for list rendering
-- `summary`
-  - one-line summary for workbench tray rendering
-- `payload`
-  - kind-specific structured content
-- `provenance`
-  - enough information to trace origin without scraping rendered text later
+- `source`
+  - capture origin such as `buffer`, `visual_selection`, or `chat`
+
+Kind-specific fields:
+
+`path_ref`
+- `path`
+- `filetype`
+
+`code_range`
+- `path`
+- `filetype`
+- `range = { start_line, end_line }`
+- `text`
+
+`diagnostic`
+- `source`
+- `code?`
+- `severity?`
+- `path?`
+- `message`
+
+`chat_block`
+- `thread_id`
+- `turn_id`
+- `block_id?`
+- `excerpt?`
+- `text`
 
 ### Allowed `Fragment.kind` values for v1
 
@@ -44,49 +64,17 @@ Only allow these now:
 
 Do not introduce broader fragment kinds until the first workbench loop is exercised.
 
-### `Fragment.payload` by kind
-
-`path_ref`
-- `location: LocationRef`
-
-`code_range`
-- `slice: TextSlice`
-
-`diagnostic`
-- `diagnostic: DiagnosticRef`
-
-`chat_block`
-- `block: ChatBlockRef`
-- optional `slice: TextSlice`
-
-### `Fragment.provenance`
-
-The exact shape may remain lightweight, but it must preserve enough to support:
-
-- inspect
-- remove
-- render in the tray
-- render into the packet preview
-- future export/enrichment work
-
-For v1, provenance should come from existing stable models when possible:
-
-- `LocationRef`
-- `DiagnosticRef`
-- `ChatBlockRef`
-- `TextSlice`
-
 ## `WorkbenchState`
 
 Purpose:
-- hold the staged fragments for one thread
+- hold the staged fragments and compose-review draft message for one thread
 
-Minimum fields:
+Implemented v1 fields:
 - `thread_id`
-- `order`
-  - ordered fragment ids
-- `by_id`
-  - fragment lookup table
+- `fragments_order`
+- `fragments_by_id`
+- `draft_message`
+- `updated_at`
 
 Rules:
 - thread-local only
@@ -99,18 +87,17 @@ Rules:
 Purpose:
 - represent the final outbound turn being prepared for send
 
-Minimum fields:
+Implemented v1 shape:
 - `thread_id`
 - `message_text`
-- `fragment_ids`
-  - the ordered fragment ids being included
+- ordered staged fragments from the active `WorkbenchState`
+- rendered into a single text input item for `turn/start`
 
-Derived views may include:
-- rendered preview lines
-- estimated size
-- grouped summaries
+That rendered text currently has two sections:
+- the covering message, if any
+- `## Workbench Context` with one structured subsection per fragment
 
-But these are projections, not new source-of-truth state.
+This is intentionally simple. It preserves ordering and source identity without pretending the app-server currently has a richer native fragment wire type for these captures.
 
 ## Behavioral Rules
 
@@ -124,7 +111,7 @@ Only fragments present in the active workbench may become part of the packet.
 
 ### 3. Consume on send
 
-The default send behavior should clear the active workbench for that thread after successful packet submission.
+The default send behavior clears the active workbench and its draft message for that thread after successful packet submission.
 
 ### 4. No duplicate hidden state
 
@@ -151,10 +138,10 @@ Fragments must be created from semantic editor or transcript state, not by scrap
 
 ## First Capture Actions
 
-The first supported capture actions should be:
+The first supported capture actions are:
 
 - add current file path to workbench
 - add visual selection as `code_range`
 - add selected transcript block as `chat_block`
 
-Diagnostic capture may be included in the first slice if it falls out cheaply from existing editor state, but it is not required to prove the model.
+Diagnostic capture remains allowed by the contract, but it is not yet part of the first implemented slice.

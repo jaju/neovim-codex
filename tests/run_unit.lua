@@ -354,3 +354,74 @@ end
 if failures > 0 then
   os.exit(1)
 end
+
+
+test("workbench state tracks fragments and per-thread packet draft text", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_workbench",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+  store:dispatch({
+    type = "workbench_fragment_added",
+    thread_id = "thr_workbench",
+    fragment = {
+      id = "frag_path",
+      kind = "path_ref",
+      label = "README.md",
+      path = "/tmp/demo/README.md",
+    },
+  })
+  store:dispatch({
+    type = "workbench_message_updated",
+    thread_id = "thr_workbench",
+    message = "Cover this in the next turn",
+  })
+
+  local workbench = selectors.get_active_workbench(store:get_state())
+  eq(selectors.workbench_fragment_count(store:get_state()), 1)
+  eq(selectors.list_fragments(workbench)[1].id, "frag_path")
+  eq(selectors.workbench_message(workbench), "Cover this in the next turn")
+
+  store:dispatch({ type = "workbench_fragment_removed", thread_id = "thr_workbench", fragment_id = "frag_path" })
+  eq(selectors.workbench_fragment_count(store:get_state()), 0)
+end)
+
+test("packet renderer folds message and fragments into one outbound text item", function()
+  local packet = require("neovim_codex.core.packet")
+  local input = packet.build_input_items("Please review this.", {
+    {
+      id = "frag_path",
+      kind = "path_ref",
+      label = "README.md",
+      path = "/tmp/demo/README.md",
+    },
+    {
+      id = "frag_code",
+      kind = "code_range",
+      label = "src/app.ts:10-14",
+      path = "/tmp/demo/src/app.ts",
+      filetype = "typescript",
+      range = { start_line = 10, end_line = 14 },
+      text = "const value = 1;",
+    },
+  })
+
+  eq(input[1].type, "text")
+  assert(input[1].text:find("## Workbench Context", 1, true), "packet should contain a workbench section")
+  assert(input[1].text:find("```typescript", 1, true), "packet should preserve code fences for code fragments")
+end)

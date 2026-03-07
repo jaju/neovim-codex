@@ -5,6 +5,7 @@ local chat = require("neovim_codex.nvim.chat")
 local presentation = require("neovim_codex.nvim.presentation")
 local requests = require("neovim_codex.nvim.server_requests")
 local smoke = require("neovim_codex.nvim.smoke")
+local workbench = require("neovim_codex.nvim.workbench")
 local renderer = require("neovim_codex.nvim.thread_renderer")
 local transport_mod = require("neovim_codex.nvim.transport")
 
@@ -58,6 +59,22 @@ local defaults = {
         wrap = true,
       },
     },
+    workbench = {
+      tray = {
+        width = 0.34,
+        height = 0.30,
+        border = "rounded",
+        margin_right = 3,
+        margin_bottom = 2,
+      },
+      review = {
+        width = 0.84,
+        height = 0.76,
+        border = "rounded",
+        message_width = 0.62,
+        fragments_width = 0.38,
+      },
+    },
   },
   keymaps = {
     global = {
@@ -67,11 +84,16 @@ local defaults = {
       read_thread = false,
       interrupt = false,
       request = false,
+      workbench = false,
+      compose = false,
+      capture_path = false,
+      capture_selection = false,
     },
     transcript = {
       close = "q",
       focus_composer = "i",
       inspect = "<CR>",
+      capture_block = "gw",
       next_turn = "]]",
       prev_turn = "[[",
       help = "g?",
@@ -88,6 +110,22 @@ local defaults = {
       accept_for_session = "s",
       decline = "d",
       cancel = "c",
+    },
+    workbench = {
+      close = "q",
+      inspect = "<CR>",
+      remove = "dd",
+      clear = "D",
+      compose = "o",
+      focus_message = "i",
+      help = "g?",
+    },
+    compose_review = {
+      send = "<C-s>",
+      send_normal = "gS",
+      close = "q",
+      focus_fragments = "<Tab>",
+      help = "g?",
     },
   },
 }
@@ -130,6 +168,20 @@ local function apply_global_keymaps()
   map_if(keymaps.request, function()
     require("neovim_codex").open_request()
   end, "Open the active Codex request")
+  map_if(keymaps.workbench, function()
+    require("neovim_codex").toggle_workbench()
+  end, "Toggle the Codex workbench")
+  map_if(keymaps.compose, function()
+    require("neovim_codex").open_compose_review()
+  end, "Open Codex compose review")
+  map_if(keymaps.capture_path, function()
+    require("neovim_codex").capture_current_file()
+  end, "Add the current file to the Codex workbench")
+  if keymaps.capture_selection then
+    vim.keymap.set("x", keymaps.capture_selection, function()
+      require("neovim_codex").capture_visual_selection()
+    end, { silent = true, desc = "Add the current selection to the Codex workbench" })
+  end
 end
 
 local function json_codec()
@@ -207,6 +259,24 @@ function ensure_runtime()
       return client:status().status == "stopped"
     end, 50)
   end
+
+  workbench.attach(store, config, {
+    ensure_thread = function(opts)
+      return require("neovim_codex").new_thread(vim.tbl_extend("force", opts or {}, { wait = true, notify = false }))
+    end,
+    submit_packet = function(message, input)
+      return require("neovim_codex").submit_text(message, {
+        input = input,
+        notify = false,
+      })
+    end,
+    after_packet_sent = function()
+      chat.clear_draft()
+    end,
+    current_chat_block = function()
+      return chat.current_block()
+    end,
+  })
 
   return runtime
 end
@@ -374,6 +444,9 @@ local function chat_actions()
     submit_text = function(text)
       return require("neovim_codex").submit_text(text)
     end,
+    capture_block = function()
+      return require("neovim_codex").capture_current_block()
+    end,
   }
 end
 
@@ -528,6 +601,9 @@ function M.send()
   end
 
   reveal_chat(rt)
+  if workbench.has_fragments() then
+    return workbench.open_review(chat.read_draft())
+  end
   return chat.submit()
 end
 
@@ -756,7 +832,68 @@ end
 function M.status()
   local rt = ensure_runtime()
   local state = rt.client:get_state()
-  return presentation.status_line(state.connection, state.threads, state.server_requests)
+  return presentation.status_line(state.connection, state.threads, state.server_requests, state.workbench)
+end
+
+function M.toggle_workbench()
+  local rt, err = ensure_ready(4000)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, true)
+    return nil, err
+  end
+
+  return workbench.toggle()
+end
+
+function M.open_compose_review(opts)
+  opts = opts or {}
+  local rt, err = ensure_ready(opts.timeout_ms or 4000)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+
+  local draft = opts.seed_message
+  if draft == nil then
+    draft = chat.read_draft()
+  end
+  return workbench.open_review(draft)
+end
+
+function M.capture_current_file(opts)
+  opts = opts or {}
+  local result, err = workbench.add_path(opts)
+  if err then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+  return result, nil
+end
+
+function M.capture_visual_selection(opts)
+  opts = opts or {}
+  local result, err = workbench.add_selection(opts)
+  if err then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+  return result, nil
+end
+
+function M.capture_current_block(opts)
+  opts = opts or {}
+  local block = chat.current_block()
+  if not block then
+    notify("No chat block is selected", vim.log.levels.ERROR, opts.notify)
+    return nil, "no chat block is selected"
+  end
+
+  local result, err = workbench.add_chat_block(block, opts)
+  if err then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+  return result, nil
 end
 
 function M.open_events()
@@ -797,6 +934,10 @@ end
 
 function M.get_chat_state()
   return chat.inspect()
+end
+
+function M.get_workbench_state()
+  return workbench.inspect()
 end
 
 function M.get_request_state()

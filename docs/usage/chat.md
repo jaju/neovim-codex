@@ -21,6 +21,8 @@ Run `:CodexChat` again to hide it.
 2. press `<C-s>` or run `:CodexSend`
 3. keep using `<CR>` for newlines inside the draft
 
+If the workbench is non-empty, `:CodexSend` opens compose review instead of sending immediately. Compose review is where the final packet gets assembled from the covering message plus the staged fragments.
+
 If no active thread exists yet, the plugin creates one first and then sends the turn.
 
 If `<C-s>` is captured by your terminal, remap `keymaps.composer.send` or run `stty -ixon` in that shell.
@@ -79,6 +81,7 @@ Transcript buffer:
 - `q` - hide the overlay
 - `i` - jump to the composer
 - `<CR>` - inspect the selected transcript block in the stacked viewer layer
+- `gw` - add the selected transcript block to the workbench
 - `[[` - previous turn
 - `]]` - next turn
 - `g?` - open help
@@ -118,7 +121,7 @@ Set any mapping to `false` to disable it.
 The transcript and composer are plain markdown buffers. The plugin marks them with:
 
 - `b:neovim_codex = true`
-- `b:neovim_codex_role = "transcript" | "composer" | "details" | "events"`
+- `b:neovim_codex_role = "transcript" | "composer" | "details" | "events" | "workbench" | "compose_review_message" | "compose_review_fragments"`
 - `b:neovim_codex_thread_id = <thread-id>`
 
 That means your own markdown ftplugin, treesitter config, render-markdown setup, or custom autocommands can target Codex buffers without special filetypes.
@@ -158,3 +161,80 @@ The overlay also exposes highlight groups for transcript headings, so colorschem
 - a brand-new empty thread may not be resumable yet because the rollout is not materialized
 - reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports
 - raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript stays terse and uses `:CodexInspect` for verbose detail
+
+
+## Workbench and compose review
+
+The workbench is a thread-local staging area for semantic fragments.
+
+You should expect to use it like this:
+
+1. capture context from code or chat
+2. quick-peek the staged fragments in `:CodexWorkbench`
+3. remove stale fragments if needed
+4. open `:CodexCompose` or just press `:CodexSend` from chat
+5. review the packet and send it
+
+The workbench tray is a small floating summary surface. The compose review is the larger finalization surface.
+
+The footer of the chat overlay always shows the active thread id and the number of staged fragments:
+
+- `thread <id> · workbench 3 fragments · ...`
+
+Current capture commands:
+
+- `:CodexCapturePath` - add the current file as a `path_ref`
+- `:CodexCaptureSelection` - add the current visual selection as a `code_range`
+- `:CodexCaptureBlock` - add the currently selected transcript block as a `chat_block`
+
+Transcript buffer defaults now include:
+
+- `gw` - add the selected transcript block to the workbench
+
+Workbench tray defaults:
+
+- `<CR>` - inspect the selected fragment
+- `dd` - remove the selected fragment
+- `D` - clear the active thread workbench
+- `o` - open compose review
+- `q` - close the tray
+
+Compose review defaults:
+
+- `<C-s>` - send the current packet from normal or insert mode
+- `gS` - send the current packet from normal mode
+- `<Tab>` - focus the fragment list from the message editor
+- `q` - close compose review
+
+The workbench is thread-local and consumed on successful send by default.
+
+## Suggested keymap grouping
+
+If you want a coherent global cluster, keep capture and staging actions together and leave movement inside plugin-owned buffers buffer-local. One reasonable starting point is:
+
+```lua
+require("neovim_codex").setup({
+  keymaps = {
+    global = {
+      chat = "<leader>ac",
+      threads = "<leader>at",
+      workbench = "<leader>aw",
+      compose = "<leader>ap",
+      capture_path = "<leader>af",
+      capture_selection = "<leader>as",
+    },
+  },
+})
+```
+
+This keeps the mental grouping simple:
+
+- `a` / agent cluster
+- `c` / chat
+- `t` / threads
+- `w` / workbench
+- `p` / packet / compose review
+- `f` / file
+- `s` / selection
+
+The transcript-local `gw` mapping then becomes the matching capture verb inside the chat world.

@@ -202,6 +202,11 @@ function Surface:_bind_transcript_keymaps(bufnr)
   map_if(keymaps.inspect, "n", function()
     self.handlers.inspect_current_block()
   end, { buffer = bufnr, desc = "Inspect current Codex block" })
+  map_if(keymaps.capture_block, "n", function()
+    if self.handlers.capture_current_block then
+      self.handlers.capture_current_block()
+    end
+  end, { buffer = bufnr, desc = "Add current Codex block to the workbench" })
   map_if(keymaps.next_turn, "n", function()
     self:goto_turn(1)
   end, { buffer = bufnr, desc = "Next Codex turn" })

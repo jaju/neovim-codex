@@ -127,7 +127,7 @@ function M.open_report(name, lines, opts)
   return buf
 end
 
-function M.status_line(connection, threads, server_requests)
+function M.status_line(connection, threads, server_requests, workbench)
   local pieces = {
     string.format("status=%s", connection.status),
     string.format("pid=%s", connection.pid or "-"),
@@ -144,6 +144,10 @@ function M.status_line(connection, threads, server_requests)
   if server_requests and server_requests.active_id then
     pieces[#pieces + 1] = string.format("pending=%d", #(server_requests.order or {}))
   end
+
+  local active_id = threads and threads.active_id or nil
+  local count = active_id and workbench and workbench.by_thread_id and workbench.by_thread_id[active_id] and #((workbench.by_thread_id[active_id].fragments_order) or {}) or 0
+  pieces[#pieces + 1] = string.format("workbench=%d", count)
 
   if connection.last_error then
     pieces[#pieces + 1] = string.format("error=%s", connection.last_error)

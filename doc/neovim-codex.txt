@@ -194,3 +194,12 @@ Then write a short prompt in the composer and send it with `<C-s>`.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:
+
+
+COMMANDS
+
+    :CodexWorkbench      Toggle the workbench tray for the active thread.
+    :CodexCompose        Open compose review for the active thread.
+    :CodexCapturePath    Stage the current file as a path fragment.
+    :CodexCaptureSelection Stage the current visual selection as a code fragment.
+    :CodexCaptureBlock   Stage the selected transcript block as a chat fragment.

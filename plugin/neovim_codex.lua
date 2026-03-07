@@ -54,3 +54,23 @@ end, {})
 vim.api.nvim_create_user_command("CodexRequest", function()
   require("neovim_codex").open_request()
 end, {})
+
+vim.api.nvim_create_user_command("CodexWorkbench", function()
+  require("neovim_codex").toggle_workbench()
+end, {})
+
+vim.api.nvim_create_user_command("CodexCompose", function()
+  require("neovim_codex").open_compose_review()
+end, {})
+
+vim.api.nvim_create_user_command("CodexCapturePath", function()
+  require("neovim_codex").capture_current_file()
+end, {})
+
+vim.api.nvim_create_user_command("CodexCaptureSelection", function()
+  require("neovim_codex").capture_visual_selection()
+end, { range = true })
+
+vim.api.nvim_create_user_command("CodexCaptureBlock", function()
+  require("neovim_codex").capture_current_block()
+end, {})

@@ -273,6 +273,28 @@ local function merge_thread(state, thread_data, opts)
   return thread
 end
 
+local function ensure_workbench(state, thread_id)
+  if not thread_id then
+    return nil
+  end
+
+  local workbench = state.workbench.by_thread_id[thread_id]
+  if workbench then
+    return workbench
+  end
+
+  workbench = {
+    thread_id = thread_id,
+    fragments_order = {},
+    fragments_by_id = {},
+    draft_message = "",
+    updated_at = nil,
+  }
+
+  state.workbench.by_thread_id[thread_id] = workbench
+  return workbench
+end
+
 local function clear_server_requests(state)
   state.server_requests = {
     active_id = nil,
@@ -337,6 +359,53 @@ local function resolve_server_request(state, request_id)
   if state.server_requests.active_id == key then
     state.server_requests.active_id = state.server_requests.order[#state.server_requests.order]
   end
+end
+
+local function add_workbench_fragment(state, thread_id, fragment)
+  local workbench = ensure_workbench(state, thread_id)
+  if not workbench then
+    return nil
+  end
+
+  workbench.fragments_by_id[fragment.id] = clone(fragment)
+  upsert_order(workbench.fragments_order, fragment.id)
+  workbench.updated_at = now_iso()
+  return workbench
+end
+
+local function remove_workbench_fragment(state, thread_id, fragment_id)
+  local workbench = ensure_workbench(state, thread_id)
+  if not workbench then
+    return nil
+  end
+
+  workbench.fragments_by_id[fragment_id] = nil
+  remove_order(workbench.fragments_order, fragment_id)
+  workbench.updated_at = now_iso()
+  return workbench
+end
+
+local function clear_workbench(state, thread_id)
+  local workbench = ensure_workbench(state, thread_id)
+  if not workbench then
+    return nil
+  end
+
+  workbench.fragments_order = {}
+  workbench.fragments_by_id = {}
+  workbench.updated_at = now_iso()
+  return workbench
+end
+
+local function set_workbench_message(state, thread_id, message)
+  local workbench = ensure_workbench(state, thread_id)
+  if not workbench then
+    return nil
+  end
+
+  workbench.draft_message = tostring(message or "")
+  workbench.updated_at = now_iso()
+  return workbench
 end
 
 local function reducer(state, event)
@@ -490,6 +559,14 @@ local function reducer(state, event)
     mark_server_request_responded(next_state, event.request_id, event.response)
   elseif event.type == "server_request_resolved" then
     resolve_server_request(next_state, event.request_id)
+  elseif event.type == "workbench_fragment_added" then
+    add_workbench_fragment(next_state, event.thread_id, event.fragment)
+  elseif event.type == "workbench_fragment_removed" then
+    remove_workbench_fragment(next_state, event.thread_id, event.fragment_id)
+  elseif event.type == "workbench_cleared" then
+    clear_workbench(next_state, event.thread_id)
+  elseif event.type == "workbench_message_updated" then
+    set_workbench_message(next_state, event.thread_id, event.message)
   end
 
   if event.log_entry then
@@ -522,6 +599,9 @@ function M.new(opts)
       active_id = nil,
       order = {},
       by_id = {},
+    },
+    workbench = {
+      by_thread_id = {},
     },
     logs = {},
     settings = {

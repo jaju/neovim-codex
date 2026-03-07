@@ -20,6 +20,11 @@ assert(vim.fn.exists(":CodexThreadNew") == 2, "CodexThreadNew command should exi
 assert(vim.fn.exists(":CodexThreads") == 2, "CodexThreads command should exist")
 assert(vim.fn.exists(":CodexThreadRead") == 2, "CodexThreadRead command should exist")
 assert(vim.fn.exists(":CodexRequest") == 2, "CodexRequest command should exist")
+assert(vim.fn.exists(":CodexWorkbench") == 2, "CodexWorkbench command should exist")
+assert(vim.fn.exists(":CodexCompose") == 2, "CodexCompose command should exist")
+assert(vim.fn.exists(":CodexCapturePath") == 2, "CodexCapturePath command should exist")
+assert(vim.fn.exists(":CodexCaptureSelection") == 2, "CodexCaptureSelection command should exist")
+assert(vim.fn.exists(":CodexCaptureBlock") == 2, "CodexCaptureBlock command should exist")
 assert(type(require("neovim_codex.health").check) == "function", "health module should expose check()")
 assert(pcall(require, "nui.popup"), "nui.nvim should be available on runtimepath")
 
@@ -102,6 +107,33 @@ if #list_result.data > 0 then
   assert(codex.get_state().threads.active_id == list_result.data[1].id, "resumed stored thread should become active")
 end
 
+
+require("neovim_codex.nvim.presentation").close_viewers()
+
+vim.cmd(string.format("edit %s", vim.fn.fnameescape(repo_root .. "/README.md")))
+local path_fragment, path_err = codex.capture_current_file({ notify = false })
+assert(path_err == nil, path_err or "current file capture should succeed")
+assert(path_fragment.kind == "path_ref", "current file capture should stage a path_ref fragment")
+assert(codex.get_workbench_state().thread_id == codex.get_state().threads.active_id, "workbench should stay thread-local to the active thread")
+assert(codex.get_workbench_state().workbench.fragments_order[1] == path_fragment.id, "captured file should appear in the active workbench")
+
+codex.toggle_workbench()
+assert(codex.get_workbench_state().tray.visible == true, "workbench tray should open")
+codex.toggle_workbench()
+assert(codex.get_workbench_state().tray.visible == false, "workbench tray should toggle closed")
+
+vim.fn.setpos("'<", { 0, 1, 1, 0 })
+vim.fn.setpos("'>", { 0, 3, 1, 0 })
+local selection_fragment, selection_err = codex.capture_visual_selection({ notify = false })
+assert(selection_err == nil, selection_err or "visual selection capture should succeed")
+assert(selection_fragment.kind == "code_range", "visual selection capture should stage a code_range fragment")
+
+local before_review_count = #codex.get_workbench_state().workbench.fragments_order
+codex.open_compose_review({ seed_message = "Cover these staged references in the next turn." })
+local review_state = codex.get_workbench_state().review
+assert(review_state.visible == true, "compose review should open when requested")
+assert(review_state.thread_id == codex.get_state().threads.active_id, "compose review should show the active thread")
+assert(#review_state.fragments == before_review_count, "compose review should show the staged fragments")
 
 require("neovim_codex.nvim.presentation").close_viewers()
 

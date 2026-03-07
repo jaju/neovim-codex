@@ -104,4 +104,41 @@ function M.pending_request_count(state)
   return #(state.server_requests.order or {})
 end
 
+function M.get_workbench(state, thread_id)
+  local key = thread_id or (state.threads and state.threads.active_id)
+  if not key then
+    return nil
+  end
+  return state.workbench.by_thread_id[key]
+end
+
+function M.get_active_workbench(state)
+  return M.get_workbench(state, state.threads.active_id)
+end
+
+function M.list_fragments(workbench)
+  if not workbench then
+    return {}
+  end
+  return copy_ordered(workbench.fragments_order, workbench.fragments_by_id)
+end
+
+function M.get_fragment(workbench, fragment_id)
+  if not workbench or not fragment_id then
+    return nil
+  end
+  return workbench.fragments_by_id[fragment_id]
+end
+
+function M.workbench_fragment_count(state, thread_id)
+  return #M.list_fragments(M.get_workbench(state, thread_id))
+end
+
+function M.workbench_message(workbench)
+  if not workbench then
+    return ""
+  end
+  return workbench.draft_message or ""
+end
+
 return M

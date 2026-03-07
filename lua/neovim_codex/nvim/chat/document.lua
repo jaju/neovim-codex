@@ -350,11 +350,12 @@ local function turn_title(turn, index)
   return string.format("## Turn %d", index)
 end
 
-local function thread_footer(thread, pending_requests)
+local function thread_footer(state, thread, pending_requests)
   local turns = selectors.list_turns(thread)
   local status = thread.status and thread.status.type or "unknown"
   local active_turn = selectors.get_turn(thread, thread.turns_order[#thread.turns_order])
   local status_bits = { status }
+  local fragment_count = state and selectors.workbench_fragment_count(state, thread.id) or 0
 
   if active_turn and active_turn.status == "inProgress" then
     local running = in_progress_item_count(active_turn)
@@ -369,7 +370,15 @@ local function thread_footer(thread, pending_requests)
     status_bits[#status_bits + 1] = string.format("%d request%s pending", pending_requests, pending_requests == 1 and "" or "s")
   end
 
-  return string.format("thread %s · %d turn%s · %s", thread.id, #turns, #turns == 1 and "" or "s", table.concat(status_bits, " · "))
+  return string.format(
+    "thread %s · workbench %d fragment%s · %d turn%s · %s",
+    thread.id,
+    fragment_count,
+    fragment_count == 1 and "" or "s",
+    #turns,
+    #turns == 1 and "" or "s",
+    table.concat(status_bits, " · ")
+  )
 end
 
 local function summarize_user_message(item)
@@ -768,10 +777,11 @@ end
 local function project_thread(thread, opts)
   opts = opts or {}
 
+  local pending_requests = opts.state and selectors.pending_request_count(opts.state) or 0
   local doc = {
     title = opts.title,
     thread_id = thread.id,
-    footer = thread_footer(thread, selectors.pending_request_count(opts.state or {})),
+    footer = thread_footer(opts.state, thread, pending_requests),
     blocks = {},
   }
 

@@ -177,6 +177,36 @@ function M.toggle(store, opts, actions)
   return show_overlay()
 end
 
+function M.read_draft()
+  if not ensure_surface() then
+    return ""
+  end
+  return state.composer:read()
+end
+
+function M.set_draft(text)
+  if not ensure_surface() then
+    return false
+  end
+  state.composer:set_text(text or "")
+  return true
+end
+
+function M.clear_draft()
+  if not ensure_surface() then
+    return false
+  end
+  state.composer:clear()
+  return true
+end
+
+function M.current_block()
+  if not ensure_surface() then
+    return nil
+  end
+  return state.surface:current_block()
+end
+
 function M.submit()
   if not ensure_surface() then
     return nil, "chat overlay is unavailable"
