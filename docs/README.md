@@ -1,6 +1,16 @@
 # Documentation Index
 
-This repository keeps documentation in four categories.
+This repository keeps documentation in five categories.
+
+## Vision
+
+Use these when the question is what the product is trying to become, not only how the current implementation works.
+
+- `vision/README.md` - entrypoint and load order for long-lived design memory
+- `vision/tenets.md` - central product rules that should stay stable across features
+- `vision/workspace-model.md` - the code world and conversation world as two first-class semantic domains
+- `vision/context-mobility.md` - how context should move between code, chat, and the next turn
+- `vision/composer-fragments.md` - the target model for semantic composition of follow-up turns
 
 ## Stable Architecture
 
@@ -33,6 +43,7 @@ Use these as compact project memory snapshots that can be injected later.
 - `episodes/0005-overlay-chat-ui.md` - how the split prompt UI was refactored into a markdown overlay with semantic rendering
 - `episodes/0006-protocol-first-projection.md` - why transcript projection now follows the app-server protocol types directly
 - `episodes/0007-conversation-first-inspector.md` - how the overlay split into conversation, activity, and details surfaces
+- `episodes/0008-vision-tree.md` - why long-lived product intent now lives under `docs/vision/`
 
 ## Update Rule
 

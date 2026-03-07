@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [0.3.0] - 2026-03-06
 
 ### Added
+- `docs/vision/` as a stable design-memory tree with central tenets, workspace model, context-mobility, and composer-fragment vision docs.
 - Centered overlay chat UI built on `nui.nvim` instead of the earlier split layout.
 - A multiline markdown composer with explicit send via `:CodexSend`, `<C-s>`, or `gS`.
 - Semantic `ChatDocument` projection and markdown renderer between raw app-server state and the chat UI.
