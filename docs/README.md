@@ -2,6 +2,24 @@
 
 This repository keeps documentation in six categories.
 
+## Fast Paths
+
+Use these before scanning the whole tree:
+
+- app-server protocol, contract, or drift questions:
+  - source of truth is `CODEX_REPO_ROOT`, expected from local `.envrc` via `direnv`
+  - start with `contracts/codex-app-server/README.md`
+  - then read `contracts/codex-app-server/drift-policy.md`
+  - use `./scripts/contracts-check` for the default drift check
+- user-facing behavior or current command surface:
+  - start with `../README.md`
+  - then read `usage/chat.md` if the question is about day-to-day flows
+- local development workflow:
+  - start with `development/workflow.md`
+- codebase structure or projection rules:
+  - start with `architecture/layers.md`
+  - then read `architecture/protocol-first.md`
+
 ## Vision
 
 Use these when the question is what the product is trying to become, not only how the current implementation works.
@@ -57,6 +75,7 @@ Use these as compact project memory snapshots that can be injected later.
 - `episodes/0007-conversation-first-inspector.md` - how the overlay split into conversation, activity, and details surfaces
 - `episodes/0008-vision-tree.md` - why long-lived product intent now lives under `docs/vision/`
 - `episodes/0009-contracts-and-drift.md` - why the plugin now keeps a narrow watched app-server contract and checks it for drift
+- `episodes/0010-codex-repo-root-and-agent-start-points.md` - why contract drift now routes through `CODEX_REPO_ROOT` and agent-facing start points
 
 ## Update Rule
 

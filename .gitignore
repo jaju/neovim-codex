@@ -1,5 +1,6 @@
 *.log
 *.tmp
+.envrc
 .DS_Store
 .nvim.log
 

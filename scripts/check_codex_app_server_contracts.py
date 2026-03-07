@@ -2,6 +2,11 @@
 """Check the watched Codex app-server schema surface for drift.
 
 Usage:
+  python3 scripts/check_codex_app_server_contracts.py
+
+  python3 scripts/check_codex_app_server_contracts.py \
+    --codex-repo /path/to/codex
+
   python3 scripts/check_codex_app_server_contracts.py \
     --schema-dir /path/to/schema/typescript
 
@@ -18,14 +23,23 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+CODEX_REPO_ENV = "CODEX_REPO_ROOT"
+CODEX_SCHEMA_SUBDIR = Path("codex-rs/app-server-protocol/schema/typescript")
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--codex-repo",
+        type=Path,
+        help=f"Path to the Codex checkout root. Defaults to ${CODEX_REPO_ENV} when set.",
+    )
     parser.add_argument(
         "--schema-dir",
         type=Path,
@@ -78,16 +92,43 @@ def all_watched_files(manifest: dict) -> list[tuple[str, str]]:
     return watched
 
 
+def require_schema_dir(schema_dir: Path, source: str) -> Path:
+    schema_dir = schema_dir.resolve()
+    if not (schema_dir / "v2").is_dir():
+        raise SystemExit(f"{source} resolved to {schema_dir}, but it does not contain v2/.")
+    return schema_dir
+
+
+def schema_dir_from_codex_repo(codex_repo: Path, source: str) -> Path:
+    codex_repo = codex_repo.resolve()
+    if not codex_repo.is_dir():
+        raise SystemExit(f"{source} {codex_repo} is not a directory.")
+    schema_dir = codex_repo / CODEX_SCHEMA_SUBDIR
+    return require_schema_dir(
+        schema_dir,
+        f"{source} {codex_repo} via {CODEX_SCHEMA_SUBDIR}",
+    )
+
+
 def resolve_schema_root(args: argparse.Namespace) -> tuple[Path, tempfile.TemporaryDirectory[str] | None]:
-    if args.schema_dir and args.generate:
-        raise SystemExit("Choose either --schema-dir or --generate, not both.")
-    if not args.schema_dir and not args.generate:
-        raise SystemExit("Provide either --schema-dir or --generate.")
+    explicit_modes = [
+        args.codex_repo is not None,
+        args.schema_dir is not None,
+        args.generate,
+    ]
+    if sum(1 for enabled in explicit_modes if enabled) > 1:
+        raise SystemExit("Choose only one of --codex-repo, --schema-dir, or --generate.")
+    if args.codex_repo:
+        return schema_dir_from_codex_repo(args.codex_repo, "--codex-repo"), None
     if args.schema_dir:
-        schema_dir = args.schema_dir.resolve()
-        if not (schema_dir / "v2").is_dir():
-            raise SystemExit(f"Schema dir {schema_dir} does not contain v2/.")
-        return schema_dir, None
+        return require_schema_dir(args.schema_dir, "--schema-dir"), None
+    env_repo = os.environ.get(CODEX_REPO_ENV)
+    if env_repo:
+        return schema_dir_from_codex_repo(Path(env_repo), f"${CODEX_REPO_ENV}"), None
+    if not args.generate:
+        raise SystemExit(
+            f"Provide --codex-repo, --schema-dir, or --generate, or set ${CODEX_REPO_ENV}."
+        )
 
     tempdir: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory(prefix="neovim-codex-schema-")
     out_dir = Path(tempdir.name)

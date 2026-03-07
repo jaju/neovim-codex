@@ -1,0 +1,2 @@
+# Local Codex checkout used as the app-server contract source of truth.
+export CODEX_REPO_ROOT="$HOME/src/codex"

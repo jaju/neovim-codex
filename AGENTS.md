@@ -1,5 +1,22 @@
 # Agent Instructions
 
+## Repository Entry Points
+
+Start with these files instead of reverse-deriving intent from code:
+
+- `README.md` for current user-facing behavior, command surface, and status
+- `docs/README.md` for the documentation index and question-to-file routing
+- `docs/development/workflow.md` for the current local development and verification loop
+
+For Codex app-server protocol, contract, or drift questions:
+
+- the upstream source of truth is the local Codex checkout at `CODEX_REPO_ROOT`
+- `CODEX_REPO_ROOT` is expected to come from a local `.envrc` loaded by `direnv`
+- start with `docs/contracts/codex-app-server/README.md`
+- then read `docs/contracts/codex-app-server/drift-policy.md`
+- machine-checked artifacts live at `contracts/codex-app-server/watch-manifest.json`, `contracts/codex-app-server/snapshots/`, and `scripts/check_codex_app_server_contracts.py`
+- prefer `./scripts/contracts-check` for drift checks; use `--generate` only when intentionally comparing against the installed `codex` binary instead of the configured checkout
+
 ## Issue Tracking
 
 This repository uses `bd` (beads) for task tracking.

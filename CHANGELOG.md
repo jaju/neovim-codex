@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
+- `scripts/contracts-check` as the stable entrypoint for app-server contract drift checks.
+- Agent-facing repository entry points in `AGENTS.md` so protocol-contract questions start from the docs index and contract docs instead of code spelunking.
+
+### Changed
+- `scripts/check_codex_app_server_contracts.py` now resolves the Codex source-of-truth checkout from `--codex-repo` or `CODEX_REPO_ROOT` before falling back to installed-binary generation.
+- `./scripts/test` now runs the contract drift check automatically when `CODEX_REPO_ROOT` is present in the environment.
+- Contract and development docs now route protocol-contract work through the configured Codex checkout and the `./scripts/contracts-check` wrapper.
+
 ## [0.3.0] - 2026-03-06
 
 ### Added

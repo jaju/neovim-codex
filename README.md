@@ -252,12 +252,17 @@ The overlay also exposes heading highlight groups you can override in your own c
 
 The plugin keeps a narrow watched contract for the Codex app-server surface it depends on.
 
+- the upstream source of truth is the local Codex checkout at `CODEX_REPO_ROOT`
+- `CODEX_REPO_ROOT` is intended to come from a local `.envrc` loaded by `direnv`
 - human-facing contract docs live under `docs/contracts/`
 - the machine-checked manifest lives at `contracts/codex-app-server/watch-manifest.json`
 - checked snapshots of the watched generated TypeScript files live under `contracts/codex-app-server/snapshots/`
 - `scripts/check_codex_app_server_contracts.py` compares the current Codex schema against those snapshots
+- `./scripts/contracts-check` is the preferred drift-check entrypoint
 
-Use this when the local Codex source tree or the installed `codex` binary changes and you want to detect drift intentionally instead of discovering it later through broken UI behavior.
+Create a local `.envrc` from `.envrc.example`, point `CODEX_REPO_ROOT` at your Codex checkout root, then run `direnv allow`.
+
+Use `./scripts/contracts-check` when the local Codex source tree changes and `./scripts/contracts-check --generate` when you intentionally want to compare against the installed `codex` binary instead of the configured checkout.
 
 ## Development Workflow
 

@@ -12,10 +12,14 @@ Do not mirror the entire app-server protocol.
 
 Use these in order:
 
-1. the live app-server source and generated schema in the Codex repository
+1. the live app-server source and generated schema in the Codex repository rooted at `CODEX_REPO_ROOT`
 2. the checked-in watched manifest under `contracts/codex-app-server/watch-manifest.json`
 3. the checked-in snapshots under `contracts/codex-app-server/snapshots/`
 4. the docs in this directory that explain why each watched area matters
+
+`CODEX_REPO_ROOT` is expected to come from a local `.envrc` loaded by `direnv`. The drift checker derives the schema path from that checkout as `codex-rs/app-server-protocol/schema/typescript`.
+
+Use `./scripts/contracts-check` for the default source-of-truth comparison. Use `./scripts/contracts-check --generate` only when you intentionally want to compare against the installed `codex` binary instead of the configured checkout.
 
 ## Current Interest Areas
 

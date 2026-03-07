@@ -12,8 +12,9 @@ From the repository root:
 
 This runs:
 
-1. pure Lua unit checks for the JSON-RPC decoder, state store, and chat-document projection
-2. a headless NeoVim integration run that validates:
+1. the app-server contract drift check when `CODEX_REPO_ROOT` is present in the environment
+2. pure Lua unit checks for the JSON-RPC decoder, state store, and chat-document projection
+3. a headless NeoVim integration run that validates:
    - plugin load
    - overlay chat creation
    - thread start/list/read/resume command surface
@@ -23,24 +24,48 @@ This runs:
 
 ## Contract drift checks
 
-Use this when the Codex source tree or local `codex` binary changes and you want to know whether the plugin's watched app-server surface drifted.
+The primary source of truth is the Codex checkout at `CODEX_REPO_ROOT`, typically loaded from a local `.envrc` by `direnv`.
+
+Example `.envrc`:
+
+```bash
+export CODEX_REPO_ROOT="$HOME/src/codex"
+```
+
+After creating or updating `.envrc`, run:
+
+```bash
+direnv allow
+```
+
+Use this when the Codex source tree changes and you want to know whether the plugin's watched app-server surface drifted:
+
+```bash
+./scripts/contracts-check
+```
 
 Against a Codex source checkout:
 
 ```bash
-python3 scripts/check_codex_app_server_contracts.py   --schema-dir /path/to/codex-rs/app-server-protocol/schema/typescript
+./scripts/contracts-check --codex-repo /path/to/codex
 ```
 
 Against the installed `codex` binary:
 
 ```bash
-python3 scripts/check_codex_app_server_contracts.py --generate
+./scripts/contracts-check --generate
+```
+
+Use a direct schema dir only when the schema lives outside the normal Codex repo layout:
+
+```bash
+./scripts/contracts-check --schema-dir /path/to/codex-rs/app-server-protocol/schema/typescript
 ```
 
 Refresh the checked-in snapshots only after reviewing the drift and updating code/docs intentionally:
 
 ```bash
-python3 scripts/check_codex_app_server_contracts.py   --schema-dir /path/to/codex-rs/app-server-protocol/schema/typescript   --update
+./scripts/contracts-check --update
 ```
 
 ## Dogfood loop inside NeoVim

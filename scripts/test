@@ -3,5 +3,9 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 
+if [[ -n "${CODEX_REPO_ROOT:-}" ]]; then
+  "$repo_root/scripts/contracts-check"
+fi
+
 nvim --headless -u NONE -i NONE -l "$repo_root/tests/run_unit.lua"
 nvim --headless -u NONE -i NONE -l "$repo_root/tests/run_integration.lua"
