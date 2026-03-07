@@ -29,6 +29,7 @@ Use these when the question is what the product is trying to become, not only ho
 - `vision/workspace-model.md` - the code world and conversation world as two first-class semantic domains
 - `vision/context-mobility.md` - how context should move between code, chat, and the next turn
 - `vision/composer-fragments.md` - the target model for semantic composition of follow-up turns
+- `vision/workbench-model.md` - the UX and state model for thread-local staged context and compose review
 
 ## Contracts
 
@@ -40,6 +41,7 @@ Use these when the question is what upstream or internal surface we are intentio
 - `contracts/codex-app-server/drift-policy.md` - how to detect and review app-server drift
 - `contracts/neovim/README.md` - the NeoVim-side boundary rule and abstraction focus
 - `contracts/neovim/core-models.md` - the stable small internal models worth preserving
+- `contracts/neovim/workbench-packet.md` - the minimal contract for staged fragments, thread-local workbench state, and outbound packets
 - `contracts/neovim/ui-surface-mapping.md` - how semantic content maps to transcript, details, modals, and events
 
 ## Stable Architecture
@@ -75,7 +77,9 @@ Use these as compact project memory snapshots that can be injected later.
 - `episodes/0007-conversation-first-inspector.md` - how the overlay split into conversation, activity, and details surfaces
 - `episodes/0008-vision-tree.md` - why long-lived product intent now lives under `docs/vision/`
 - `episodes/0009-contracts-and-drift.md` - why the plugin now keeps a narrow watched app-server contract and checks it for drift
+- `episodes/0010-server-request-ui.md` - how command approvals and tool questions became first-class stacked request flows
 - `episodes/0010-codex-repo-root-and-agent-start-points.md` - why contract drift now routes through `CODEX_REPO_ROOT` and agent-facing start points
+- `episodes/0011-workbench-packet-contract.md` - why staged context, workbench state, and packet assembly are now frozen before implementation
 
 ## Update Rule
 

@@ -25,6 +25,26 @@ Use for:
 
 Do not persist ephemeral status inline when it adds no reasoning value.
 
+## Workbench Tray
+
+Use for:
+- quick-peek visibility into the staged fragments for the active thread
+- lightweight fragment removal
+- compact per-fragment summaries
+- an obvious transition point into compose review
+
+The tray should stay summary-first.
+It is not a second transcript and not the final edit surface.
+
+## Compose Review
+
+Use for:
+- editing the covering message
+- reviewing the ordered staged fragments for the active thread
+- inspecting what will become the outbound packet before send
+
+This is the deliberate finalization surface, not the always-on capture surface.
+
 ## Details Inspector / Viewer Stack
 
 Use for:
@@ -59,6 +79,8 @@ This is the debugging truth surface, not the main reading surface.
 ## Selection And Composition Rule
 
 Any information shown in transcript or details should eventually be selectable as structured follow-up material.
+
+Thread visibility must remain explicit across chat footer, workbench tray, and compose review so staged context never feels detached from its owning conversation.
 
 That requires:
 - stable semantic block identities

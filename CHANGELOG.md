@@ -6,11 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
+- `docs/vision/workbench-model.md`, `docs/contracts/neovim/workbench-packet.md`, and `docs/episodes/0011-workbench-packet-contract.md` to lock the next semantic-composition slice around thread-local workbench state and outbound packet assembly.
 - `scripts/contracts-check` as the stable entrypoint for app-server contract drift checks.
 - Agent-facing repository entry points in `AGENTS.md` so protocol-contract questions start from the docs index and contract docs instead of code spelunking.
 
 ### Changed
 - `scripts/check_codex_app_server_contracts.py` now resolves the Codex source-of-truth checkout from `--codex-repo` or `CODEX_REPO_ROOT` before falling back to installed-binary generation.
+- Vision and NeoVim contract docs now describe `fragment -> workbench -> packet` as the next implementation boundary, including the workbench tray and compose-review UI surfaces.
 - `./scripts/test` now runs the contract drift check automatically when `CODEX_REPO_ROOT` is present in the environment.
 - Contract and development docs now route protocol-contract work through the configured Codex checkout and the `./scripts/contracts-check` wrapper.
 

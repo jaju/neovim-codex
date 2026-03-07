@@ -58,8 +58,9 @@ The better model is:
 
 - capture a semantic fragment
 - preserve provenance
-- append it into a composition surface
-- render a clear outgoing preview before send
+- stage it in a thread-local workbench
+- open compose review when deliberate control is needed
+- render a clear outgoing packet preview before send
 
 ## UX Bias
 
@@ -77,3 +78,14 @@ Examples of desirable verbs:
 ## Why This Matters
 
 Once context mobility becomes natural, the plugin stops being “chat in NeoVim” and becomes a real accelerator for follow-up reasoning and implementation.
+
+## Workbench Rule
+
+Captured context should not disappear into the composer immediately.
+
+It should first become visible in a thread-local workbench so the user can:
+
+- quick-peek current staged context
+- remove fragments easily
+- verify thread ownership
+- move into compose review deliberately

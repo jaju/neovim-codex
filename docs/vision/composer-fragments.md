@@ -13,8 +13,8 @@ The next meaningful step is to make the outgoing turn semantically composable.
 A future turn should be assembled from:
 
 1. user-authored instruction text
-2. ordered semantic fragments
-3. a rendered preview of what Codex will receive
+2. ordered semantic fragments staged in a thread-local workbench
+3. a rendered preview of what Codex will receive as the outbound packet
 
 ## Fragment Types
 
@@ -70,3 +70,20 @@ It exists to keep implementation pointed at the right target:
 - semantic composition
 - provenance preservation
 - low-friction movement from source to next turn
+
+## First Stable Slice
+
+The first implementation slice should stay narrow:
+
+- `path_ref`
+- `code_range`
+- `diagnostic`
+- `chat_block`
+
+And the first capture actions should be:
+
+- current file path
+- visual selection as code range
+- selected transcript block
+
+This is enough to prove the model before adding richer semantic capture sources.

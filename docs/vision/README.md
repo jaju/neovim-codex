@@ -33,6 +33,8 @@ This tree captures the stable direction so future work does not drift into:
   - how information should move between the codebase, the chat surface, and the next-turn composer
 - `vision/composer-fragments.md`
   - the target model for semantic composition of follow-up turns
+- `vision/workbench-model.md`
+  - why staged context should live in a thread-local workbench and a deliberate compose review flow
 
 ## Relationship To Other Docs
 

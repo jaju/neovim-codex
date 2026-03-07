@@ -18,4 +18,5 @@ The current abstractions intentionally stay small:
 - diagnostics and semantic slices
 - transcript block references
 - future compose fragments
+- workbench and packet assembly state
 - UI surface mapping from semantic content to transcript/activity/details/modal/events
