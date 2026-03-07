@@ -122,14 +122,14 @@ Useful thread commands:
 - `:CodexStart` - start `codex app-server` and complete the initialize handshake
 - `:CodexStop` - stop the running app-server process
 - `:CodexStatus` - print current connection state and active thread id
-- `:CodexEvents` - open a scratch buffer with the protocol event log
+- `:CodexEvents` - open the protocol event log in the stacked viewer layer
 - `:CodexSmoke` - run the current smoke checks and open a report buffer
 - `:CodexChat` - toggle the Codex overlay
 - `:CodexSend` - send the current composer contents
 - `:CodexThreadNew` - create a new thread and activate it
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
-- `:CodexInspect` - open a details popup for the selected transcript block
+- `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
 - `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, `nui.nvim`, and handshake viability
 
@@ -141,7 +141,7 @@ Transcript buffer defaults:
 
 - `q` - hide the overlay
 - `i` - focus the composer
-- `<CR>` - inspect the selected transcript block in a popup
+- `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
 - `g?` - open help for the chat buffer
@@ -191,7 +191,7 @@ Examples:
 - failed or unknown commands stay compact in the transcript but open into a details inspector on demand
 - typed item families such as file changes, tool calls, review mode, and context compaction each map to their own UI surface with their raw protocol preserved
 
-The raw wire payload for each rendered item is preserved in transcript block metadata for future plucking, filtering, export, or enrichment flows.
+The raw wire payload for each rendered item is preserved in transcript block metadata for future plucking, filtering, export, or enrichment flows. Secondary viewers like `:CodexInspect`, `:CodexEvents`, and reports now share a popup stack so the latest focused viewer can be closed back to the previous one with `q` or `<Esc>`.
 
 For the design contract, see [`docs/architecture/protocol-first.md`](docs/architecture/protocol-first.md).
 

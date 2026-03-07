@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file.
 - The thread report renderer now uses the same markdown projection path as the live chat UI.
 - Health checks now verify `nui.nvim` in addition to the existing app-server smoke path.
 - Verbose command, tool, and reasoning detail now lives behind `:CodexInspect` instead of occupying the main transcript by default.
+- Events, reports, and transcript inspection now share a stacked popup layer instead of opening as unrelated windows or hidden splits.
 - Legacy chat config keys are normalized into the new overlay/composer configuration shape.
 
 ## [0.2.0] - 2026-03-06

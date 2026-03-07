@@ -1,4 +1,5 @@
 local selectors = require("neovim_codex.core.selectors")
+local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 
 local M = {}
 
@@ -69,14 +70,24 @@ end
 function M.open_events(store)
   if not state.events_buf or not vim.api.nvim_buf_is_valid(state.events_buf) then
     state.events_buf = vim.api.nvim_create_buf(false, true)
-    vim.bo[state.events_buf].bufhidden = "wipe"
-    vim.bo[state.events_buf].filetype = "json"
+    vim.bo[state.events_buf].bufhidden = "hide"
+    vim.bo[state.events_buf].filetype = "markdown"
     vim.api.nvim_buf_set_name(state.events_buf, "neovim-codex://events")
+    vim.b[state.events_buf].neovim_codex = true
+    vim.b[state.events_buf].neovim_codex_role = "events"
   end
 
-  vim.cmd("botright split")
-  vim.api.nvim_win_set_buf(0, state.events_buf)
   refresh_events(store)
+  viewer_stack.open({
+    key = "events",
+    title = "Codex Events",
+    role = "events",
+    filetype = "markdown",
+    width = 0.84,
+    height = 0.72,
+    wrap = false,
+    lines = vim.api.nvim_buf_get_lines(state.events_buf, 0, -1, false),
+  })
 
   if state.unsubscribe then
     state.unsubscribe()
@@ -86,6 +97,15 @@ function M.open_events(store)
   state.unsubscribe = store:subscribe(function()
     vim.schedule(function()
       refresh_events(store)
+      viewer_stack.refresh("events", {
+        title = "Codex Events",
+        role = "events",
+        filetype = "markdown",
+        width = 0.84,
+        height = 0.72,
+        wrap = false,
+        lines = vim.api.nvim_buf_get_lines(state.events_buf, 0, -1, false),
+      })
     end)
   end)
 end
@@ -93,9 +113,17 @@ end
 function M.open_report(name, lines, opts)
   opts = opts or {}
   local buf = ensure_report_buffer(name, opts.filetype)
-  vim.cmd(opts.command or "botright split")
-  vim.api.nvim_win_set_buf(0, buf)
   set_buffer_lines(buf, lines)
+  viewer_stack.open({
+    key = string.format("report:%s", name),
+    title = opts.title or name,
+    role = opts.role or "report",
+    filetype = opts.filetype or "markdown",
+    width = opts.width or 0.78,
+    height = opts.height or 0.74,
+    wrap = opts.wrap ~= false,
+    lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false),
+  })
   return buf
 end
 
@@ -118,6 +146,14 @@ function M.status_line(connection, threads)
   end
 
   return table.concat(pieces, " ")
+end
+
+function M.close_viewers()
+  viewer_stack.close_all()
+end
+
+function M.inspect_viewers()
+  return viewer_stack.inspect()
 end
 
 return M

@@ -34,6 +34,7 @@ The key rule did not change: all of these still project from the typed app-serve
 
 - `<CR>` on a transcript block opens `:CodexInspect` details for that block
 - `:CodexInspect` exposes full command text, output, and typed metadata without polluting the main transcript
+- `:CodexEvents` and report viewers now open in the same stacked popup layer, so secondary widgets no longer disappear behind the main overlay
 - in-progress execution moves to the footer instead of appearing as inline chatter
 
 ## What remains later

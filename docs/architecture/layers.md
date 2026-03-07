@@ -10,13 +10,14 @@
 6. `lua/neovim_codex/nvim/chat/document.lua`
 7. `lua/neovim_codex/nvim/chat/render.lua`
 8. `lua/neovim_codex/nvim/chat/composer.lua`
-9. `lua/neovim_codex/nvim/chat/details.lua`
-10. `lua/neovim_codex/nvim/chat/surface.lua`
-11. `lua/neovim_codex/nvim/thread_renderer.lua`
-12. `lua/neovim_codex/nvim/presentation.lua`
-13. `lua/neovim_codex/nvim/chat.lua`
-14. `lua/neovim_codex/init.lua`
-15. `plugin/neovim_codex.lua`
+9. `lua/neovim_codex/nvim/viewer_stack.lua`
+10. `lua/neovim_codex/nvim/chat/details.lua`
+11. `lua/neovim_codex/nvim/chat/surface.lua`
+12. `lua/neovim_codex/nvim/thread_renderer.lua`
+13. `lua/neovim_codex/nvim/presentation.lua`
+14. `lua/neovim_codex/nvim/chat.lua`
+15. `lua/neovim_codex/init.lua`
+16. `plugin/neovim_codex.lua`
 
 The core layers must remain free of `vim` dependencies.
 
@@ -28,7 +29,8 @@ The core layers must remain free of `vim` dependencies.
 - the projector converts that truth into semantic blocks with explicit UI surfaces
 - the renderer converts semantic blocks into markdown lines plus render metadata
 - the surface owns the primary transcript/composer overlay
-- the details module owns verbose block inspection without changing the transcript contract
+- the viewer stack owns secondary widget layering and pop-back behavior
+- the details module formats verbose block inspection without changing the transcript contract
 
 UI modules should not inspect raw store internals directly when the same information already exists in `ChatDocument`.
 

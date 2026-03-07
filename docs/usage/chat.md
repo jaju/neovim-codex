@@ -40,7 +40,7 @@ You should expect to see:
 
 You should not expect the main transcript to become a raw protocol dump or a live execution log.
 
-Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing.
+Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing. Both now open in the same stacked viewer layer above the chat overlay, so `q` or `<Esc>` closes the latest viewer and returns you to the previous one.
 
 ## Thread commands
 
@@ -55,7 +55,7 @@ Transcript buffer:
 
 - `q` - hide the overlay
 - `i` - jump to the composer
-- `<CR>` - inspect the selected transcript block
+- `<CR>` - inspect the selected transcript block in the stacked viewer layer
 - `[[` - previous turn
 - `]]` - next turn
 - `g?` - open help

@@ -1,3 +1,5 @@
+local presentation = require("neovim_codex.nvim.presentation")
+
 local M = {}
 
 local state = {
@@ -216,6 +218,7 @@ function M.focus_composer()
 end
 
 function M.close()
+  presentation.close_viewers()
   if state.details then
     state.details:hide()
   end
@@ -233,6 +236,7 @@ function M.inspect()
   surface_state.document = clone_value(state.last_document)
   surface_state.render = clone_value(state.last_render)
   surface_state.details = state.details and state.details:inspect() or {}
+  surface_state.viewers = presentation.inspect_viewers()
   return surface_state
 end
 

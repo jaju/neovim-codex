@@ -1,4 +1,4 @@
-local Popup = nil
+local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 
 local M = {}
 
@@ -299,149 +299,42 @@ function M.render_block(block)
   return { title = title, lines = lines }
 end
 
-local function valid_buffer(bufnr)
-  return bufnr and vim.api.nvim_buf_is_valid(bufnr)
-end
-
-local function valid_window(winid)
-  return winid and vim.api.nvim_win_is_valid(winid)
-end
-
 local Details = {}
 Details.__index = Details
-
-function Details:_overlay_config()
-  local ui = vim.api.nvim_list_uis()[1]
-  local total_width = ui and ui.width or vim.o.columns
-  local total_height = ui and ui.height or vim.o.lines
-  local opts = self.opts.ui.chat.details or {}
-  local width = math.max(60, math.floor(total_width * (opts.width or 0.72)))
-  local height = math.max(16, math.floor(total_height * (opts.height or 0.68)))
-  return {
-    position = {
-      row = math.max(1, math.floor((total_height - height) / 2)),
-      col = math.max(1, math.floor((total_width - width) / 2)),
-    },
-    size = { width = width, height = height },
-  }
-end
-
-function Details:_ensure_buffer()
-  if valid_buffer(self.bufnr) then
-    return self.bufnr
-  end
-
-  local bufnr = vim.api.nvim_create_buf(false, true)
-  self.bufnr = bufnr
-  vim.bo[bufnr].buftype = "nofile"
-  vim.bo[bufnr].bufhidden = "hide"
-  vim.bo[bufnr].swapfile = false
-  vim.bo[bufnr].modifiable = false
-  vim.bo[bufnr].filetype = "markdown"
-  vim.api.nvim_buf_set_name(bufnr, "neovim-codex://chat/details")
-  vim.b[bufnr].neovim_codex = true
-  vim.b[bufnr].neovim_codex_role = "details"
-
-  local function close()
-    self:hide()
-  end
-  vim.keymap.set("n", "q", close, { buffer = bufnr, silent = true, desc = "Close Codex details" })
-  vim.keymap.set("n", "<Esc>", close, { buffer = bufnr, silent = true, desc = "Close Codex details" })
-  return bufnr
-end
-
-function Details:_ensure_popup(title)
-  if not Popup then
-    local ok, popup_mod = pcall(require, "nui.popup")
-    if not ok then
-      error(popup_mod)
-    end
-    Popup = popup_mod
-  end
-
-  if self.popup then
-    self.popup.border:set_text("top", string.format(" %s ", title or "Details"), "center")
-    return self.popup
-  end
-
-  local overlay = self:_overlay_config()
-  self.popup = Popup({
-    enter = true,
-    focusable = true,
-    relative = "editor",
-    position = overlay.position,
-    size = overlay.size,
-    zindex = 60,
-    border = {
-      style = ((self.opts.ui.chat.details or {}).border) or "rounded",
-      text = {
-        top = string.format(" %s ", title or "Details"),
-        top_align = "center",
-      },
-    },
-    bufnr = self:_ensure_buffer(),
-    win_options = {
-      winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder",
-    },
-  })
-  return self.popup
-end
-
-function Details:_set_lines(lines)
-  local bufnr = self:_ensure_buffer()
-  vim.bo[bufnr].modifiable = true
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
-  vim.bo[bufnr].modifiable = false
-end
 
 function Details:show(block)
   local rendered = M.render_block(block)
   self.last_block = block
   self.last_render = rendered
 
-  if self:is_visible() then
-    self:hide()
-  end
-
-  local popup = self:_ensure_popup(rendered.title)
-  local overlay = self:_overlay_config()
-  popup:update({
-    relative = "editor",
-    position = overlay.position,
-    size = overlay.size,
-    border = {
-      style = ((self.opts.ui.chat.details or {}).border) or "rounded",
-      text = { top = string.format(" %s ", rendered.title or "Details"), top_align = "center" },
-    },
+  viewer_stack.open({
+    key = "details",
+    title = rendered.title or "Details",
+    role = "details",
+    filetype = "markdown",
+    width = ((self.opts.ui.chat.details or {}).width) or 0.72,
+    height = ((self.opts.ui.chat.details or {}).height) or 0.68,
+    border = ((self.opts.ui.chat.details or {}).border) or "rounded",
+    wrap = ((self.opts.ui.chat.details or {}).wrap) ~= false,
+    lines = rendered.lines,
   })
-  self:_set_lines(rendered.lines)
-  popup:mount()
-
-  if valid_window(popup.winid) then
-    vim.wo[popup.winid].number = false
-    vim.wo[popup.winid].relativenumber = false
-    vim.wo[popup.winid].signcolumn = "no"
-    vim.wo[popup.winid].wrap = ((self.opts.ui.chat.details or {}).wrap) ~= false
-    vim.wo[popup.winid].linebreak = ((self.opts.ui.chat.details or {}).wrap) ~= false
-    vim.api.nvim_set_current_win(popup.winid)
-  end
 end
 
 function Details:hide()
-  if self.popup and self.popup._ and self.popup._.mounted then
-    self.popup:unmount()
-  end
+  viewer_stack.close("details")
 end
 
 function Details:is_visible()
-  return self.popup and self.popup._ and self.popup._.mounted or false
+  local stack = viewer_stack.inspect()
+  local top = stack.top
+  return top ~= nil and top.key == "details" and top.visible == true
 end
 
 function Details:inspect()
+  local viewer = viewer_stack.inspect()
   return {
     visible = self:is_visible(),
-    bufnr = self.bufnr,
-    winid = self.popup and self.popup.winid or nil,
+    stack = viewer.stack,
     last_render = self.last_render,
   }
 end

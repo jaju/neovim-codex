@@ -18,7 +18,7 @@ COMMANDS                                               *neovim-codex-commands*
     Print the current connection state and active thread id.
 
 :CodexEvents
-    Open a scratch buffer with the current protocol event log.
+    Open the protocol event log in the stacked viewer layer.
 
 :CodexSmoke
     Run the current smoke checks and open a report buffer.
@@ -39,7 +39,7 @@ COMMANDS                                               *neovim-codex-commands*
     Read a thread into a report buffer without resuming it.
 
 :CodexInspect
-    Open a details popup for the selected transcript block.
+    Open a details viewer for the selected transcript block.
 
 :CodexInterrupt
     Interrupt the current running turn, if one exists.
@@ -83,7 +83,7 @@ Default transcript mappings:
 
 - `q` hide the overlay
 - `i` focus the composer
-- `<CR>` inspect the selected transcript block
+- `<CR>` inspect the selected transcript block in the stacked viewer layer
 - `[[` jump to the previous turn
 - `]]` jump to the next turn
 - `g?` open this help topic
@@ -101,6 +101,8 @@ individual mappings to `false`.
 
 If `<C-s>` is captured by terminal flow control, remap
 `keymaps.composer.send` or run `stty -ixon`.
+
+Secondary viewers like `:CodexInspect`, `:CodexEvents`, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one.
 
 ==============================================================================
 MARKDOWN CONTRACT                                     *neovim-codex-markdown*

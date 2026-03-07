@@ -49,6 +49,17 @@ assert(hidden_chat_state.container_win == nil or not vim.api.nvim_win_is_valid(h
 codex.chat()
 assert(codex.get_chat_state().visible == true, "chat command should toggle the overlay open again")
 
+codex.open_events()
+local event_viewers = codex.get_chat_state().viewers
+assert(event_viewers.top and event_viewers.top.key == "events", "events should open in the stacked viewer layer")
+
+local inspect_block, inspect_err = codex.inspect_current_block({ notify = false })
+assert(inspect_err == nil, inspect_err or "inspect should succeed for the current transcript block")
+assert(inspect_block ~= nil, "inspect should return the selected block")
+local detail_viewers = codex.get_chat_state().viewers
+assert(detail_viewers.top and detail_viewers.top.key == "details", "details should become the top viewer after inspect")
+require("neovim_codex.nvim.presentation").close_viewers()
+
 local thread_result, thread_err = codex.new_thread({
   notify = false,
   open_chat = false,

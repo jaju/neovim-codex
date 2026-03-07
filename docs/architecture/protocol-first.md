@@ -86,4 +86,4 @@ The main transcript should prioritize:
 
 The main transcript should not become a raw protocol dump, a progress log, or a place where every typed item gets equal visual weight.
 
-Detailed payloads belong in a secondary inspection surface. Raw notifications, request payloads, and unfiltered low-level debugging belong in `:CodexEvents`.
+Detailed payloads belong in a secondary inspection surface. Raw notifications, request payloads, and unfiltered low-level debugging belong in `:CodexEvents`. Secondary surfaces should behave like a stack: latest viewer on top, `q`/`<Esc>` pops back to the previous viewer or the base chat surface.
