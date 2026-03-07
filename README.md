@@ -126,7 +126,7 @@ Workbench and compose commands:
 - `:CodexCompose` - open compose review for the current thread
 - `:CodexCapturePath` - stage the current file as a `path_ref` fragment
 - `:CodexCaptureSelection` - stage the current visual selection as a `code_range` fragment
-- `:CodexCaptureBlock` - stage the selected transcript block as a `chat_block` fragment
+- workbench capture is code-world first in this slice; chat text can still be copied manually when needed
 
 ## Commands
 
@@ -146,8 +146,7 @@ Workbench and compose commands:
 - `:CodexWorkbench` - toggle the workbench tray for the active thread
 - `:CodexCompose` - open compose review for the active thread
 - `:CodexCapturePath` - stage the current file as a fragment
-- `:CodexCaptureSelection` - stage the current visual selection as a fragment
-- `:CodexCaptureBlock` - stage the selected transcript block as a fragment
+- `:CodexCaptureSelection` - stage the current visual selection as a code fragment
 - `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, `nui.nvim`, and handshake viability
 
 ## Keymaps
@@ -161,7 +160,6 @@ Transcript buffer defaults:
 - `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
-- `gw` - add the selected transcript block to the workbench
 - `g?` - open help for the chat buffer
 
 Composer buffer defaults:

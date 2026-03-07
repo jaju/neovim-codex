@@ -596,7 +596,7 @@ local function summarize_tool_call(item)
         break
       end
     end
-  elseif item.type == "mcpToolCall" and item.error and present(item.error.message) then
+  elseif item.type == "mcpToolCall" and type(item.error) == "table" and present(item.error.message) then
     preview = plain_snippet(item.error.message, 96)
   elseif item.type == "mcpToolCall" and item.result then
     preview = json_preview(item.result)

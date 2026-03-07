@@ -78,12 +78,11 @@ The first implementation slice should stay narrow:
 - `path_ref`
 - `code_range`
 - `diagnostic`
-- `chat_block`
 
 And the first capture actions should be:
 
 - current file path
 - visual selection as code range
-- selected transcript block
+- diagnostic under cursor
 
-This is enough to prove the model before adding richer semantic capture sources.
+This is enough to prove the model before adding richer semantic capture sources. Chat text can still be copied manually when it is genuinely worth reusing.

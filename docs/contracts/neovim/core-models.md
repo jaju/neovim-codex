@@ -55,34 +55,16 @@ Use for:
 - sending a precise failure into the next turn
 - future targeted validation flows
 
-## 4. `ChatBlockRef`
+## 4. `ComposeFragment`
 
 Purpose:
-- refer to a semantic block from the Codex conversation world without scraping display text later
-
-Fields:
-- `thread_id`
-- `turn_id`
-- `block_id`
-- `kind`
-- `title`
-- `excerpt`
-
-Use for:
-- plucking context out of transcript or details viewers
-- building next-turn context from prior conversation state
-
-## 5. `ComposeFragment`
-
-Purpose:
-- represent the future seam between the code world and the conversation world
+- represent the future seam between the code world and the outbound Codex packet
 
 Kinds to allow now:
 - plain text
 - path reference
 - code slice
 - diagnostic reference
-- chat block reference
 
 Minimum rule:
 - every fragment should preserve enough provenance to be rendered, inspected, and reused intentionally

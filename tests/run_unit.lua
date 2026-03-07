@@ -340,22 +340,6 @@ test("details renderer keeps verbose command data behind an inspector surface", 
   assert(table.concat(rendered.lines, "\n"):find("## Output", 1, true), "details should include aggregated output")
 end)
 
-for _, case in ipairs(tests) do
-  local ok, err = pcall(case.fn)
-  if ok then
-    print("ok - " .. case.name)
-  else
-    failures = failures + 1
-    print("not ok - " .. case.name)
-    print(err)
-  end
-end
-
-if failures > 0 then
-  os.exit(1)
-end
-
-
 test("workbench state tracks fragments and per-thread packet draft text", function()
   local selectors = require("neovim_codex.core.selectors")
   local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
@@ -425,3 +409,18 @@ test("packet renderer folds message and fragments into one outbound text item", 
   assert(input[1].text:find("## Workbench Context", 1, true), "packet should contain a workbench section")
   assert(input[1].text:find("```typescript", 1, true), "packet should preserve code fences for code fragments")
 end)
+
+for _, case in ipairs(tests) do
+  local ok, err = pcall(case.fn)
+  if ok then
+    print("ok - " .. case.name)
+  else
+    failures = failures + 1
+    print("not ok - " .. case.name)
+    print(err)
+  end
+end
+
+if failures > 0 then
+  os.exit(1)
+end

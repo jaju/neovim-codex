@@ -1,5 +1,6 @@
 local packet = require("neovim_codex.core.packet")
 local presentation = require("neovim_codex.nvim.presentation")
+local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 
 local M = {}
 
@@ -53,6 +54,9 @@ local function ensure_modules()
   end
 
   state.tray = tray_mod.new(state.opts, {
+    close = function()
+      viewer_stack.close("workbench-tray")
+    end,
     inspect = function(fragment)
       M.inspect_fragment(fragment)
     end,
@@ -71,6 +75,9 @@ local function ensure_modules()
   })
 
   state.review = review_mod.new(state.opts, {
+    close = function()
+      viewer_stack.close("compose-review")
+    end,
     send = function()
       M.send_packet()
     end,
@@ -116,10 +123,22 @@ local function refresh_ui()
   end
 
   local workbench, thread_id = active_workbench()
+  if not thread_id then
+    return nil, "No active thread for compose review"
+  end
   local fragments = selectors().list_fragments(workbench)
   local message = selectors().workbench_message(workbench)
-  state.tray:update(thread_id, fragments)
-  state.review:update(thread_id, message, fragments)
+  if viewer_stack.is_open("workbench-tray") then
+    viewer_stack.refresh("workbench-tray", M._tray_viewer_spec(thread_id, fragments))
+  else
+    state.tray:update(thread_id, fragments)
+  end
+
+  if viewer_stack.is_open("compose-review") then
+    viewer_stack.refresh("compose-review", M._review_viewer_spec(thread_id, message, fragments))
+  else
+    state.review:update(thread_id, message, fragments)
+  end
 end
 
 local function attach(store)
@@ -148,6 +167,24 @@ local function display_path(path)
     return "~" .. text:sub(#home + 1)
   end
   return text
+end
+
+local function current_file_target()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local path = vim.api.nvim_buf_get_name(bufnr)
+  if path == "" then
+    return nil, "Current buffer is not backed by a file"
+  end
+
+  if vim.bo[bufnr].buftype ~= "" or path:match("^neovim%-codex://") then
+    return nil, "Current buffer is not a normal file buffer"
+  end
+
+  return {
+    bufnr = bufnr,
+    path = path,
+    filetype = vim.bo[bufnr].filetype,
+  }, nil
 end
 
 local function ensure_thread(opts)
@@ -194,7 +231,13 @@ function M.toggle()
   end
 
   local workbench, thread_id = active_workbench()
-  return state.tray:toggle(thread_id, selectors().list_fragments(workbench)), nil
+  if viewer_stack.is_open("workbench-tray") then
+    viewer_stack.close("workbench-tray")
+    return false, nil
+  end
+
+  viewer_stack.open(M._tray_viewer_spec(thread_id, selectors().list_fragments(workbench)))
+  return true, nil
 end
 
 function M.open_review(seed_message)
@@ -203,14 +246,20 @@ function M.open_review(seed_message)
   end
 
   local workbench, thread_id = active_workbench()
-  local fragments = selectors().list_fragments(workbench)
-  if seed_message ~= nil then
-    state.store:dispatch({ type = "workbench_message_updated", thread_id = thread_id, message = seed_message })
-    workbench = selectors().get_active_workbench(state.store:get_state())
+  if not thread_id then
+    return nil, "No active thread"
   end
 
-  state.tray:hide()
-  state.review:show(thread_id, selectors().workbench_message(workbench), fragments)
+  local fragments = selectors().list_fragments(workbench)
+  local current_message = selectors().workbench_message(workbench)
+  if seed_message ~= nil and current_message == "" then
+    state.store:dispatch({ type = "workbench_message_updated", thread_id = thread_id, message = seed_message })
+    workbench = selectors().get_active_workbench(state.store:get_state())
+    current_message = selectors().workbench_message(workbench)
+  end
+
+  viewer_stack.close("workbench-tray")
+  viewer_stack.open(M._review_viewer_spec(thread_id, current_message, fragments))
   return true, nil
 end
 
@@ -225,9 +274,9 @@ end
 
 function M.add_path(opts)
   opts = opts or {}
-  local path = vim.api.nvim_buf_get_name(0)
-  if path == "" then
-    return nil, "Current buffer is not backed by a file"
+  local target, err = current_file_target()
+  if err then
+    return nil, err
   end
 
   local thread_id, err = ensure_thread({ notify = false, open_chat = false })
@@ -238,9 +287,9 @@ function M.add_path(opts)
   local fragment = {
     id = now_id("path"),
     kind = "path_ref",
-    label = display_path(path),
-    path = path,
-    filetype = vim.bo[0].filetype,
+    label = display_path(target.path),
+    path = target.path,
+    filetype = target.filetype,
     source = "buffer",
   }
 
@@ -249,9 +298,9 @@ end
 
 function M.add_selection(opts)
   opts = opts or {}
-  local path = vim.api.nvim_buf_get_name(0)
-  if path == "" then
-    return nil, "Current buffer is not backed by a file"
+  local target, err = current_file_target()
+  if err then
+    return nil, err
   end
 
   local start_pos = vim.fn.getpos("'<")
@@ -265,7 +314,7 @@ function M.add_selection(opts)
     start_line, end_line = end_line, start_line
   end
 
-  local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
+  local lines = vim.api.nvim_buf_get_lines(target.bufnr, start_line - 1, end_line, false)
   local text = table.concat(lines, "\n")
   if vim.trim(text) == "" then
     return nil, "Visual selection is empty"
@@ -276,48 +325,16 @@ function M.add_selection(opts)
     return nil, err
   end
 
-  local label = string.format("%s:%d-%d", display_path(path), start_line, end_line)
+  local label = string.format("%s:%d-%d", display_path(target.path), start_line, end_line)
   local fragment = {
     id = now_id("code"),
     kind = "code_range",
     label = label,
-    path = path,
-    filetype = vim.bo[0].filetype,
+    path = target.path,
+    filetype = target.filetype,
     range = { start_line = start_line, end_line = end_line },
     text = text,
     source = "visual_selection",
-  }
-
-  return add_fragment_for_thread(thread_id, fragment, opts)
-end
-
-function M.add_chat_block(block, opts)
-  opts = opts or {}
-  local candidate = block
-  if not candidate and state.actions and state.actions.current_chat_block then
-    candidate = state.actions.current_chat_block()
-  end
-  if not candidate then
-    return nil, "No chat block is selected"
-  end
-
-  local thread_id, err = ensure_thread({ notify = false, open_chat = false })
-  if err then
-    return nil, err
-  end
-
-  local label = candidate.title or candidate.heading or candidate.kind or "chat block"
-  local text = table.concat(candidate.lines or {}, "\n")
-  local fragment = {
-    id = now_id("chat"),
-    kind = "chat_block",
-    label = label,
-    excerpt = candidate.title or label,
-    text = text,
-    thread_id = candidate.thread_id,
-    turn_id = candidate.turn_id,
-    block_id = candidate.id,
-    source = "chat",
   }
 
   return add_fragment_for_thread(thread_id, fragment, opts)
@@ -388,7 +405,7 @@ function M.send_packet()
   if state.actions.after_packet_sent then
     state.actions.after_packet_sent()
   end
-  state.review:hide()
+  viewer_stack.close("compose-review")
   refresh_ui()
   return result, nil
 end
@@ -417,6 +434,68 @@ function M.inspect()
     workbench = clone_value(workbench),
     tray = state.tray and state.tray:inspect() or {},
     review = state.review and state.review:inspect() or {},
+    viewers = viewer_stack.inspect(),
+  }
+end
+
+function M._tray_viewer_spec(thread_id, fragments)
+  return {
+    key = "workbench-tray",
+    title = "Workbench",
+    role = "workbench",
+    thread_id = thread_id,
+    fragments = clone_value(fragments or {}),
+    surface = {
+      open = function(entry)
+        state.tray:show(entry.spec.thread_id, entry.spec.fragments)
+      end,
+      refresh = function(entry)
+        state.tray:update(entry.spec.thread_id, entry.spec.fragments)
+      end,
+      hide = function()
+        state.tray:hide()
+      end,
+      focus = function()
+        state.tray:focus()
+      end,
+      is_visible = function()
+        return state.tray:is_visible()
+      end,
+      inspect = function()
+        return state.tray:inspect()
+      end,
+    },
+  }
+end
+
+function M._review_viewer_spec(thread_id, message, fragments)
+  return {
+    key = "compose-review",
+    title = string.format("Compose review · thread %s", thread_id or "none"),
+    role = "compose_review",
+    thread_id = thread_id,
+    message = message or "",
+    fragments = clone_value(fragments or {}),
+    surface = {
+      open = function(entry)
+        state.review:show(entry.spec.thread_id, entry.spec.message, entry.spec.fragments)
+      end,
+      refresh = function(entry)
+        state.review:update(entry.spec.thread_id, entry.spec.message, entry.spec.fragments)
+      end,
+      hide = function()
+        state.review:hide()
+      end,
+      focus = function()
+        state.review:focus_message()
+      end,
+      is_visible = function()
+        return state.review:is_visible()
+      end,
+      inspect = function()
+        return state.review:inspect()
+      end,
+    },
   }
 end
 

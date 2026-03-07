@@ -81,7 +81,6 @@ Transcript buffer:
 - `q` - hide the overlay
 - `i` - jump to the composer
 - `<CR>` - inspect the selected transcript block in the stacked viewer layer
-- `gw` - add the selected transcript block to the workbench
 - `[[` - previous turn
 - `]]` - next turn
 - `g?` - open help
@@ -169,7 +168,7 @@ The workbench is a thread-local staging area for semantic fragments.
 
 You should expect to use it like this:
 
-1. capture context from code or chat
+1. capture context from code buffers
 2. quick-peek the staged fragments in `:CodexWorkbench`
 3. remove stale fragments if needed
 4. open `:CodexCompose` or just press `:CodexSend` from chat
@@ -185,11 +184,8 @@ Current capture commands:
 
 - `:CodexCapturePath` - add the current file as a `path_ref`
 - `:CodexCaptureSelection` - add the current visual selection as a `code_range`
-- `:CodexCaptureBlock` - add the currently selected transcript block as a `chat_block`
+- chat text can still be copied manually when needed; the workbench stays code-first in this slice
 
-Transcript buffer defaults now include:
-
-- `gw` - add the selected transcript block to the workbench
 
 Workbench tray defaults:
 
@@ -237,4 +233,4 @@ This keeps the mental grouping simple:
 - `f` / file
 - `s` / selection
 
-The transcript-local `gw` mapping then becomes the matching capture verb inside the chat world.
+The transcript stays a reading and inspection surface. Workbench capture is deliberately code-first for now.

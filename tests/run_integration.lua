@@ -24,7 +24,7 @@ assert(vim.fn.exists(":CodexWorkbench") == 2, "CodexWorkbench command should exi
 assert(vim.fn.exists(":CodexCompose") == 2, "CodexCompose command should exist")
 assert(vim.fn.exists(":CodexCapturePath") == 2, "CodexCapturePath command should exist")
 assert(vim.fn.exists(":CodexCaptureSelection") == 2, "CodexCaptureSelection command should exist")
-assert(vim.fn.exists(":CodexCaptureBlock") == 2, "CodexCaptureBlock command should exist")
+assert(vim.fn.exists(":CodexCaptureBlock") == 0, "CodexCaptureBlock command should not exist")
 assert(type(require("neovim_codex.health").check) == "function", "health module should expose check()")
 assert(pcall(require, "nui.popup"), "nui.nvim should be available on runtimepath")
 
@@ -119,6 +119,8 @@ assert(codex.get_workbench_state().workbench.fragments_order[1] == path_fragment
 
 codex.toggle_workbench()
 assert(codex.get_workbench_state().tray.visible == true, "workbench tray should open")
+local tray_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(tray_viewers.top and tray_viewers.top.key == "workbench-tray", "workbench tray should open through the stacked viewer layer")
 codex.toggle_workbench()
 assert(codex.get_workbench_state().tray.visible == false, "workbench tray should toggle closed")
 
@@ -129,13 +131,26 @@ assert(selection_err == nil, selection_err or "visual selection capture should s
 assert(selection_fragment.kind == "code_range", "visual selection capture should stage a code_range fragment")
 
 local before_review_count = #codex.get_workbench_state().workbench.fragments_order
-codex.open_compose_review({ seed_message = "Cover these staged references in the next turn." })
+local review_result, review_err = codex.open_compose_review({ seed_message = "Preserve this review draft" })
+assert(review_err == nil, review_err or "compose review should open when requested")
+assert(review_result ~= nil, "compose review should return state when opened")
 local review_state = codex.get_workbench_state().review
 assert(review_state.visible == true, "compose review should open when requested")
 assert(review_state.thread_id == codex.get_state().threads.active_id, "compose review should show the active thread")
 assert(#review_state.fragments == before_review_count, "compose review should show the staged fragments")
+assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft", "compose review should seed the initial workbench draft")
+local review_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(review_viewers.top and review_viewers.top.key == "compose-review", "compose review should open through the stacked viewer layer")
+
+codex.open_compose_review({ seed_message = "Do not overwrite this." })
+assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft", "compose review should not overwrite an existing workbench draft")
 
 require("neovim_codex.nvim.presentation").close_viewers()
+
+vim.cmd("enew")
+local invalid_path, invalid_path_err = codex.capture_current_file({ notify = false })
+assert(invalid_path == nil, "scratch buffer should not capture a path fragment")
+assert(invalid_path_err == "Current buffer is not backed by a file" or invalid_path_err == "Current buffer is not a normal file buffer", "scratch buffer path capture should fail cleanly")
 
 local request_store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
 local selectors = require("neovim_codex.core.selectors")

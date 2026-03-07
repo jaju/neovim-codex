@@ -93,7 +93,6 @@ local defaults = {
       close = "q",
       focus_composer = "i",
       inspect = "<CR>",
-      capture_block = "gw",
       next_turn = "]]",
       prev_turn = "[[",
       help = "g?",
@@ -273,9 +272,6 @@ function ensure_runtime()
     after_packet_sent = function()
       chat.clear_draft()
     end,
-    current_chat_block = function()
-      return chat.current_block()
-    end,
   })
 
   return runtime
@@ -443,9 +439,6 @@ local function chat_actions()
   return {
     submit_text = function(text)
       return require("neovim_codex").submit_text(text)
-    end,
-    capture_block = function()
-      return require("neovim_codex").capture_current_block()
     end,
   }
 end
@@ -873,22 +866,6 @@ end
 function M.capture_visual_selection(opts)
   opts = opts or {}
   local result, err = workbench.add_selection(opts)
-  if err then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-  return result, nil
-end
-
-function M.capture_current_block(opts)
-  opts = opts or {}
-  local block = chat.current_block()
-  if not block then
-    notify("No chat block is selected", vim.log.levels.ERROR, opts.notify)
-    return nil, "no chat block is selected"
-  end
-
-  local result, err = workbench.add_chat_block(block, opts)
   if err then
     notify(err, vim.log.levels.ERROR, opts.notify)
     return nil, err

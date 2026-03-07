@@ -105,10 +105,6 @@ function M.fragment_preview(fragment)
     return plain_snippet(fragment.message or fragment.label, 88) or heading_label(fragment)
   end
 
-  if fragment.kind == "chat_block" then
-    return plain_snippet(fragment.excerpt or fragment.label, 88) or heading_label(fragment)
-  end
-
   return plain_snippet(fragment.text or fragment.label, 88) or heading_label(fragment)
 end
 
@@ -146,10 +142,6 @@ function M.fragment_detail_lines(fragment)
     body_lines = { string.format("```%s", fence) }
     append_lines(body_lines, split_lines(fragment.text))
     body_lines[#body_lines + 1] = "```"
-  elseif fragment.kind == "chat_block" then
-    for _, line in ipairs(split_lines(fragment.text)) do
-      body_lines[#body_lines + 1] = line == "" and ">" or "> " .. line
-    end
   else
     append_lines(body_lines, split_lines(fragment.text or fragment.message or fragment.label or ""))
   end
@@ -194,20 +186,6 @@ local function render_fragment_lines(fragment)
     if fragment.message then
       lines[#lines + 1] = ""
       append_lines(lines, split_lines(fragment.message))
-    end
-    return lines
-  end
-
-  if fragment.kind == "chat_block" then
-    if fragment.thread_id then
-      lines[#lines + 1] = string.format("- Thread: `%s`", fragment.thread_id)
-    end
-    if fragment.turn_id then
-      lines[#lines + 1] = string.format("- Turn: `%s`", fragment.turn_id)
-    end
-    lines[#lines + 1] = ""
-    for _, line in ipairs(split_lines(fragment.text)) do
-      lines[#lines + 1] = line == "" and ">" or "> " .. line
     end
     return lines
   end

@@ -265,7 +265,7 @@ function M.render_block(block)
     if protocol.result then
       append_section(lines, "## Result", json_lines(protocol.result))
     end
-    if protocol.error and present(protocol.error.message) then
+    if type(protocol.error) == "table" and present(protocol.error.message) then
       append_section(lines, "## Error", { protocol.error.message })
     end
     return { title = title, lines = lines }

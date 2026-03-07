@@ -202,4 +202,3 @@ COMMANDS
     :CodexCompose        Open compose review for the active thread.
     :CodexCapturePath    Stage the current file as a path fragment.
     :CodexCaptureSelection Stage the current visual selection as a code fragment.
-    :CodexCaptureBlock   Stage the selected transcript block as a chat fragment.

@@ -7,6 +7,8 @@ local state = {
   stack = {},
 }
 
+local apply_window_options
+
 local function valid_buffer(bufnr)
   return bufnr and vim.api.nvim_buf_is_valid(bufnr)
 end
@@ -66,6 +68,14 @@ local function resolve_dimension(value, total, minimum)
 end
 
 local function overlay_config(spec)
+  if spec.relative and spec.position and spec.size then
+    return {
+      relative = spec.relative,
+      position = clone_value(spec.position),
+      size = clone_value(spec.size),
+    }
+  end
+
   local ui = vim.api.nvim_list_uis()[1]
   local total_width = ui and ui.width or vim.o.columns
   local total_height = ui and ui.height or vim.o.lines
@@ -83,6 +93,59 @@ local function overlay_config(spec)
       height = height,
     },
   }
+end
+
+local function entry_visible(entry)
+  if not entry then
+    return false
+  end
+
+  if entry.surface and entry.surface.is_visible then
+    return entry.surface.is_visible(entry) == true
+  end
+
+  return entry.popup and entry.popup._ and entry.popup._.mounted or false
+end
+
+local function hide_entry(entry)
+  if not entry then
+    return
+  end
+
+  if entry.surface and entry.surface.hide then
+    entry.surface.hide(entry)
+    return
+  end
+
+  if entry.popup and entry.popup._ and entry.popup._.mounted then
+    entry.popup:hide()
+  end
+end
+
+local function show_entry(entry)
+  if not entry then
+    return
+  end
+
+  if entry.surface and entry.surface.open then
+    entry.surface.open(entry)
+    if entry.surface.focus then
+      entry.surface.focus(entry)
+    end
+    return
+  end
+
+  if entry.popup._.mounted then
+    entry.popup:show()
+  else
+    entry.popup:mount()
+  end
+
+  apply_window_options(entry)
+
+  if valid_window(entry.popup.winid) then
+    vim.api.nvim_set_current_win(entry.popup.winid)
+  end
 end
 
 local function stack_index(key)
@@ -117,7 +180,7 @@ local function set_buffer_lines(entry, lines)
   vim.bo[bufnr].modifiable = false
 end
 
-local function apply_window_options(entry)
+function apply_window_options(entry)
   local popup = entry.popup
   if not popup or not valid_window(popup.winid) then
     return
@@ -163,18 +226,12 @@ local function close_key(key)
   if entry.spec and entry.spec.on_close then
     entry.spec.on_close(entry)
   end
-  if entry.popup and entry.popup._ and entry.popup._.mounted then
-    entry.popup:hide()
-  end
+  hide_entry(entry)
 
   if index == #state.stack + 1 then
     local previous = top_entry()
-    if previous and previous.popup then
-      previous.popup:show()
-      apply_window_options(previous)
-      if valid_window(previous.popup.winid) then
-        vim.api.nvim_set_current_win(previous.popup.winid)
-      end
+    if previous then
+      show_entry(previous)
     end
   end
 
@@ -222,11 +279,20 @@ end
 
 local function apply_spec(entry, spec)
   entry.spec = vim.tbl_deep_extend("force", entry.spec or {}, spec)
-  if not entry.bufnr or not valid_buffer(entry.bufnr) then
-    entry.bufnr = vim.api.nvim_create_buf(false, true)
+  entry.surface = entry.spec.surface
+
+  if entry.surface and entry.surface.refresh then
+    entry.surface.refresh(entry)
+    return
   end
-  set_buffer_contract(entry)
-  set_buffer_lines(entry, entry.spec.lines or { "" })
+
+  if not entry.bufnr or not valid_buffer(entry.bufnr) then
+    entry.bufnr = entry.spec.bufnr and valid_buffer(entry.spec.bufnr) and entry.spec.bufnr or vim.api.nvim_create_buf(false, true)
+  end
+  if entry.spec.manage_buffer ~= false then
+    set_buffer_contract(entry)
+    set_buffer_lines(entry, entry.spec.lines or { "" })
+  end
 
   local popup = ensure_popup(entry)
   popup.border:set_text("top", string.format(" %s ", entry.spec.title or "Viewer"), "center")
@@ -240,8 +306,8 @@ function M.open(spec)
   assert(spec and spec.key, "viewer stack requires a stable key")
 
   local current = top_entry()
-  if current and current.key ~= spec.key and current.popup then
-    current.popup:hide()
+  if current and current.key ~= spec.key then
+    hide_entry(current)
   end
 
   local index = stack_index(spec.key)
@@ -254,17 +320,7 @@ function M.open(spec)
   apply_spec(entry, spec)
   state.stack[#state.stack + 1] = entry
 
-  if entry.popup._.mounted then
-    entry.popup:show()
-  else
-    entry.popup:mount()
-  end
-
-  apply_window_options(entry)
-
-  if valid_window(entry.popup.winid) then
-    vim.api.nvim_set_current_win(entry.popup.winid)
-  end
+  show_entry(entry)
 
   return entry
 end
@@ -314,7 +370,8 @@ function M.inspect()
       sticky = entry.spec.sticky == true,
       bufnr = entry.bufnr,
       winid = entry.popup and entry.popup.winid or nil,
-      visible = entry.popup and entry.popup._ and entry.popup._.mounted or false,
+      visible = entry_visible(entry),
+      surface = entry.surface and type(entry.surface) == "table" and clone_value(entry.surface.inspect and entry.surface.inspect(entry) or {}) or nil,
     }
   end
 
@@ -322,6 +379,10 @@ function M.inspect()
     stack = stack,
     top = clone_value(stack[#stack]),
   }
+end
+
+function M.is_open(key)
+  return stack_index(key) ~= nil
 end
 
 return M

@@ -102,6 +102,10 @@ function Review:_bind_message_keymaps(bufnr)
     end
   end, { buffer = bufnr, desc = "Send packet" })
   map_if(keymaps.close, "n", function()
+    if self.handlers.close then
+      self.handlers.close()
+      return
+    end
     self:hide()
   end, { buffer = bufnr, desc = "Close compose review" })
   map_if(keymaps.focus_fragments, { "i", "n" }, function()
@@ -151,6 +155,7 @@ function Review:_ensure_components()
   self.container = Popup({
     enter = false,
     focusable = false,
+    zindex = 70,
     relative = "editor",
     position = overlay.position,
     size = overlay.size,
@@ -166,6 +171,7 @@ function Review:_ensure_components()
   self.message_popup = Popup({
     enter = false,
     focusable = true,
+    zindex = 71,
     border = { style = "single", text = { top = " Covering message ", top_align = "left" } },
     bufnr = self:_ensure_message_buffer(),
     win_options = { winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder" },
@@ -174,6 +180,7 @@ function Review:_ensure_components()
   self.list_popup = Popup({
     enter = false,
     focusable = true,
+    zindex = 71,
     border = { style = "single", text = { top = " Workbench fragments ", top_align = "left" } },
     bufnr = self.list:bufnr_value(),
     win_options = { winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder" },
@@ -325,6 +332,10 @@ function M.new(opts, handlers)
 
   review.list = list_mod.new(opts, "compose_review_fragments", {
     close = function()
+      if handlers.close then
+        handlers.close()
+        return
+      end
       review:hide()
     end,
     inspect = function()

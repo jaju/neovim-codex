@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Guarded chat tool-error rendering against `vim.NIL` payloads so `mcpToolCall` items no longer crash the transcript or details views.
+- Routed the workbench tray and compose review through the shared viewer stack so secondary surfaces always appear above chat.
+
+### Changed
+- Removed transcript-to-workbench capture from the first slice; workbench capture is now explicitly code-world first.
+- Compose review now preserves an existing thread-local draft instead of silently overwriting it on reopen.
+- Workbench capture now rejects plugin scratch buffers and other non-file buffers.
+
 ### Added
 - `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
 - The first thread-local semantic-composition slice: pure-Lua workbench state, a workbench tray, a compose-review overlay, and the initial fragment capture flows.

@@ -65,7 +65,7 @@ function Tray:_ensure_popup()
   self.popup = Popup({
     enter = false,
     focusable = true,
-    zindex = 40,
+    zindex = 70,
     border = {
       style = (self.opts.ui.workbench.tray or {}).border or "rounded",
       text = { top = " Workbench ", top_align = "center" },
@@ -169,6 +169,10 @@ function M.new(opts, handlers)
 
   tray.list = list_mod.new(opts, "workbench", {
     close = function()
+      if handlers.close then
+        handlers.close()
+        return
+      end
       tray:hide()
     end,
     inspect = function()
