@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
-- The first thread-local semantic-composition slice: pure-Lua workbench state, a workbench tray, a compose-review overlay, and the initial `path_ref`, `code_range`, and `chat_block` fragment capture flows.
+- The first thread-local semantic-composition slice: pure-Lua workbench state, a workbench tray, a compose-review overlay, and the initial fragment capture flows.
 - `lua/neovim_codex/core/packet.lua` as the pure-Lua outbound packet renderer that folds staged fragments into the final app-server `turn/start` input.
 - `docs/vision/workbench-model.md`, `docs/contracts/neovim/workbench-packet.md`, and `docs/episodes/0011-workbench-packet-contract.md` to lock the next semantic-composition slice around thread-local workbench state and outbound packet assembly.
 - `scripts/contracts-check` as the stable entrypoint for app-server contract drift checks.
@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - `:CodexSend` now routes through compose review whenever the active thread workbench contains staged fragments.
 - Status lines, chat footers, widget titles, and commands now consistently use the terminology `fragment`, `workbench`, `packet`, and `compose review`.
 - Vision and NeoVim contract docs now describe `fragment -> workbench -> packet` as the next implementation boundary, including the workbench tray and compose-review UI surfaces.
+- Vision and contract docs now record the next accepted workbench direction: keep chat useful without workbench complexity, prefer code-world capture over transcript capture, and move from append-all packet assembly to inline fragment-handle expansion at send time.
 - `./scripts/test` now runs the contract drift check automatically when `CODEX_REPO_ROOT` is present in the environment.
 - Contract and development docs now route protocol-contract work through the configured Codex checkout and the `./scripts/contracts-check` wrapper.
 

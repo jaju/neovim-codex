@@ -95,7 +95,19 @@ Examples:
 
 The plugin should be easy to personalize because personalization is part of the product advantage.
 
-## 6. Context Mobility Is The Core UX Problem
+## 6. Chat Must Stay Useful Without Workbench Complexity
+
+The chat surface is useful on its own.
+
+The workbench exists to reduce friction when the user wants deliberate semantic capture from the code world. It must stay optional and light.
+
+That means:
+
+- normal chat use must remain fast without touching the workbench
+- workbench interactions must feel additive, not mandatory
+- the product should not force an attachment-style workflow onto every turn
+
+## 7. Context Mobility Is The Core UX Problem
 
 The hardest and most valuable problem is not sending a prompt.
 
@@ -104,12 +116,11 @@ It is enabling the user to quickly gather, preserve, transform, and reuse high-v
 - code buffers
 - diagnostics
 - compiler/test/lint output
-- chat responses
-- protocol-derived detail views
+- conversation details when explicitly needed
 
 The product should reduce friction in moving that context into the next turn.
 
-## 7. Composition Must Become Semantic
+## 8. Composition Must Become Semantic
 
 The composer should evolve beyond a plain text box.
 
@@ -119,14 +130,14 @@ The target is a composition surface built from meaningful fragments such as:
 - file ranges
 - symbols
 - diagnostics
-- transcript blocks
-- command outputs
-- test failures
 - references
+- usage summaries
 
 These fragments should preserve provenance and formatting intent.
 
-## 8. The UI Should Behave Like A Controlled Stack
+The user-authored compose text should be able to place fragment references inline so the final packet is expanded close to the surrounding prose rather than dumped as a distant appendix.
+
+## 9. The UI Should Behave Like A Controlled Stack
 
 Secondary surfaces should not feel like random windows.
 
@@ -145,7 +156,7 @@ The current direction is:
 
 A visible navigator may come later, but the stack behavior must be solid first.
 
-## 9. Fast Movement Beats Decorative Complexity
+## 10. Fast Movement Beats Decorative Complexity
 
 UI polish matters, but speed and clarity matter more.
 
@@ -158,14 +169,26 @@ Features should bias toward:
 
 Avoid adding complexity unless it improves thinking speed or context accuracy.
 
-## 10. Design For Plucking, Filtering, And Reuse
+## 11. Start With Code-World Capture, Not Chat-World Duplication
+
+The first workbench slices should capture from the code world:
+
+- current file path
+- visual selections
+- diagnostics
+- later tree-sitter or LSP-backed facts
+
+Do not prioritize transcript-to-workbench capture when the same text is already in the active conversation context and the user can already copy it manually.
+
+Chat-world plucking may come later if it solves a real problem that copying does not.
+
+## 12. Design For Plucking, Filtering, And Reuse
 
 Anything the user reads in the chat world should eventually be selectable as structured follow-up material.
 
 The system should support, over time:
 
 - plucking semantic blocks from transcript/detail views
-- sending them to the composer
 - passing them through filters or enrichers
 - exporting them into notes or docs
 

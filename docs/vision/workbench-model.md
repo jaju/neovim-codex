@@ -27,10 +27,12 @@ The workbench is not the main chat surface and not a permanent side panel.
 
 The intended flow is:
 
-1. capture fragments from code or chat
+1. capture fragments from the code world when needed
 2. quick-peek the thread-local workbench
 3. open compose review when the user wants deliberate control
 4. send the packet
+
+Normal chat use should remain fast without touching the workbench.
 
 ## Why Not A Permanent Side Panel
 
@@ -52,6 +54,7 @@ The tray should be:
 - thread-local
 - easy to show or hide
 - easy to remove fragments from
+- layered through the same secondary-viewer stack as the other widgets
 
 The tray is a quick peek, not a second transcript.
 
@@ -67,8 +70,8 @@ Compose review is the finalization surface.
 It should make three things visible at once:
 
 1. the active thread
-2. the covering message
-3. the ordered staged fragments that will become the packet
+2. the authored compose text
+3. the ordered staged fragments that can be referenced from that text
 
 This is where the user edits intent and reviews context together.
 
@@ -108,8 +111,6 @@ Capture from code:
 - current visual selection as code range with path and lines
 - current diagnostic under cursor
 
-Capture from chat:
-
-- selected transcript block
+Do not capture from chat in the first slice.
 
 That is enough to prove the workbench model without overbuilding it.

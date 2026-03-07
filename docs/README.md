@@ -80,6 +80,7 @@ Use these as compact project memory snapshots that can be injected later.
 - `episodes/0010-server-request-ui.md` - how command approvals and tool questions became first-class stacked request flows
 - `episodes/0010-codex-repo-root-and-agent-start-points.md` - why contract drift now routes through `CODEX_REPO_ROOT` and agent-facing start points
 - `episodes/0011-workbench-packet-contract.md` - why staged context, workbench state, and packet assembly are now frozen before implementation
+- `episodes/0013-workbench-inline-packets-and-code-first-capture.md` - why workbench capture now starts from the code world and packet text should expand inline fragment handles instead of appending all fragments
 
 ## Update Rule
 

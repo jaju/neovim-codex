@@ -22,6 +22,7 @@ Use for:
 - in-progress execution state
 - streaming status
 - active thread/turn summary
+- active thread workbench count
 
 Do not persist ephemeral status inline when it adds no reasoning value.
 
@@ -31,19 +32,24 @@ Use for:
 - quick-peek visibility into the staged fragments for the active thread
 - lightweight fragment removal
 - compact per-fragment summaries
+- short fragment handles visible to the user
 - an obvious transition point into compose review
 
 The tray should stay summary-first.
 It is not a second transcript and not the final edit surface.
 
+The tray is a secondary surface and must participate in the same viewer-stack discipline as other secondary widgets. It must not bypass the stack or render beneath the chat overlay.
+
 ## Compose Review
 
 Use for:
-- editing the covering message
+- editing the authored packet template
 - reviewing the ordered staged fragments for the active thread
-- inspecting what will become the outbound packet before send
+- previewing what will become the compiled packet before send
 
 This is the deliberate finalization surface, not the always-on capture surface.
+
+Compose review is also a secondary surface and must obey the same stack and pop-back rules as the tray, details inspector, and reports.
 
 ## Details Inspector / Viewer Stack
 
@@ -54,6 +60,7 @@ Use for:
 - reasoning detail when explicitly requested
 - stored thread reports
 - event log viewing
+- fragment inspection
 
 The viewer stack should be poppable and return the user to the previous context cleanly.
 
@@ -79,6 +86,8 @@ This is the debugging truth surface, not the main reading surface.
 ## Selection And Composition Rule
 
 Any information shown in transcript or details should eventually be selectable as structured follow-up material.
+
+For the current implementation slice, structured workbench capture should come from the code world first, not the transcript.
 
 Thread visibility must remain explicit across chat footer, workbench tray, and compose review so staged context never feels detached from its owning conversation.
 

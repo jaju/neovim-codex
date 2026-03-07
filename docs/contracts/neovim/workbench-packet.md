@@ -1,8 +1,12 @@
 # Workbench And Packet Contract
 
-This document freezes the smallest useful internal contract for staged context and outbound turn assembly.
+This document freezes the next implementation target for staged context and outbound turn assembly.
 
 It is an internal design contract, not a public API promise.
+
+Current implementation note:
+- the existing code still renders a covering message followed by a grouped `## Workbench Context` appendix
+- the accepted next step is an authored packet template with inline fragment handles and send-time expansion
 
 ## Terms
 
@@ -11,6 +15,7 @@ Use these names consistently in code, UI, docs, and task notes:
 - `Fragment`
 - `WorkbenchState`
 - `PacketDraft`
+- `CompiledPacket`
 
 ## `Fragment`
 
@@ -19,13 +24,15 @@ Purpose:
 
 Implemented v1 fields:
 - `id`
-  - stable local identifier
+  - stable local canonical identifier
+- `handle`
+  - short user-facing reference token such as `f3`
 - `kind`
   - one of the allowed fragment kinds
 - `label`
   - concise human-facing identifier for list rendering
 - `source`
-  - capture origin such as `buffer`, `visual_selection`, or `chat`
+  - capture origin such as `buffer`, `visual_selection`, or `diagnostic`
 
 Kind-specific fields:
 
@@ -44,36 +51,29 @@ Kind-specific fields:
 - `code?`
 - `severity?`
 - `path?`
+- `range?`
 - `message`
 
-`chat_block`
-- `thread_id`
-- `turn_id`
-- `block_id?`
-- `excerpt?`
-- `text`
-
-### Allowed `Fragment.kind` values for v1
+### Allowed `Fragment.kind` values for the next slice
 
 Only allow these now:
 
 - `path_ref`
 - `code_range`
 - `diagnostic`
-- `chat_block`
 
-Do not introduce broader fragment kinds until the first workbench loop is exercised.
+Do not introduce broader fragment kinds until the first inline-packet loop is exercised.
 
 ## `WorkbenchState`
 
 Purpose:
 - hold the staged fragments and compose-review draft message for one thread
 
-Implemented v1 fields:
+Implemented target fields:
 - `thread_id`
 - `fragments_order`
 - `fragments_by_id`
-- `draft_message`
+- `draft_template_text`
 - `updated_at`
 
 Rules:
@@ -85,19 +85,60 @@ Rules:
 ## `PacketDraft`
 
 Purpose:
-- represent the final outbound turn being prepared for send
+- represent the user-authored message before send-time expansion
 
-Implemented v1 shape:
+Implemented target shape:
 - `thread_id`
-- `message_text`
+- `template_text`
 - ordered staged fragments from the active `WorkbenchState`
+
+`template_text` may contain fragment handle references such as:
+
+- `[[f1]]`
+- `[[f3]]`
+
+The user should manipulate short handles, not long internal ids.
+
+## `CompiledPacket`
+
+Purpose:
+- represent the final outbound turn payload after fragment expansion
+
+Implemented target shape:
+- `thread_id`
+- `compiled_text`
 - rendered into a single text input item for `turn/start`
 
-That rendered text currently has two sections:
-- the covering message, if any
-- `## Workbench Context` with one structured subsection per fragment
+The compiled text is produced by:
 
-This is intentionally simple. It preserves ordering and source identity without pretending the app-server currently has a richer native fragment wire type for these captures.
+1. validating every referenced fragment handle
+2. resolving it from the active `WorkbenchState`
+3. expanding it with a kind-specific renderer
+4. preserving authored prose order
+
+## Fragment Expansion Rule
+
+Fragment expansion must be:
+
+- deterministic
+- kind-specific
+- minimal but complete
+- based on captured fragment snapshots by default
+
+Do not silently reread live files at send time for existing fragments unless the user explicitly refreshes them.
+
+## Renderer Expectations
+
+`path_ref`
+- render as a compact path reference only
+
+`code_range`
+- render as a path and line-range introduction plus a fenced code block
+
+`diagnostic`
+- render as a precise diagnostic fact with location and message
+
+Each renderer should make the fragment understandable without additional surrounding explanation.
 
 ## Behavioral Rules
 
@@ -107,11 +148,13 @@ A `WorkbenchState` belongs to exactly one thread.
 
 ### 2. Explicit inclusion
 
-Only fragments present in the active workbench may become part of the packet.
+Only fragments referenced in the authored packet template may become part of the compiled packet.
+
+Fragments staged in the workbench but not referenced remain available but are not sent.
 
 ### 3. Consume on send
 
-The default send behavior clears the active workbench and its draft message for that thread after successful packet submission.
+The default send behavior clears the active workbench and its draft template for that thread after successful packet submission.
 
 ### 4. No duplicate hidden state
 
@@ -119,13 +162,20 @@ The workbench tray and compose review must project from the same `WorkbenchState
 
 ### 5. No raw scraping
 
-Fragments must be created from semantic editor or transcript state, not by scraping already-rendered markdown where stronger structure exists.
+Fragments must be created from semantic editor state, not by scraping already-rendered markdown where stronger structure exists.
+
+### 6. No transcript capture in the first slice
+
+Do not capture transcript blocks into the workbench in this implementation slice.
+
+Manual copy from the chat surface remains sufficient until transcript capture proves its value.
 
 ## UI Surface Mapping
 
 `Fragment`
 - appears as one row in the workbench tray
 - can be inspected or removed
+- exposes a short user-facing handle for template insertion
 
 `WorkbenchState`
 - drives chat footer count
@@ -133,8 +183,12 @@ Fragments must be created from semantic editor or transcript state, not by scrap
 - drives compose review fragment list
 
 `PacketDraft`
-- drives compose review
+- drives compose review editor content
+- may contain inline fragment handles
+
+`CompiledPacket`
 - drives final send payload assembly
+- should be previewable before send
 
 ## First Capture Actions
 
@@ -142,6 +196,6 @@ The first supported capture actions are:
 
 - add current file path to workbench
 - add visual selection as `code_range`
-- add selected transcript block as `chat_block`
+- add diagnostic under cursor as `diagnostic`
 
-Diagnostic capture remains allowed by the contract, but it is not yet part of the first implemented slice.
+Do not add transcript capture in this slice.
