@@ -38,6 +38,9 @@ COMMANDS                                               *neovim-codex-commands*
 :CodexThreadRead [thread-id]
     Read a thread into a report buffer without resuming it.
 
+:CodexInspect
+    Open a details popup for the selected transcript block.
+
 :CodexInterrupt
     Interrupt the current running turn, if one exists.
 
@@ -69,16 +72,18 @@ surfaces instead of dumping shell output directly.
 
 Examples:
 
-- user and assistant messages stay primary
-- successful read/list/search commands become compact activity blocks
-- failed or unknown commands stay detailed
+- user messages and final responses stay primary
+- commentary becomes inline working notes instead of outline headings
+- successful read/list/search commands become compact activity summaries
+- failed or unknown commands stay terse in the transcript and open into a details popup
 - file changes, tool calls, review mode, and context compaction each get their
-  own summary blocks
+  own summary surfaces
 
 Default transcript mappings:
 
 - `q` hide the overlay
 - `i` focus the composer
+- `<CR>` inspect the selected transcript block
 - `[[` jump to the previous turn
 - `]]` jump to the next turn
 - `g?` open this help topic
@@ -104,7 +109,7 @@ The transcript and composer are normal markdown scratch buffers with these
 buffer variables:
 
 - `b:neovim_codex = true`
-- `b:neovim_codex_role = "transcript" | "composer" | "events"`
+- `b:neovim_codex_role = "transcript" | "composer" | "details" | "events"`
 - `b:neovim_codex_thread_id = <thread-id>`
 
 This lets normal markdown filetype, treesitter, and render plugins apply
@@ -158,8 +163,8 @@ Current known limits:
 - a brand-new empty thread may not be resumable yet
 - `thread/read includeTurns=true` can fail before the first user message is
   persisted; the plugin falls back to a metadata-only read for reports
-- raw protocol stays in `:CodexEvents`; the main transcript keeps internal
-  activity compact by default
+- raw protocol stays in `:CodexEvents`; the main transcript stays terse and
+  `:CodexInspect` exposes verbose detail on demand
 
 ==============================================================================
 DOGFOOD LOOP                                            *neovim-codex-dogfood*

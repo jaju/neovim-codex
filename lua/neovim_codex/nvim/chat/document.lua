@@ -11,6 +11,14 @@ local CONTEXT_PATTERNS = {
   "topics.agent.tsv",
 }
 
+local IN_PROGRESS_ITEM_TYPES = {
+  commandExecution = true,
+  fileChange = true,
+  mcpToolCall = true,
+  dynamicToolCall = true,
+  collabAgentToolCall = true,
+}
+
 local function present(value)
   return value ~= nil and type(value) ~= "userdata"
 end
@@ -36,6 +44,9 @@ local function push_text(lines, text)
 end
 
 local function add_block(blocks, block)
+  if not block then
+    return
+  end
   blocks[#blocks + 1] = block
 end
 
@@ -87,23 +98,59 @@ local function trim_text(text, limit)
     return value
   end
 
-  return value:sub(1, limit - 3) .. "..."
+  return value:sub(1, math.max(1, limit - 3)) .. "..."
 end
 
-local function preview_text_block(lines, fence, text, limit)
-  local preview_lines = split_lines(text)
-  if #preview_lines == 0 then
-    return
+local function compact_inline_code(text)
+  local value = trim_text(text, 64)
+  if not value then
+    return nil
+  end
+  return string.format("`%s`", value)
+end
+
+local function plain_snippet(text, limit)
+  if not present(text) then
+    return nil
   end
 
-  lines[#lines + 1] = string.format("```%s", fence)
-  for index = 1, math.min(#preview_lines, limit) do
-    lines[#lines + 1] = preview_lines[index]
+  local value = tostring(text)
+  value = value:gsub("`+", "")
+  value = value:gsub("[%*_>#-]+", " ")
+  value = value:gsub("%[([^%]]+)%]%([^%)]+%)", "%1")
+  value = value:gsub("\n", " ")
+  value = value:gsub("%s+", " ")
+  value = vim.trim(value)
+  if value == "" then
+    return nil
   end
-  if #preview_lines > limit then
-    lines[#lines + 1] = string.format("... (%d more lines)", #preview_lines - limit)
+
+  return trim_text(value, limit)
+end
+
+local function first_nonempty_line(lines)
+  for _, line in ipairs(lines or {}) do
+    local trimmed = vim.trim(tostring(line))
+    if trimmed ~= "" then
+      return trimmed
+    end
   end
-  lines[#lines + 1] = "```"
+  return nil
+end
+
+local function compact_output_preview(text)
+  local line = first_nonempty_line(split_lines(text))
+  return plain_snippet(line, 96)
+end
+
+local function join_parts(parts, separator)
+  local values = {}
+  for _, part in ipairs(parts or {}) do
+    if present(part) and tostring(part) ~= "" then
+      values[#values + 1] = tostring(part)
+    end
+  end
+  return table.concat(values, separator or " · ")
 end
 
 local function protocol_payload(item)
@@ -154,6 +201,18 @@ local function user_content_lines(content)
   return lines
 end
 
+local function user_message_text(content)
+  local parts = {}
+
+  for _, item in ipairs(content or {}) do
+    if item.type == "text" and present(item.text) then
+      parts[#parts + 1] = item.text
+    end
+  end
+
+  return table.concat(parts, "\n")
+end
+
 local function lower_text(value)
   return string.lower(value_or(value, ""))
 end
@@ -182,25 +241,24 @@ local function describe_command_action(action)
 
   if action_type == "read" then
     local path = display_path(action.path)
-    local name = value_or(action.name, path or "file")
     if path then
-      return string.format("Read `%s`.", path)
+      return string.format("Read %s", compact_inline_code(path) or path)
     end
-    return string.format("Read `%s`.", name)
+    return string.format("Read %s", compact_inline_code(action.name or "file") or "file")
   end
 
   if action_type == "listFiles" then
     local path = display_path(action.path) or "workspace"
-    return string.format("Listed files in `%s`.", path)
+    return string.format("Listed files in %s", compact_inline_code(path) or path)
   end
 
   if action_type == "search" then
     local path = display_path(action.path) or "workspace"
-    local query = trim_text(action.query, 72)
+    local query = plain_snippet(action.query, 40)
     if query then
-      return string.format("Searched `%s` for `%s`.", path, query)
+      return string.format("Searched %s for %s", compact_inline_code(path) or path, compact_inline_code(query) or query)
     end
-    return string.format("Searched `%s`.", path)
+    return string.format("Searched %s", compact_inline_code(path) or path)
   end
 
   return nil
@@ -252,72 +310,186 @@ local function summarize_command_actions(actions)
   }
 end
 
-local function append_command_metadata(lines, item)
-  if present(item.cwd) then
-    lines[#lines + 1] = string.format("- Working directory: `%s`", display_path(item.cwd) or tostring(item.cwd))
+local function in_progress_item_count(turn)
+  local count = 0
+  for _, item in ipairs(selectors.list_items(turn)) do
+    if IN_PROGRESS_ITEM_TYPES[item.type] and value_or(item.status, "") == "inProgress" then
+      count = count + 1
+    end
   end
-
-  local duration = duration_label(item.durationMs)
-  if duration then
-    lines[#lines + 1] = string.format("- Duration: `%s`", duration)
-  end
-
-  if present(item.exitCode) then
-    lines[#lines + 1] = string.format("- Exit code: `%s`", tostring(item.exitCode))
-  end
+  return count
 end
 
-local function summarize_command_activity(item, actions)
-  local lines = {
-    string.format("#### Activity · `%s`", value_or(item.status, "unknown")),
-  }
+local function turn_title(turn, index)
+  local items = selectors.list_items(turn)
+
+  for _, item in ipairs(items) do
+    if item.type == "userMessage" then
+      local snippet = plain_snippet(user_message_text(item.content), 72)
+      if snippet then
+        return string.format("## %s", snippet)
+      end
+    end
+  end
+
+  for _, item in ipairs(items) do
+    if item.type == "plan" then
+      local snippet = plain_snippet(item.text, 72)
+      if snippet then
+        return string.format("## %s", snippet)
+      end
+    end
+    if item.type == "agentMessage" then
+      local snippet = plain_snippet(item.text, 72)
+      if snippet then
+        return string.format("## %s", snippet)
+      end
+    end
+  end
+
+  return string.format("## Turn %d", index)
+end
+
+local function thread_footer(thread)
+  local turns = selectors.list_turns(thread)
+  local status = thread.status and thread.status.type or "unknown"
+  local active_turn = selectors.get_turn(thread, thread.turns_order[#thread.turns_order])
+  local status_bits = { status }
+
+  if active_turn and active_turn.status == "inProgress" then
+    local running = in_progress_item_count(active_turn)
+    if running > 0 then
+      status_bits[#status_bits + 1] = string.format("%d operation%s running", running, running == 1 and "" or "s")
+    else
+      status_bits[#status_bits + 1] = "waiting for response"
+    end
+  end
+
+  return string.format("thread %s · %d turn%s · %s", thread.id, #turns, #turns == 1 and "" or "s", table.concat(status_bits, " · "))
+end
+
+local function summarize_user_message(item)
+  local content_lines = user_content_lines(item.content)
+  return new_block({
+    kind = "user_message",
+    surface = "message_user",
+    collapsed_by_default = false,
+    lines = vim.list_extend({ "**Request**" }, content_lines),
+    protocol = protocol_payload(item),
+  })
+end
+
+local function summarize_assistant_message(item)
+  local text = present(item.text) and item.text ~= "" and item.text or "_Streaming response..._"
+  local lines = split_lines(text)
+  local snippet = plain_snippet(text, 56) or "Response"
+  local phase = value_or(item.phase, "")
+
+  if phase == "commentary" then
+    local quoted = { "> Working note" }
+    for _, line in ipairs(lines) do
+      quoted[#quoted + 1] = line == "" and ">" or "> " .. line
+    end
+    return new_block({
+      kind = "assistant_message",
+      surface = "assistant_note",
+      collapsed_by_default = false,
+      lines = quoted,
+      protocol = protocol_payload(item),
+    })
+  end
+
+  return new_block({
+    kind = "assistant_message",
+    surface = "message_assistant",
+    collapsed_by_default = false,
+    lines = vim.list_extend({ string.format("### Response · %s", snippet) }, lines),
+    protocol = protocol_payload(item),
+  })
+end
+
+local function summarize_plan(item)
+  local text = present(item.text) and item.text ~= "" and item.text or "_Streaming plan..._"
+  local snippet = plain_snippet(text, 56) or "Plan"
+  return new_block({
+    kind = "plan",
+    surface = "plan",
+    collapsed_by_default = false,
+    lines = vim.list_extend({ string.format("### Plan · %s", snippet) }, split_lines(text)),
+    protocol = protocol_payload(item),
+  })
+end
+
+local function summarize_reasoning(item)
+  if item.summary and #item.summary > 0 then
+    local snippet = plain_snippet(item.summary[1], 72) or "summary available"
+    return new_block({
+      kind = "reasoning_summary",
+      surface = "reasoning",
+      collapsed_by_default = true,
+      lines = { string.format("- Reasoning summary available · %s", snippet) },
+      protocol = protocol_payload(item),
+    })
+  end
+
+  if item.content and #item.content > 0 then
+    return new_block({
+      kind = "reasoning_summary",
+      surface = "reasoning",
+      collapsed_by_default = true,
+      lines = { "- Raw reasoning content available." },
+      protocol = protocol_payload(item),
+    })
+  end
+
+  return nil
+end
+
+local function summarize_successful_command(item, actions)
+  local parts = {}
 
   if actions.has_context then
-    lines[#lines + 1] = "- Loaded local instructions and workspace context."
+    parts[#parts + 1] = "Loaded local instructions and workspace context"
+  elseif #actions.summaries > 0 then
+    parts[#parts + 1] = actions.summaries[1]
+  else
+    parts[#parts + 1] = string.format("Completed command %s", compact_inline_code(trim_text(item.command, 48)) or "")
   end
 
-  local limit = actions.has_context and 2 or 3
-  for index = 1, math.min(#actions.summaries, limit) do
-    lines[#lines + 1] = "- " .. actions.summaries[index]
-  end
-
-  if #actions.summaries > limit then
-    lines[#lines + 1] = string.format("- %d more inspection step%s.", #actions.summaries - limit, #actions.summaries - limit == 1 and "" or "s")
-  end
-
-  local duration = duration_label(item.durationMs)
-  if duration then
-    lines[#lines + 1] = string.format("- Completed in `%s`.", duration)
+  if #actions.summaries > 1 and not actions.has_context then
+    parts[#parts + 1] = string.format("%d additional step%s", #actions.summaries - 1, #actions.summaries - 1 == 1 and "" or "s")
   end
 
   return new_block({
     kind = "activity_summary",
     surface = "activity",
     collapsed_by_default = true,
-    lines = lines,
+    lines = { "- " .. join_parts(parts, " · ") },
     protocol = protocol_payload(item),
   })
 end
 
-local function summarize_command_detail(item, actions)
-  local lines = {
-    string.format("#### Command · `%s`", value_or(item.status, "unknown")),
+local function summarize_command_failure(item, actions)
+  local status = value_or(item.status, "unknown")
+  local label = compact_inline_code(trim_text(item.command, 56)) or "command"
+  local parts = {
+    string.format("Command %s", status),
+    label,
   }
 
-  if #actions.summaries > 0 then
-    lines[#lines + 1] = "- Actions:"
-    for _, summary in ipairs(actions.summaries) do
-      lines[#lines + 1] = "  - " .. summary
-    end
+  if present(item.exitCode) then
+    parts[#parts + 1] = string.format("exit %s", tostring(item.exitCode))
   end
 
-  append_command_metadata(lines, item)
+  local lines = { "- " .. join_parts(parts, " · ") }
+  if #actions.summaries > 0 then
+    lines[#lines + 1] = "  - " .. actions.summaries[1]
+  end
 
-  lines[#lines + 1] = "```sh"
-  lines[#lines + 1] = value_or(item.command, "")
-  lines[#lines + 1] = "```"
-
-  preview_text_block(lines, "text", item.aggregatedOutput, 8)
+  local output_preview = compact_output_preview(item.aggregatedOutput)
+  if output_preview then
+    lines[#lines + 1] = "  - " .. output_preview
+  end
 
   return new_block({
     kind = "command_detail",
@@ -329,12 +501,17 @@ local function summarize_command_detail(item, actions)
 end
 
 local function summarize_command(item)
-  local actions = summarize_command_actions(item.commandActions)
-  if value_or(item.status, "unknown") == "completed" and actions.known_only then
-    return summarize_command_activity(item, actions)
+  local status = value_or(item.status, "unknown")
+  if status == "inProgress" then
+    return nil
   end
 
-  return summarize_command_detail(item, actions)
+  local actions = summarize_command_actions(item.commandActions)
+  if status == "completed" then
+    return summarize_successful_command(item, actions)
+  end
+
+  return summarize_command_failure(item, actions)
 end
 
 local function describe_patch_kind(kind)
@@ -351,9 +528,8 @@ end
 
 local function summarize_file_changes(item)
   local changes = item.changes or {}
-  local lines = {
-    string.format("#### File changes · `%s`", value_or(item.status, "unknown")),
-  }
+  local heading = string.format("### File changes · %d file%s", #changes, #changes == 1 and "" or "s")
+  local lines = { heading }
 
   if #changes == 0 then
     lines[#lines + 1] = "- No file details were reported."
@@ -368,7 +544,7 @@ local function summarize_file_changes(item)
   return new_block({
     kind = "file_change_summary",
     surface = "file_change",
-    collapsed_by_default = true,
+    collapsed_by_default = false,
     lines = lines,
     protocol = protocol_payload(item),
   })
@@ -387,69 +563,35 @@ local function json_preview(value)
   return trim_text(encoded, 160)
 end
 
-local function summarize_tool_result_lines(item)
-  if item.type == "dynamicToolCall" and item.contentItems then
-    local lines = {}
-    for _, content_item in ipairs(item.contentItems) do
-      if content_item.type == "inputText" and present(content_item.text) then
-        push_text(lines, content_item.text)
-      elseif content_item.type == "inputImage" and present(content_item.imageUrl) then
-        lines[#lines + 1] = string.format("Image: %s", content_item.imageUrl)
-      end
-    end
-    return lines
-  end
-
-  if item.type == "mcpToolCall" and item.result then
-    if present(item.result.content) then
-      return split_lines(item.result.content)
-    end
-    local preview = json_preview(item.result)
-    return preview and { preview } or {}
-  end
-
-  return {}
-end
-
 local function summarize_tool_call(item)
-  local label = item.type == "dynamicToolCall" and "Dynamic tool" or "Tool"
-  local lines = {
-    string.format("#### %s · `%s`", label, value_or(item.status, "unknown")),
+  local status = value_or(item.status, "unknown")
+  if status == "inProgress" then
+    return nil
+  end
+
+  local name = item.type == "dynamicToolCall" and value_or(item.tool, "tool") or string.format("%s/%s", value_or(item.server, "server"), value_or(item.tool, "tool"))
+  local parts = {
+    string.format("Tool %s", status),
+    compact_inline_code(name) or name,
   }
 
-  if item.type == "dynamicToolCall" then
-    lines[#lines + 1] = string.format("- Tool: `%s`", value_or(item.tool, "unknown"))
-    if item.success ~= nil then
-      lines[#lines + 1] = string.format("- Success: `%s`", tostring(item.success))
+  local preview = nil
+  if item.type == "dynamicToolCall" and item.contentItems then
+    for _, content_item in ipairs(item.contentItems) do
+      if content_item.type == "inputText" and present(content_item.text) then
+        preview = plain_snippet(content_item.text, 96)
+        break
+      end
     end
-  else
-    lines[#lines + 1] = string.format("- Server: `%s`", value_or(item.server, "unknown"))
-    lines[#lines + 1] = string.format("- Tool: `%s`", value_or(item.tool, "unknown"))
-    if item.error and present(item.error.message) then
-      lines[#lines + 1] = string.format("- Error: %s", item.error.message)
-    end
+  elseif item.type == "mcpToolCall" and item.error and present(item.error.message) then
+    preview = plain_snippet(item.error.message, 96)
+  elseif item.type == "mcpToolCall" and item.result then
+    preview = json_preview(item.result)
   end
 
-  local duration = duration_label(item.durationMs)
-  if duration then
-    lines[#lines + 1] = string.format("- Duration: `%s`", duration)
-  end
-
-  local preview_lines = summarize_tool_result_lines(item)
-  if #preview_lines > 0 then
-    lines[#lines + 1] = "```text"
-    for index = 1, math.min(#preview_lines, 6) do
-      lines[#lines + 1] = preview_lines[index]
-    end
-    if #preview_lines > 6 then
-      lines[#lines + 1] = string.format("... (%d more lines)", #preview_lines - 6)
-    end
-    lines[#lines + 1] = "```"
-  else
-    local arguments = json_preview(item.arguments)
-    if arguments then
-      lines[#lines + 1] = string.format("- Arguments: `%s`", arguments)
-    end
+  local lines = { "- " .. join_parts(parts, " · ") }
+  if preview then
+    lines[#lines + 1] = "  - " .. preview
   end
 
   return new_block({
@@ -462,18 +604,16 @@ local function summarize_tool_call(item)
 end
 
 local function summarize_collab_tool_call(item)
-  local lines = {
-    string.format("#### Collaboration · `%s`", value_or(item.status, "unknown")),
-    string.format("- Tool: `%s`", value_or(item.tool, "unknown")),
-    string.format("- Sender thread: `%s`", value_or(item.senderThreadId, "unknown")),
-  }
-
-  if item.receiverThreadIds and #item.receiverThreadIds > 0 then
-    lines[#lines + 1] = string.format("- Receiver threads: `%s`", table.concat(item.receiverThreadIds, "`, `"))
+  local status = value_or(item.status, "unknown")
+  if status == "inProgress" then
+    return nil
   end
 
+  local lines = {
+    string.format("- Collaboration %s · `%s`", status, value_or(item.tool, "tool")),
+  }
   if present(item.prompt) then
-    lines[#lines + 1] = string.format("- Prompt: `%s`", trim_text(item.prompt, 100))
+    lines[#lines + 1] = "  - " .. value_or(plain_snippet(item.prompt, 96), "prompt available")
   end
 
   return new_block({
@@ -486,53 +626,33 @@ local function summarize_collab_tool_call(item)
 end
 
 local function summarize_web_search(item)
-  local lines = {
-    "#### Web search",
-    string.format("- Query: `%s`", value_or(item.query, "")),
-  }
-
-  if item.action and present(item.action.type) then
-    lines[#lines + 1] = string.format("- Action: `%s`", item.action.type)
-    if present(item.action.url) then
-      lines[#lines + 1] = string.format("- URL: `%s`", item.action.url)
-    end
-    if present(item.action.pattern) then
-      lines[#lines + 1] = string.format("- Pattern: `%s`", item.action.pattern)
-    end
-  end
-
+  local query = plain_snippet(item.query, 72) or "query"
   return new_block({
     kind = "activity_summary",
     surface = "activity",
     collapsed_by_default = true,
-    lines = lines,
+    lines = { string.format("- Web search · %s", query) },
     protocol = protocol_payload(item),
   })
 end
 
 local function summarize_image_item(item)
-  local lines = {}
-
   if item.type == "imageView" then
-    lines = {
-      "#### Image view",
-      string.format("- Path: `%s`", display_path(item.path) or ""),
-    }
-  else
-    lines = {
-      string.format("#### Image generation · `%s`", value_or(item.status, "unknown")),
-      string.format("- Result: `%s`", value_or(item.result, "")),
-    }
-    if present(item.revisedPrompt) then
-      lines[#lines + 1] = string.format("- Revised prompt: `%s`", trim_text(item.revisedPrompt, 120))
-    end
+    return new_block({
+      kind = "status_notice",
+      surface = "notice",
+      collapsed_by_default = true,
+      lines = { string.format("- Viewed image %s", compact_inline_code(display_path(item.path) or "image") or "") },
+      protocol = protocol_payload(item),
+    })
   end
 
+  local result = plain_snippet(item.result, 72) or value_or(item.status, "unknown")
   return new_block({
     kind = "status_notice",
     surface = "notice",
     collapsed_by_default = true,
-    lines = lines,
+    lines = { string.format("- Image generation · %s", result) },
     protocol = protocol_payload(item),
   })
 end
@@ -544,8 +664,7 @@ local function summarize_review_mode(item)
     surface = "review",
     collapsed_by_default = true,
     lines = {
-      entered and "#### Review mode entered" or "#### Review mode exited",
-      string.format("- Review: `%s`", value_or(item.review, "unknown")),
+      string.format("- Review mode %s · `%s`", entered and "entered" or "exited", value_or(item.review, "unknown")),
     },
     protocol = protocol_payload(item),
   })
@@ -556,10 +675,7 @@ local function summarize_context_compaction(item)
     kind = "status_notice",
     surface = "notice",
     collapsed_by_default = true,
-    lines = {
-      "#### Context compaction",
-      "- Codex compacted the conversation history for this thread.",
-    },
+    lines = { "- Codex compacted the conversation history for this thread." },
     protocol = protocol_payload(item),
   })
 end
@@ -570,70 +686,8 @@ local function summarize_unknown_item(item)
     surface = "notice",
     collapsed_by_default = true,
     lines = {
-      string.format("#### Item · `%s`", value_or(item.type, "unknown")),
-      "- This item does not have a dedicated transcript surface yet.",
-      "- Inspect `:CodexEvents` for the full raw protocol payload.",
+      string.format("- Item `%s` is available in raw protocol logs.", value_or(item.type, "unknown")),
     },
-    protocol = protocol_payload(item),
-  })
-end
-
-local function summarize_reasoning(item)
-  local lines = { "#### Reasoning summary" }
-
-  if item.summary and #item.summary > 0 then
-    for _, summary in ipairs(item.summary) do
-      lines[#lines + 1] = string.format("- %s", summary)
-    end
-  elseif item.content and #item.content > 0 then
-    lines[#lines + 1] = "- Raw reasoning content is available for this item."
-    preview_text_block(lines, "text", table.concat(item.content, "\n"), 6)
-  else
-    lines[#lines + 1] = "- Reasoning is still streaming."
-  end
-
-  return new_block({
-    kind = "reasoning_summary",
-    surface = "reasoning",
-    collapsed_by_default = true,
-    lines = lines,
-    protocol = protocol_payload(item),
-  })
-end
-
-local function summarize_plan(item)
-  local text = present(item.text) and item.text ~= "" and item.text or "_Streaming plan..._"
-  return new_block({
-    kind = "plan",
-    surface = "plan",
-    collapsed_by_default = false,
-    lines = vim.list_extend({ "#### Plan" }, split_lines(text)),
-    protocol = protocol_payload(item),
-  })
-end
-
-local function summarize_user_message(item)
-  return new_block({
-    kind = "user_message",
-    surface = "message_user",
-    collapsed_by_default = false,
-    lines = vim.list_extend({ "### You" }, user_content_lines(item.content)),
-    protocol = protocol_payload(item),
-  })
-end
-
-local function summarize_agent_message(item)
-  local text = present(item.text) and item.text ~= "" and item.text or "_Streaming response..._"
-  local heading = "### Codex"
-  if present(item.phase) then
-    heading = string.format("### Codex · `%s`", item.phase)
-  end
-
-  return new_block({
-    kind = "assistant_message",
-    surface = "message_assistant",
-    collapsed_by_default = false,
-    lines = vim.list_extend({ heading }, split_lines(text)),
     protocol = protocol_payload(item),
   })
 end
@@ -643,7 +697,7 @@ local function summarize_item(item)
     return summarize_user_message(item)
   end
   if item.type == "agentMessage" then
-    return summarize_agent_message(item)
+    return summarize_assistant_message(item)
   end
   if item.type == "plan" then
     return summarize_plan(item)
@@ -686,9 +740,9 @@ local function turn_heading(index, turn)
     lines[#lines + 1] = "---"
   end
 
-  lines[#lines + 1] = string.format("## Turn %d", index)
+  lines[#lines + 1] = turn_title(turn, index)
 
-  local details = {}
+  local details = { string.format("turn %d", index) }
   if present(turn.status) and turn.status ~= "completed" then
     details[#details + 1] = string.format("status `%s`", turn.status)
   end
@@ -703,15 +757,8 @@ local function turn_heading(index, turn)
     kind = "turn_boundary",
     surface = "turn_heading",
     collapsed_by_default = false,
-    header_lines = 1,
     lines = lines,
   })
-end
-
-local function thread_footer(thread)
-  local turns = selectors.list_turns(thread)
-  local status = thread.status and thread.status.type or "unknown"
-  return string.format("thread %s · %d turn%s · %s", thread.id, #turns, #turns == 1 and "" or "s", status)
 end
 
 local function project_thread(thread, opts)
@@ -769,10 +816,12 @@ local function project_thread(thread, opts)
     else
       for _, item in ipairs(items) do
         local block = summarize_item(item)
-        block.id = string.format("turn:%s:item:%s", turn.id, item.id or item.type)
-        block.turn_id = turn.id
-        block.item_id = item.id
-        add_block(doc.blocks, block)
+        if block then
+          block.id = string.format("turn:%s:item:%s", turn.id, item.id or item.type)
+          block.turn_id = turn.id
+          block.item_id = item.id
+          add_block(doc.blocks, block)
+        end
       end
     end
   end

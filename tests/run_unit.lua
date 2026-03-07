@@ -169,9 +169,9 @@ test("chat document renders assistant replies as markdown blocks", function()
 
   local result = render.render(doc)
   local body = table.concat(result.lines, "\n")
-  assert(body:find("## Turn 1", 1, true), "render should include a turn heading")
-  assert(body:find("### You", 1, true), "render should include a user heading")
-  assert(body:find("### Codex", 1, true), "render should include an assistant heading")
+  assert(body:find("## Explain this change", 1, true), "render should derive a meaningful turn heading from the request")
+  assert(body:find("**Request**", 1, true), "render should include the request label")
+  assert(body:find("### Response · First line Second line", 1, true), "render should include a meaningful response heading")
   assert(body:find("First line", 1, true), "render should include assistant text")
   eq(result.blocks[3].surface, "message_assistant")
   eq(result.blocks[3].protocol.item_type, "agentMessage")
@@ -263,11 +263,38 @@ test("chat document uses structured command actions for compact activity summari
 
   local doc = document.project_active(store:get_state())
   eq(doc.blocks[2].kind, "activity_summary")
-  assert(doc.blocks[2].lines[2]:find("Loaded local instructions", 1, true), "context reads should collapse into a context activity")
+  assert(doc.blocks[2].lines[1]:find("Loaded local instructions", 1, true), "context reads should collapse into a context activity")
   eq(doc.blocks[3].kind, "activity_summary")
-  assert(doc.blocks[3].lines[2]:find("Searched", 1, true), "search commands should summarize from structured command actions")
+  assert(doc.blocks[3].lines[1]:find("Searched", 1, true), "search commands should summarize from structured command actions")
   eq(doc.blocks[4].kind, "command_detail")
   assert(doc.blocks[4].lines[1]:find("failed", 1, true), "failed commands should stay detailed")
+end)
+
+
+test("details renderer keeps verbose command data behind an inspector surface", function()
+  local details = require("neovim_codex.nvim.chat.details")
+  local rendered = details.render_block({
+    kind = "command_detail",
+    protocol = {
+      item_type = "commandExecution",
+      item = {
+        type = "commandExecution",
+        status = "completed",
+        command = "rg -n 'Codex' README.md",
+        cwd = "/tmp/demo",
+        durationMs = 42,
+        commandActions = {
+          { type = "search", path = "README.md", query = "Codex" },
+        },
+        aggregatedOutput = "README.md:1:# neovim-codex",
+      },
+    },
+    lines = { "- Searched `README.md` for `Codex`" },
+  })
+
+  eq(rendered.lines[1], "# Command · completed")
+  assert(table.concat(rendered.lines, "\n"):find("## Command", 1, true), "details should include the full command")
+  assert(table.concat(rendered.lines, "\n"):find("## Output", 1, true), "details should include aggregated output")
 end)
 
 for _, case in ipairs(tests) do

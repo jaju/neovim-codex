@@ -46,3 +46,7 @@ end, { nargs = "?" })
 vim.api.nvim_create_user_command("CodexInterrupt", function()
   require("neovim_codex").interrupt()
 end, {})
+
+vim.api.nvim_create_user_command("CodexInspect", function()
+  require("neovim_codex").inspect_current_block()
+end, {})

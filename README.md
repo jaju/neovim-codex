@@ -22,7 +22,8 @@ This repository now implements the first usable in-editor Codex conversation loo
   - a multiline markdown composer buffer
 - supports `thread/start`, `thread/list`, `thread/read`, and `thread/resume`
 - supports `turn/start` and the app-server item delta notifications currently folded back into transcript state (`agentMessage`, `plan`, `reasoning`, `commandExecution`)
-- projects known app-server `ThreadItem` variants into dedicated transcript surfaces instead of rendering raw command noise
+- projects known app-server `ThreadItem` variants into conversation, activity, and details surfaces instead of rendering raw command noise inline
+- keeps the main transcript outline useful by deriving turn headings from the request text and moving verbose execution detail behind an inspector popup
 - exposes health and smoke checks through `:checkhealth neovim_codex` and `:CodexSmoke`
 
 It does **not** yet implement approvals, request-user-input flows, rewind/fork UI, or dynamic tools.
@@ -128,6 +129,7 @@ Useful thread commands:
 - `:CodexThreadNew` - create a new thread and activate it
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
+- `:CodexInspect` - open a details popup for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
 - `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, `nui.nvim`, and handshake viability
 
@@ -139,6 +141,7 @@ Transcript buffer defaults:
 
 - `q` - hide the overlay
 - `i` - focus the composer
+- `<CR>` - inspect the selected transcript block in a popup
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
 - `g?` - open help for the chat buffer
@@ -162,7 +165,8 @@ require("neovim_codex").setup({
       read_thread = "<leader>aT",
     },
     transcript = {
-      focus_composer = "<CR>",
+      focus_composer = "i",
+      inspect = "<CR>",
       next_turn = "]c",
       prev_turn = "[c",
     },
@@ -182,9 +186,10 @@ The transcript is derived from the app-server protocol types, not from shell-str
 
 Examples:
 
-- successful `commandExecution` items with typed `commandActions` like `read`, `listFiles`, or `search` are compacted into activity blocks
-- failed, declined, running, or unknown commands stay as detailed command blocks
-- typed item families such as file changes, tool calls, review mode, and context compaction each map to their own transcript surface
+- successful `commandExecution` items with typed `commandActions` like `read`, `listFiles`, or `search` are compacted into single-line activity summaries
+- in-progress execution stays in the footer instead of occupying transcript space
+- failed or unknown commands stay compact in the transcript but open into a details inspector on demand
+- typed item families such as file changes, tool calls, review mode, and context compaction each map to their own UI surface with their raw protocol preserved
 
 The raw wire payload for each rendered item is preserved in transcript block metadata for future plucking, filtering, export, or enrichment flows.
 
@@ -202,7 +207,7 @@ The overlay transcript and composer are plain markdown buffers with normal NeoVi
 The plugin tags its buffers with buffer variables so your own markdown autocommands or renderers can target them cleanly:
 
 - `b:neovim_codex = true`
-- `b:neovim_codex_role = "transcript" | "composer" | "events"`
+- `b:neovim_codex_role = "transcript" | "composer" | "details" | "events"`
 - `b:neovim_codex_thread_id = <thread-id>`
 
 That means existing markdown treesitter, conceal, render-markdown, and ftplugin customization can apply naturally inside the overlay.
@@ -226,7 +231,7 @@ The overlay also exposes heading highlight groups you can override in your own c
 - approval and request-user-input flows are not implemented yet; that arrives in task 4 and will follow the server-request protocol shapes rather than transcript item surfaces
 - a newly created thread without a persisted user turn may not appear in `thread/list` yet and may not be resumable from storage yet
 - `thread/read` with `includeTurns=true` can fail for an empty thread before the first user message is persisted; the plugin falls back to a metadata-only read in that case
-- the transcript currently keeps activity summaries compact by default; raw protocol remains in `:CodexEvents`
+- the transcript now keeps activity terse by default and routes verbose execution detail through `:CodexInspect`; raw protocol remains in `:CodexEvents`
 
 ## Development Workflow
 
@@ -261,6 +266,12 @@ require("neovim_codex").setup({
         border = "rounded",
       },
       transcript = {
+        wrap = true,
+      },
+      details = {
+        width = 0.72,
+        height = 0.68,
+        border = "rounded",
         wrap = true,
       },
       composer = {

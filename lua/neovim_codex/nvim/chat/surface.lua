@@ -9,6 +9,7 @@ local HEADER_HIGHLIGHTS = {
   turn_heading = "NeovimCodexChatTurnHeading",
   message_user = "NeovimCodexChatUserHeading",
   message_assistant = "NeovimCodexChatAssistantHeading",
+  assistant_note = "NeovimCodexChatReasoningHeading",
   plan = "NeovimCodexChatPlanHeading",
   reasoning = "NeovimCodexChatReasoningHeading",
   activity = "NeovimCodexChatActivityHeading",
@@ -151,11 +152,18 @@ end
 function Surface:_bind_transcript_keymaps(bufnr)
   local keymaps = self.opts.keymaps.transcript or {}
   map_if(keymaps.close, "n", function()
+    if self.handlers.close_overlay then
+      self.handlers.close_overlay()
+      return
+    end
     self:hide()
   end, { buffer = bufnr, desc = "Hide Codex overlay" })
   map_if(keymaps.focus_composer, "n", function()
     self.handlers.focus_composer()
   end, { buffer = bufnr, desc = "Focus Codex composer" })
+  map_if(keymaps.inspect, "n", function()
+    self.handlers.inspect_current_block()
+  end, { buffer = bufnr, desc = "Inspect current Codex block" })
   map_if(keymaps.next_turn, "n", function()
     self:goto_turn(1)
   end, { buffer = bufnr, desc = "Next Codex turn" })
@@ -402,6 +410,29 @@ function Surface:set_composer_height(_)
   end
 end
 
+local function contains_line(block, line)
+  return block.line_start and block.line_end and line >= block.line_start and line <= block.line_end
+end
+
+function Surface:current_block()
+  if not valid_window(self.transcript_popup and self.transcript_popup.winid) then
+    return nil
+  end
+
+  local cursor_line = vim.api.nvim_win_get_cursor(self.transcript_popup.winid)[1]
+  local previous = nil
+  for _, block in ipairs(self.block_ranges or {}) do
+    if contains_line(block, cursor_line) then
+      return clone_value(block)
+    end
+    if block.line_end and block.line_end < cursor_line then
+      previous = block
+    end
+  end
+
+  return clone_value(previous)
+end
+
 function Surface:goto_turn(direction)
   if not valid_window(self.transcript_popup and self.transcript_popup.winid) then
     return
@@ -450,6 +481,7 @@ function Surface:inspect()
     prompt_win = self.composer_popup and self.composer_popup.winid or nil,
     blocks = clone_value(self.block_ranges or {}),
     turn_lines = clone_value(self.last_render and self.last_render.turn_lines or {}),
+    current_block = self:current_block(),
   }
 end
 

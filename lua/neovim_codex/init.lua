@@ -38,6 +38,12 @@ local defaults = {
       transcript = {
         wrap = true,
       },
+      details = {
+        width = 0.72,
+        height = 0.68,
+        border = "rounded",
+        wrap = true,
+      },
       composer = {
         min_height = 6,
         max_height = 12,
@@ -57,6 +63,7 @@ local defaults = {
     transcript = {
       close = "q",
       focus_composer = "i",
+      inspect = "<CR>",
       next_turn = "]]",
       prev_turn = "[[",
       help = "g?",
@@ -463,6 +470,16 @@ function M.chat()
     M.start()
   end
   return toggle_chat(rt)
+end
+
+function M.inspect_current_block(opts)
+  opts = opts or {}
+  local block, err = chat.inspect_current_block()
+  if err then
+    notify(err, vim.log.levels.INFO, opts.notify)
+    return nil, err
+  end
+  return block, nil
 end
 
 function M.send()

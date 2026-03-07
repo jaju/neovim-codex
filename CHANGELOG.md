@@ -11,16 +11,17 @@ All notable changes to this project will be documented in this file.
 - Protocol-first transcript mapping docs for app-server item surfaces and streaming rules.
 - Buffer tagging for transcript/composer/event buffers so user markdown customization can target Codex buffers cleanly.
 - Transcript heading highlight groups that can be overridden without changing the markdown buffer contract.
-- Unit coverage for markdown chat projection and streamed protocol delta handling.
+- Unit coverage for markdown chat projection, streamed protocol delta handling, and the details inspector formatter.
 
 ### Changed
 - `:CodexChat` now toggles the overlay instead of only opening a side split.
-- The main transcript is now conversation-first markdown with compact activity summaries instead of raw item dumps.
+- The main transcript is now conversation-first markdown with outline-friendly turn headings and compact activity summaries instead of raw item dumps.
 - Command projection now uses app-server `commandActions` and typed item fields instead of shell-string heuristics.
 - The pure Lua store now folds streamed plan, reasoning, and command-output deltas back into the corresponding typed items.
 - Hiding the overlay now dismisses the outer container cleanly instead of leaving an empty frame behind.
 - The thread report renderer now uses the same markdown projection path as the live chat UI.
 - Health checks now verify `nui.nvim` in addition to the existing app-server smoke path.
+- Verbose command, tool, and reasoning detail now lives behind `:CodexInspect` instead of occupying the main transcript by default.
 - Legacy chat config keys are normalized into the new overlay/composer configuration shape.
 
 ## [0.2.0] - 2026-03-06

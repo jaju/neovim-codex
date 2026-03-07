@@ -18,6 +18,18 @@ local function notify(message, level)
   vim.notify(message, level or vim.log.levels.ERROR)
 end
 
+local function clone_value(value)
+  if type(value) ~= "table" then
+    return value
+  end
+
+  local out = {}
+  for key, item in pairs(value) do
+    out[key] = clone_value(item)
+  end
+  return out
+end
+
 local function open_help()
   vim.cmd("help neovim-codex-chat")
 end
@@ -45,7 +57,7 @@ local function ensure_modules()
 end
 
 local function ensure_surface()
-  if state.surface and state.composer then
+  if state.surface and state.composer and state.details then
     return true
   end
 
@@ -61,14 +73,18 @@ local function ensure_surface()
     return false
   end
 
+  local ok_details, details_mod = pcall(require, "neovim_codex.nvim.chat.details")
+  if not ok_details then
+    notify(string.format("Failed to load chat details overlay. Install nui.nvim and reload: %s", details_mod))
+    return false
+  end
+
   state.composer = composer_mod.new(state.opts, {
     send = function()
       M.submit()
     end,
     hide = function()
-      if state.surface then
-        state.surface:hide()
-      end
+      M.close()
     end,
     open_help = open_help,
     on_height_changed = function(height)
@@ -78,10 +94,18 @@ local function ensure_surface()
     end,
   })
 
+  state.details = details_mod.new(state.opts)
+
   state.surface = surface_mod.new(state.opts, {
     composer = state.composer,
+    close_overlay = function()
+      M.close()
+    end,
     focus_composer = function()
       state.composer:focus()
+    end,
+    inspect_current_block = function()
+      M.inspect_current_block()
     end,
     open_help = open_help,
   })
@@ -141,7 +165,7 @@ function M.toggle(store, opts, actions)
   end
 
   if state.surface:is_visible() then
-    state.surface:hide()
+    M.close()
     return true
   end
 
@@ -166,6 +190,24 @@ function M.submit()
   return result, err
 end
 
+function M.inspect_current_block()
+  if not ensure_surface() then
+    return nil, "chat overlay is unavailable"
+  end
+
+  if not state.surface:is_visible() then
+    return nil, "chat overlay is hidden"
+  end
+
+  local block = state.surface:current_block()
+  if not block then
+    return nil, "no transcript block is selected"
+  end
+
+  state.details:show(block)
+  return block, nil
+end
+
 function M.focus_composer()
   if not ensure_surface() then
     return false
@@ -174,6 +216,9 @@ function M.focus_composer()
 end
 
 function M.close()
+  if state.details then
+    state.details:hide()
+  end
   if state.surface then
     state.surface:hide()
   end
@@ -185,8 +230,9 @@ end
 
 function M.inspect()
   local surface_state = state.surface and state.surface:inspect() or {}
-  surface_state.document = vim.deepcopy(state.last_document)
-  surface_state.render = vim.deepcopy(state.last_render)
+  surface_state.document = clone_value(state.last_document)
+  surface_state.render = clone_value(state.last_render)
+  surface_state.details = state.details and state.details:inspect() or {}
   return surface_state
 end
 

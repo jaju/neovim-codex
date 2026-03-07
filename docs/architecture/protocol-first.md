@@ -41,9 +41,11 @@ The current `ThreadItem` variants from app-server v2 map to the transcript like 
 
 Do not classify commands by shell-string heuristics when `commandActions` already tells us whether the command was a `read`, `listFiles`, `search`, or `unknown` action.
 
-If `commandActions` is fully known and the command completed successfully, the transcript can render a compact activity summary.
+If `commandActions` is fully known and the command completed successfully, the transcript should render a terse activity summary.
 
-If the command failed, was declined, is still running, or has unknown actions, the transcript should render a detailed command block.
+If the command failed or has unknown actions, the transcript should render a terse failure summary and expose the full detail through the details inspector.
+
+If the command is still running, keep that state in the footer or another transient status surface rather than consuming transcript space.
 
 ## Streaming Rule
 
@@ -77,10 +79,11 @@ These flows are planned for the approval and request-user-input milestone, but t
 The main transcript should prioritize:
 
 - user messages
-- assistant messages
+- assistant responses
+- plans
 - concise activity summaries
-- actionable detail blocks when something failed or needs review
+- concise failure summaries
 
-The main transcript should not become a raw protocol dump.
+The main transcript should not become a raw protocol dump, a progress log, or a place where every typed item gets equal visual weight.
 
-Use `:CodexEvents` for raw notifications, request payloads, and unfiltered low-level debugging.
+Detailed payloads belong in a secondary inspection surface. Raw notifications, request payloads, and unfiltered low-level debugging belong in `:CodexEvents`.

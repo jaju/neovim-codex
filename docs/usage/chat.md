@@ -31,17 +31,16 @@ The main transcript is protocol-first and conversation-first.
 
 You should expect to see:
 
-- user messages
-- assistant messages
-- plan blocks
-- reasoning summaries
+- user messages and final assistant responses as the primary reading surface
+- plan blocks when Codex emits them
+- commentary rendered as inline working notes, not outline headings
 - compact activity summaries for successful read/list/search command items
-- detailed command blocks for failed, declined, running, or unknown commands
-- file-change summaries and other typed status blocks
+- terse failure summaries when a command or tool needs attention
+- file-change summaries and other typed status blocks when they matter
 
-You should not expect the main transcript to become a raw protocol dump.
+You should not expect the main transcript to become a raw protocol dump or a live execution log.
 
-Use `:CodexEvents` when you need the underlying wire payloads or low-level event sequencing.
+Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing.
 
 ## Thread commands
 
@@ -56,6 +55,7 @@ Transcript buffer:
 
 - `q` - hide the overlay
 - `i` - jump to the composer
+- `<CR>` - inspect the selected transcript block
 - `[[` - previous turn
 - `]]` - next turn
 - `g?` - open help
@@ -95,7 +95,7 @@ Set any mapping to `false` to disable it.
 The transcript and composer are plain markdown buffers. The plugin marks them with:
 
 - `b:neovim_codex = true`
-- `b:neovim_codex_role = "transcript" | "composer" | "events"`
+- `b:neovim_codex_role = "transcript" | "composer" | "details" | "events"`
 - `b:neovim_codex_thread_id = <thread-id>`
 
 That means your own markdown ftplugin, treesitter config, render-markdown setup, or custom autocommands can target Codex buffers without special filetypes.
@@ -135,4 +135,4 @@ The overlay also exposes highlight groups for transcript headings, so colorschem
 - a brand-new empty thread may not be resumable yet because the rollout is not materialized
 - reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports
 - approval and question flows are not rendered yet; those arrive in the dedicated approval/request-user-input milestone
-- raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript keeps those details compact by default
+- raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript stays terse and uses `:CodexInspect` for verbose detail

@@ -32,6 +32,7 @@ Use these as compact project memory snapshots that can be injected later.
 - `episodes/0004-thread-turn-chat.md` - how the first in-editor chat loop and thread lifecycle support landed
 - `episodes/0005-overlay-chat-ui.md` - how the split prompt UI was refactored into a markdown overlay with semantic rendering
 - `episodes/0006-protocol-first-projection.md` - why transcript projection now follows the app-server protocol types directly
+- `episodes/0007-conversation-first-inspector.md` - how the overlay split into conversation, activity, and details surfaces
 
 ## Update Rule
 
