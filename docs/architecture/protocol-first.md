@@ -65,14 +65,14 @@ Raw protocol notifications still remain visible in `:CodexEvents`.
 
 Server-initiated JSON-RPC requests are not transcript items and should not be forced into the main conversation view.
 
-They need dedicated UI surfaces later:
+They use dedicated UI surfaces:
 
 - `item/commandExecution/requestApproval` -> command approval modal
 - `item/fileChange/requestApproval` -> file-change approval modal
-- `tool/requestUserInput` -> question form/modal
+- `item/tool/requestUserInput` -> question form/modal
 - `serverRequest/resolved` -> clear pending request UI state
 
-These flows are planned for the approval and request-user-input milestone, but the architecture should already respect these protocol boundaries.
+These flows are now implemented as stacked request viewers plus `vim.ui.select` / `vim.ui.input` collection, but the core rule stays the same: they are server-driven request/response state machines, not transcript blocks.
 
 ## Rendering Policy
 

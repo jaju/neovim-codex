@@ -11,6 +11,10 @@ local function copy_ordered(order, by_id)
   return out
 end
 
+local function request_key(request_id)
+  return request_id and tostring(request_id) or nil
+end
+
 function M.list_threads(state)
   return copy_ordered(state.threads.order, state.threads.by_id)
 end
@@ -78,6 +82,26 @@ function M.list_items(turn)
     return {}
   end
   return copy_ordered(turn.items_order, turn.items_by_id)
+end
+
+function M.list_pending_requests(state)
+  return copy_ordered(state.server_requests.order, state.server_requests.by_id)
+end
+
+function M.get_pending_request(state, request_id)
+  local key = request_key(request_id)
+  if not key then
+    return nil
+  end
+  return state.server_requests.by_id[key]
+end
+
+function M.get_active_request(state)
+  return M.get_pending_request(state, state.server_requests.active_id)
+end
+
+function M.pending_request_count(state)
+  return #(state.server_requests.order or {})
 end
 
 return M

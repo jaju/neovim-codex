@@ -20,6 +20,10 @@ local function present(value)
   return value ~= nil and type(value) ~= "userdata"
 end
 
+local function request_key(value)
+  return tostring(value)
+end
+
 local function append_log(state, entry)
   local logs = state.logs
   logs[#logs + 1] = entry
@@ -38,6 +42,15 @@ local function upsert_order(order, id)
     end
   end
   order[#order + 1] = id
+end
+
+local function remove_order(order, id)
+  for index, current in ipairs(order or {}) do
+    if current == id then
+      table.remove(order, index)
+      return
+    end
+  end
 end
 
 local function replace_order(existing_order, preferred_ids)
@@ -260,6 +273,72 @@ local function merge_thread(state, thread_data, opts)
   return thread
 end
 
+local function clear_server_requests(state)
+  state.server_requests = {
+    active_id = nil,
+    order = {},
+    by_id = {},
+  }
+end
+
+local function upsert_server_request(state, message)
+  local params = clone(message.params or {})
+  local key = request_key(message.id)
+  local request = state.server_requests.by_id[key] or {
+    key = key,
+    request_id = message.id,
+    method = message.method,
+    kind = message.method,
+    thread_id = nil,
+    turn_id = nil,
+    item_id = nil,
+    params = {},
+    status = "pending",
+    created_at = now_iso(),
+    responded_at = nil,
+    response = nil,
+  }
+
+  request.request_id = message.id
+  request.method = message.method
+  request.kind = message.method
+  request.thread_id = params.threadId
+  request.turn_id = params.turnId
+  request.item_id = params.itemId
+  request.params = params
+  request.status = "pending"
+  request.responded_at = nil
+  request.response = nil
+
+  state.server_requests.by_id[key] = request
+  upsert_order(state.server_requests.order, key)
+  state.server_requests.active_id = key
+  return request
+end
+
+local function mark_server_request_responded(state, request_id, response)
+  local key = request_key(request_id)
+  local request = state.server_requests.by_id[key]
+  if not request then
+    return nil
+  end
+
+  request.status = "responding"
+  request.responded_at = now_iso()
+  request.response = clone(response)
+  state.server_requests.active_id = key
+  return request
+end
+
+local function resolve_server_request(state, request_id)
+  local key = request_key(request_id)
+  state.server_requests.by_id[key] = nil
+  remove_order(state.server_requests.order, key)
+  if state.server_requests.active_id == key then
+    state.server_requests.active_id = state.server_requests.order[#state.server_requests.order]
+  end
+end
+
 local function reducer(state, event)
   local next_state = clone(state)
 
@@ -277,6 +356,7 @@ local function reducer(state, event)
     next_state.connection.initialized = false
     next_state.connection.user_agent = nil
     next_state.connection.stop_requested = false
+    clear_server_requests(next_state)
     if event.expected then
       next_state.connection.last_error = nil
     else
@@ -404,6 +484,12 @@ local function reducer(state, event)
       durationMs = nil,
     })
     item.aggregatedOutput = (present(item.aggregatedOutput) and item.aggregatedOutput or "") .. event.delta
+  elseif event.type == "server_request_received" then
+    upsert_server_request(next_state, event.request)
+  elseif event.type == "server_request_response_sent" then
+    mark_server_request_responded(next_state, event.request_id, event.response)
+  elseif event.type == "server_request_resolved" then
+    resolve_server_request(next_state, event.request_id)
   end
 
   if event.log_entry then
@@ -431,6 +517,11 @@ function M.new(opts)
       order = {},
       by_id = {},
       next_cursor = nil,
+    },
+    server_requests = {
+      active_id = nil,
+      order = {},
+      by_id = {},
     },
     logs = {},
     settings = {

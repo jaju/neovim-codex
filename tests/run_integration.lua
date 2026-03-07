@@ -19,6 +19,7 @@ assert(vim.fn.exists(":CodexSend") == 2, "CodexSend command should exist")
 assert(vim.fn.exists(":CodexThreadNew") == 2, "CodexThreadNew command should exist")
 assert(vim.fn.exists(":CodexThreads") == 2, "CodexThreads command should exist")
 assert(vim.fn.exists(":CodexThreadRead") == 2, "CodexThreadRead command should exist")
+assert(vim.fn.exists(":CodexRequest") == 2, "CodexRequest command should exist")
 assert(type(require("neovim_codex.health").check) == "function", "health module should expose check()")
 assert(pcall(require, "nui.popup"), "nui.nvim should be available on runtimepath")
 
@@ -100,6 +101,99 @@ if #list_result.data > 0 then
   assert(resume_result.thread.id == list_result.data[1].id, "thread/resume should return the requested stored thread")
   assert(codex.get_state().threads.active_id == list_result.data[1].id, "resumed stored thread should become active")
 end
+
+
+require("neovim_codex.nvim.presentation").close_viewers()
+
+local request_store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+local selectors = require("neovim_codex.core.selectors")
+local captured_command = nil
+local captured_tool = nil
+local request_manager = require("neovim_codex.nvim.server_requests").new(codex.get_config(), {
+  notify = function() end,
+  respond_command = function(request, payload)
+    captured_command = { request = request, payload = payload }
+    return true, nil
+  end,
+  respond_file_change = function(_, _)
+    return true, nil
+  end,
+  respond_tool_input = function(request, payload)
+    captured_tool = { request = request, payload = payload }
+    return true, nil
+  end,
+})
+request_manager:attach(request_store)
+
+request_store:dispatch({
+  type = "server_request_received",
+  request = {
+    method = "item/commandExecution/requestApproval",
+    id = "req_command",
+    params = {
+      threadId = "thr_req",
+      turnId = "turn_req",
+      itemId = "item_req",
+      command = "ls -la",
+      cwd = repo_root,
+      commandActions = {
+        { type = "listFiles", path = repo_root },
+      },
+    },
+  },
+})
+vim.wait(1000, function()
+  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
+  return top and top.key == "server-request"
+end, 20)
+local request_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(request_viewers.top and request_viewers.top.key == "server-request", "pending server request should open in the stacked viewer layer")
+local active_request = selectors.get_active_request(request_store:get_state())
+assert(active_request and active_request.method == "item/commandExecution/requestApproval", "command approval request should become active")
+local responded_ok, responded_err = request_manager:respond_with_decision(active_request, "accept")
+assert(responded_err == nil, responded_err or "command approval should respond")
+assert(responded_ok == true, "command approval should report success")
+assert(captured_command and captured_command.payload.decision == "accept", "command approval payload should be forwarded")
+request_store:dispatch({ type = "server_request_resolved", request_id = "req_command" })
+vim.wait(1000, function()
+  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
+  return top == nil or top.key ~= "server-request"
+end, 20)
+
+local original_input = vim.ui.input
+vim.ui.input = function(opts, callback)
+  callback("captured answer")
+end
+request_store:dispatch({
+  type = "server_request_received",
+  request = {
+    method = "item/tool/requestUserInput",
+    id = "req_tool",
+    params = {
+      threadId = "thr_req",
+      turnId = "turn_req",
+      itemId = "item_tool",
+      questions = {
+        {
+          id = "question_one",
+          header = "Question",
+          question = "What should we do next?",
+          isOther = false,
+          isSecret = false,
+          options = vim.NIL,
+        },
+      },
+    },
+  },
+})
+local tool_ok, tool_err = request_manager:respond_current()
+vim.ui.input = original_input
+assert(tool_err == nil, tool_err or "tool question should collect an answer")
+assert(tool_ok == true, "tool question should report success")
+assert(captured_tool ~= nil, "tool answer payload should be forwarded")
+assert(captured_tool.payload.answers.question_one.answers[1] == "captured answer", "tool answer should be forwarded with the expected shape")
+request_store:dispatch({ type = "server_request_resolved", request_id = "req_tool" })
+require("neovim_codex.nvim.presentation").close_viewers()
 
 codex.stop()
 vim.wait(4000, function()

@@ -76,6 +76,17 @@ function M:respond(id, result)
   self.transport:write(payload)
 end
 
+function M:respond_server_request(request_id, result, meta)
+  meta = meta or {}
+  self.store:dispatch({
+    type = "server_request_response_sent",
+    request_id = request_id,
+    response = result,
+  })
+  self:respond(request_id, result)
+  return true
+end
+
 function M:_dispatch_result(message, on_result)
   if not on_result then
     return
@@ -192,6 +203,12 @@ function M:_handle_notification(message)
       turn_id = params.turnId,
       item_id = params.itemId,
       delta = params.delta,
+    })
+  elseif message.method == "serverRequest/resolved" then
+    self.store:dispatch({
+      type = "server_request_resolved",
+      thread_id = params.threadId,
+      request_id = params.requestId,
     })
   end
 end

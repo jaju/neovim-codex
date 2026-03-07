@@ -42,6 +42,29 @@ You should not expect the main transcript to become a raw protocol dump or a liv
 
 Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing. Both now open in the same stacked viewer layer above the chat overlay, so `q` or `<Esc>` closes the latest viewer and returns you to the previous one.
 
+## Blocking requests
+
+When Codex asks for a decision or follow-up answer, the plugin opens a dedicated request viewer above the chat overlay.
+
+This applies to:
+
+- command approvals
+- file-change approvals
+- tool `requestUserInput` prompts
+
+These are server-request state machines, not transcript content.
+
+Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer uses your configured `vim.ui.select` / `vim.ui.input` surfaces for the actual choice or answer collection.
+
+Default request viewer mappings:
+
+- `<CR>` - resolve the current request
+- `a` - approve once when available
+- `s` - approve for session when available
+- `d` - decline
+- `c` - cancel
+- `q` or `<Esc>` - hide the viewer without resolving the request
+
 ## Thread commands
 
 - `:CodexThreadNew` - start a fresh thread explicitly
@@ -134,5 +157,4 @@ The overlay also exposes highlight groups for transcript headings, so colorschem
 - a brand-new empty thread may not appear in `thread/list` yet
 - a brand-new empty thread may not be resumable yet because the rollout is not materialized
 - reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports
-- approval and question flows are not rendered yet; those arrive in the dedicated approval/request-user-input milestone
 - raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript stays terse and uses `:CodexInspect` for verbose detail

@@ -130,6 +130,29 @@ local function apply_window_options(entry)
   vim.wo[popup.winid].linebreak = entry.spec.wrap ~= false
 end
 
+local function clear_custom_mappings(entry)
+  for _, mapping in ipairs(entry.custom_mappings or {}) do
+    pcall(vim.keymap.del, mapping.mode, mapping.lhs, { buffer = entry.bufnr })
+  end
+  entry.custom_mappings = {}
+end
+
+local function apply_custom_mappings(entry)
+  clear_custom_mappings(entry)
+  for _, mapping in ipairs(entry.spec.mappings or {}) do
+    vim.keymap.set(mapping.mode or "n", mapping.lhs, mapping.rhs, {
+      buffer = entry.bufnr,
+      silent = mapping.silent ~= false,
+      nowait = mapping.nowait ~= false,
+      desc = mapping.desc,
+    })
+    entry.custom_mappings[#entry.custom_mappings + 1] = {
+      mode = mapping.mode or "n",
+      lhs = mapping.lhs,
+    }
+  end
+end
+
 local function close_key(key)
   local index = stack_index(key)
   if not index then
@@ -137,6 +160,9 @@ local function close_key(key)
   end
 
   local entry = table.remove(state.stack, index)
+  if entry.spec and entry.spec.on_close then
+    entry.spec.on_close(entry)
+  end
   if entry.popup and entry.popup._ and entry.popup._.mounted then
     entry.popup:hide()
   end
@@ -207,6 +233,7 @@ local function apply_spec(entry, spec)
   popup:update_layout(overlay_config(entry.spec))
 
   apply_window_options(entry)
+  apply_custom_mappings(entry)
 end
 
 function M.open(spec)
@@ -220,7 +247,7 @@ function M.open(spec)
   local index = stack_index(spec.key)
   local entry = index and table.remove(state.stack, index) or state.entries[spec.key]
   if not entry then
-    entry = { key = spec.key, spec = {} }
+    entry = { key = spec.key, spec = {}, custom_mappings = {} }
     state.entries[spec.key] = entry
   end
 
@@ -264,9 +291,16 @@ function M.close(key)
   return close_key(current.key)
 end
 
-function M.close_all()
+function M.close_all(opts)
+  opts = opts or {}
+  local preserve_sticky = opts.preserve_sticky == true
+
   while #state.stack > 0 do
-    close_key(state.stack[#state.stack].key)
+    local current = state.stack[#state.stack]
+    if preserve_sticky and current.spec and current.spec.sticky then
+      break
+    end
+    close_key(current.key)
   end
 end
 
@@ -277,6 +311,7 @@ function M.inspect()
       key = entry.key,
       title = entry.spec.title,
       role = entry.spec.role,
+      sticky = entry.spec.sticky == true,
       bufnr = entry.bufnr,
       winid = entry.popup and entry.popup.winid or nil,
       visible = entry.popup and entry.popup._ and entry.popup._.mounted or false,

@@ -350,7 +350,7 @@ local function turn_title(turn, index)
   return string.format("## Turn %d", index)
 end
 
-local function thread_footer(thread)
+local function thread_footer(thread, pending_requests)
   local turns = selectors.list_turns(thread)
   local status = thread.status and thread.status.type or "unknown"
   local active_turn = selectors.get_turn(thread, thread.turns_order[#thread.turns_order])
@@ -363,6 +363,10 @@ local function thread_footer(thread)
     else
       status_bits[#status_bits + 1] = "waiting for response"
     end
+  end
+
+  if (pending_requests or 0) > 0 then
+    status_bits[#status_bits + 1] = string.format("%d request%s pending", pending_requests, pending_requests == 1 and "" or "s")
   end
 
   return string.format("thread %s · %d turn%s · %s", thread.id, #turns, #turns == 1 and "" or "s", table.concat(status_bits, " · "))
@@ -767,7 +771,7 @@ local function project_thread(thread, opts)
   local doc = {
     title = opts.title,
     thread_id = thread.id,
-    footer = thread_footer(thread),
+    footer = thread_footer(thread, selectors.pending_request_count(opts.state or {})),
     blocks = {},
   }
 
@@ -832,7 +836,7 @@ end
 function M.project_active(state, opts)
   local thread = selectors.get_active_thread(state)
   if thread then
-    return project_thread(thread, opts)
+    return project_thread(thread, vim.tbl_extend("force", opts or {}, { state = state }))
   end
 
   return {
@@ -853,7 +857,7 @@ function M.project_active(state, opts)
 end
 
 function M.project_thread(thread, opts)
-  return project_thread(thread, opts)
+  return project_thread(thread, vim.tbl_extend("force", opts or {}, { state = nil }))
 end
 
 return M

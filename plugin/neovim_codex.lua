@@ -50,3 +50,7 @@ end, {})
 vim.api.nvim_create_user_command("CodexInspect", function()
   require("neovim_codex").inspect_current_block()
 end, {})
+
+vim.api.nvim_create_user_command("CodexRequest", function()
+  require("neovim_codex").open_request()
+end, {})

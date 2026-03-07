@@ -65,4 +65,4 @@ The current usable slice includes:
 - plugin-owned markdown buffers are distinguished through buffer variables, not custom filetypes
 - optional app-server fields can arrive as `vim.NIL` through `vim.json.decode`, so projection and render metadata must clone values safely
 - request failures are not the same thing as transport failures and should not poison connection state
-- server-initiated approval and question requests are not transcript items; they need dedicated UI surfaces later
+- server-initiated approval and question requests are not transcript items; they now use a dedicated stacked request surface backed by their own store state and response path

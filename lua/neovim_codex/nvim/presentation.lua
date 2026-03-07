@@ -127,7 +127,7 @@ function M.open_report(name, lines, opts)
   return buf
 end
 
-function M.status_line(connection, threads)
+function M.status_line(connection, threads, server_requests)
   local pieces = {
     string.format("status=%s", connection.status),
     string.format("pid=%s", connection.pid or "-"),
@@ -141,6 +141,10 @@ function M.status_line(connection, threads)
     pieces[#pieces + 1] = string.format("ua=%s", connection.user_agent)
   end
 
+  if server_requests and server_requests.active_id then
+    pieces[#pieces + 1] = string.format("pending=%d", #(server_requests.order or {}))
+  end
+
   if connection.last_error then
     pieces[#pieces + 1] = string.format("error=%s", connection.last_error)
   end
@@ -148,8 +152,8 @@ function M.status_line(connection, threads)
   return table.concat(pieces, " ")
 end
 
-function M.close_viewers()
-  viewer_stack.close_all()
+function M.close_viewers(opts)
+  viewer_stack.close_all(opts)
 end
 
 function M.inspect_viewers()

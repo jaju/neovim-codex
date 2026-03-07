@@ -25,8 +25,9 @@ This repository now implements the first usable in-editor Codex conversation loo
 - projects known app-server `ThreadItem` variants into conversation, activity, and details surfaces instead of rendering raw command noise inline
 - keeps the main transcript outline useful by deriving turn headings from the request text and moving verbose execution detail behind an inspector popup
 - exposes health and smoke checks through `:checkhealth neovim_codex` and `:CodexSmoke`
+- handles blocking server-request flows for command approvals, file-change approvals, and tool `requestUserInput` through a dedicated stacked request surface
 
-It does **not** yet implement approvals, request-user-input flows, rewind/fork UI, or dynamic tools.
+It does **not** yet implement rewind/fork UI or dynamic tools.
 
 ## Requirements
 
@@ -77,6 +78,7 @@ Add this plugin spec to your `lazy.nvim` setup:
           threads = false,
           read_thread = false,
           interrupt = false,
+          request = false,
         },
       },
     })
@@ -116,6 +118,7 @@ Useful thread commands:
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
 - `:CodexInterrupt` - interrupt the running turn, if any
+- `:CodexRequest` - reopen the active approval or question request if one is pending
 
 ## Commands
 
@@ -131,6 +134,7 @@ Useful thread commands:
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
+- `:CodexRequest` - reopen the active pending Codex request
 - `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, `nui.nvim`, and handshake viability
 
 ## Keymaps
@@ -153,6 +157,15 @@ Composer buffer defaults:
 - `q` in normal mode - hide the overlay
 - `g?` in normal mode - open help for the chat buffer
 - `<CR>` - insert a newline
+
+Pending request viewer defaults:
+
+- `<CR>` - resolve the current request
+- `a` - approve once when that decision exists
+- `s` - approve for session when that decision exists
+- `d` - decline
+- `c` - cancel
+- `q` or `<Esc>` - hide the request viewer without resolving the request
 
 All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it.
 
@@ -183,6 +196,8 @@ If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for tha
 ## Protocol-First Transcript Mapping
 
 The transcript is derived from the app-server protocol types, not from shell-string heuristics.
+
+Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items; they open in a stacked request viewer and collect answers through your configured `vim.ui.select` / `vim.ui.input` surfaces. Use `:CodexRequest` to reopen the current request if you close it before responding.
 
 Examples:
 
@@ -228,7 +243,6 @@ The overlay also exposes heading highlight groups you can override in your own c
 
 ## Current Limitations
 
-- approval and request-user-input flows are not implemented yet; that arrives in task 4 and will follow the server-request protocol shapes rather than transcript item surfaces
 - a newly created thread without a persisted user turn may not appear in `thread/list` yet and may not be resumable from storage yet
 - `thread/read` with `includeTurns=true` can fail for an empty thread before the first user message is persisted; the plugin falls back to a metadata-only read in that case
 - the transcript now keeps activity terse by default and routes verbose execution detail through `:CodexInspect`; raw protocol remains in `:CodexEvents`
@@ -286,6 +300,12 @@ require("neovim_codex").setup({
         border = "rounded",
         wrap = true,
       },
+      requests = {
+        width = 0.64,
+        height = 0.58,
+        border = "rounded",
+        wrap = true,
+      },
       composer = {
         min_height = 6,
         max_height = 12,
@@ -337,6 +357,5 @@ The older `ui.chat.width`, `ui.chat.prompt_height`, `ui.chat.wrap`, and `keymaps
 ## Next Steps
 
 1. add thread history UI with server-backed fork and rollback
-2. implement approval and request-user-input handling
-3. add explicit prompt composition from buffer, LSP, and tree-sitter context
-4. add dynamic tools and the first TypeScript adapter daemon
+2. add explicit prompt composition from buffer, LSP, and tree-sitter context
+3. add dynamic tools and the first TypeScript adapter daemon

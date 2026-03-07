@@ -46,6 +46,7 @@ Use for:
 
 These flows are not transcript content.
 They are server-driven request/response state machines.
+The viewer explains the request; answer collection itself should reuse `vim.ui.select` / `vim.ui.input` so user UI personalization still applies.
 
 ## Events Viewer
 

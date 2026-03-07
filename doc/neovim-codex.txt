@@ -44,6 +44,9 @@ COMMANDS                                               *neovim-codex-commands*
 :CodexInterrupt
     Interrupt the current running turn, if one exists.
 
+:CodexRequest
+    Reopen the active pending approval or question request.
+
 ==============================================================================
 CHAT                                                           *neovim-codex-chat*
 
@@ -102,7 +105,18 @@ individual mappings to `false`.
 If `<C-s>` is captured by terminal flow control, remap
 `keymaps.composer.send` or run `stty -ixon`.
 
-Secondary viewers like `:CodexInspect`, `:CodexEvents`, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one.
+Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one.
+
+Blocking request flows are protocol-first and do not render inline as transcript content. When Codex asks for command approval, file-change approval, or tool input, the plugin opens a dedicated request viewer above the chat overlay. Use `:CodexRequest` to reopen the active request if you hide it before responding.
+
+Default request viewer mappings:
+
+- `<CR>` resolve the current request
+- `a` approve once when available
+- `s` approve for session when available
+- `d` decline
+- `c` cancel
+- `q` or `<Esc>` hide the viewer without resolving the request
 
 ==============================================================================
 MARKDOWN CONTRACT                                     *neovim-codex-markdown*
@@ -160,7 +174,6 @@ LIMITATIONS                                            *neovim-codex-limits*
 
 Current known limits:
 
-- approval and request-user-input flows are not implemented yet
 - a brand-new empty thread may not appear in `thread/list` yet
 - a brand-new empty thread may not be resumable yet
 - `thread/read includeTurns=true` can fail before the first user message is

@@ -109,6 +109,49 @@ test("store accumulates streamed plan, reasoning, and command output deltas", fu
   eq(turn.items_by_id.cmd_1.aggregatedOutput, "line 1\nline 2")
 end)
 
+
+test("store tracks pending server requests and resolution", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "server_request_received",
+    request = {
+      method = "item/commandExecution/requestApproval",
+      id = "req_1",
+      params = {
+        threadId = "thr_req",
+        turnId = "turn_req",
+        itemId = "item_req",
+        command = "ls",
+      },
+    },
+  })
+
+  local state = store:get_state()
+  eq(selectors.pending_request_count(state), 1)
+  eq(selectors.get_active_request(state).key, "req_1")
+  eq(selectors.get_active_request(state).params.command, "ls")
+
+  store:dispatch({
+    type = "server_request_response_sent",
+    request_id = "req_1",
+    response = { decision = "accept" },
+  })
+  state = store:get_state()
+  eq(selectors.get_active_request(state).status, "responding")
+  eq(selectors.get_active_request(state).response.decision, "accept")
+
+  store:dispatch({
+    type = "server_request_resolved",
+    request_id = "req_1",
+  })
+
+  state = store:get_state()
+  eq(selectors.pending_request_count(state), 0)
+  eq(selectors.get_active_request(state), nil)
+end)
+
 test("chat document renders assistant replies as markdown blocks", function()
   local document = require("neovim_codex.nvim.chat.document")
   local render = require("neovim_codex.nvim.chat.render")

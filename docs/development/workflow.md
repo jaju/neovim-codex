@@ -18,6 +18,7 @@ This runs:
    - overlay chat creation
    - thread start/list/read/resume command surface
    - clean shutdown
+   - approval and `requestUserInput` request-state handling
 
 
 ## Contract drift checks
@@ -79,8 +80,6 @@ The current workflow validates:
 
 It does not yet validate:
 
-- approval flows
-- request-user-input flows
 - rollback/fork
 - dynamic tools
 - TypeScript adapter behavior

@@ -15,7 +15,8 @@ All notable changes to this project will be documented in this file.
 - Protocol-first transcript mapping docs for app-server item surfaces and streaming rules.
 - Buffer tagging for transcript/composer/event buffers so user markdown customization can target Codex buffers cleanly.
 - Transcript heading highlight groups that can be overridden without changing the markdown buffer contract.
-- Unit coverage for markdown chat projection, streamed protocol delta handling, and the details inspector formatter.
+- Unit coverage for markdown chat projection, streamed protocol delta handling, the details inspector formatter, and the server-request state machine.
+- A dedicated request viewer and `:CodexRequest` command for command approvals, file-change approvals, and tool `requestUserInput` flows.
 
 ### Changed
 - `:CodexChat` now toggles the overlay instead of only opening a side split.
@@ -26,7 +27,8 @@ All notable changes to this project will be documented in this file.
 - The thread report renderer now uses the same markdown projection path as the live chat UI.
 - Health checks now verify `nui.nvim` in addition to the existing app-server smoke path.
 - Verbose command, tool, and reasoning detail now lives behind `:CodexInspect` instead of occupying the main transcript by default.
-- Events, reports, and transcript inspection now share a stacked popup layer instead of opening as unrelated windows or hidden splits.
+- Events, reports, transcript inspection, and blocking request prompts now share a stacked popup layer instead of opening as unrelated windows or hidden splits.
+- Command approval, file-change approval, and tool-question handling now follow the locked app-server request contracts instead of staying as planned-only UX.
 - Legacy chat config keys are normalized into the new overlay/composer configuration shape.
 
 ## [0.2.0] - 2026-03-06

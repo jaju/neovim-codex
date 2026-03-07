@@ -218,7 +218,7 @@ function M.focus_composer()
 end
 
 function M.close()
-  presentation.close_viewers()
+  presentation.close_viewers({ preserve_sticky = true })
   if state.details then
     state.details:hide()
   end

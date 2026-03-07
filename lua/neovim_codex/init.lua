@@ -3,6 +3,7 @@ local selectors = require("neovim_codex.core.selectors")
 local store_mod = require("neovim_codex.core.store")
 local chat = require("neovim_codex.nvim.chat")
 local presentation = require("neovim_codex.nvim.presentation")
+local requests = require("neovim_codex.nvim.server_requests")
 local smoke = require("neovim_codex.nvim.smoke")
 local renderer = require("neovim_codex.nvim.thread_renderer")
 local transport_mod = require("neovim_codex.nvim.transport")
@@ -44,6 +45,12 @@ local defaults = {
         border = "rounded",
         wrap = true,
       },
+      requests = {
+        width = 0.64,
+        height = 0.58,
+        border = "rounded",
+        wrap = true,
+      },
       composer = {
         min_height = 6,
         max_height = 12,
@@ -59,6 +66,7 @@ local defaults = {
       threads = false,
       read_thread = false,
       interrupt = false,
+      request = false,
     },
     transcript = {
       close = "q",
@@ -74,10 +82,18 @@ local defaults = {
       close = "q",
       help = "g?",
     },
+    request = {
+      respond = "<CR>",
+      accept = "a",
+      accept_for_session = "s",
+      decline = "d",
+      cancel = "c",
+    },
   },
 }
 
 local runtime = nil
+local ensure_runtime
 local config = vim.deepcopy(defaults)
 
 local function notify(message, level, enabled)
@@ -111,6 +127,9 @@ local function apply_global_keymaps()
   map_if(keymaps.interrupt, function()
     require("neovim_codex").interrupt()
   end, "Interrupt the active Codex turn")
+  map_if(keymaps.request, function()
+    require("neovim_codex").open_request()
+  end, "Open the active Codex request")
 end
 
 local function json_codec()
@@ -128,13 +147,17 @@ local function current_runtime_config()
   return vim.deepcopy(config)
 end
 
-local function on_server_request(message)
-  vim.schedule(function()
-    notify(string.format("Codex sent `%s`, but request handling arrives in task 4", message.method), vim.log.levels.WARN, true)
-  end)
+local function send_server_request_response(request_key, payload)
+  local rt = ensure_runtime()
+  local request = selectors.get_pending_request(rt.client:get_state(), request_key)
+  if not request then
+    return nil, "pending request was not found"
+  end
+  rt.client:respond_server_request(request.request_id, payload)
+  return true, nil
 end
 
-local function ensure_runtime()
+function ensure_runtime()
   if runtime then
     return runtime
   end
@@ -147,13 +170,28 @@ local function ensure_runtime()
     json = json_codec(),
     client_info = config.client_info,
     experimental_api = config.experimental_api,
-    on_server_request = on_server_request,
   })
+  local request_manager = requests.new(config, {
+    notify = function(message, level)
+      notify(message, level, true)
+    end,
+    respond_command = function(request, payload)
+      return send_server_request_response(request.key, payload)
+    end,
+    respond_file_change = function(request, payload)
+      return send_server_request_response(request.key, payload)
+    end,
+    respond_tool_input = function(request, payload)
+      return send_server_request_response(request.key, payload)
+    end,
+  })
+  request_manager:attach(store)
 
   runtime = {
     store = store,
     transport = transport,
     client = client,
+    requests = request_manager,
     config = current_runtime_config(),
   }
 
@@ -718,7 +756,7 @@ end
 function M.status()
   local rt = ensure_runtime()
   local state = rt.client:get_state()
-  return presentation.status_line(state.connection, state.threads)
+  return presentation.status_line(state.connection, state.threads, state.server_requests)
 end
 
 function M.open_events()
@@ -746,8 +784,24 @@ function M.get_state()
   return rt.client:get_state()
 end
 
+function M.open_request(opts)
+  opts = opts or {}
+  local rt = ensure_runtime()
+  local request, err = rt.requests:open_current()
+  if err then
+    notify(err, vim.log.levels.INFO, opts.notify)
+    return nil, err
+  end
+  return request, nil
+end
+
 function M.get_chat_state()
   return chat.inspect()
+end
+
+function M.get_request_state()
+  local rt = ensure_runtime()
+  return rt.requests:inspect()
 end
 
 function M.get_config()
