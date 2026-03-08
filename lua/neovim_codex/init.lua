@@ -93,6 +93,7 @@ local defaults = {
     transcript = {
       close = "q",
       focus_composer = "i",
+      switch_pane = "<C-w>w",
       inspect = "<CR>",
       next_turn = "]]",
       prev_turn = "[[",
@@ -101,6 +102,7 @@ local defaults = {
     composer = {
       send = "<C-s>",
       send_normal = "gS",
+      switch_pane = "<C-w>w",
       close = "q",
       help = "g?",
     },

@@ -7,9 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Guarded chat tool-error rendering against `vim.NIL` payloads so `mcpToolCall` items no longer crash the transcript or details views.
 - Routed the workbench tray and compose review through the shared viewer stack so secondary surfaces always appear above chat.
+- Leaving plugin-owned windows now collapses the chat overlay instead of silently dropping focus to the editor buffer under the modal.
 
 ### Changed
 - Removed transcript-to-workbench capture from the first slice; workbench capture is now explicitly code-world first.
+- `Ctrl-w w` now stays inside the chat surface by switching between the transcript and composer panes.
 - Compose review now preserves an existing thread-local draft instead of silently overwriting it on reopen.
 - Workbench capture now rejects plugin scratch buffers and other non-file buffers.
 - Workbench fragments now receive stable short handles per thread, and compose review inserts them into packet templates instead of appending a distant fragment dump.

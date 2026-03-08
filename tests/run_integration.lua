@@ -9,6 +9,10 @@ end
 vim.cmd("runtime plugin/neovim_codex.lua")
 vim.o.showmode = false
 
+local function termcodes(value)
+  return vim.api.nvim_replace_termcodes(value, true, false, true)
+end
+
 local codex = require("neovim_codex")
 codex.setup({})
 
@@ -39,6 +43,7 @@ local report = codex.run_smoke({
 assert(report.success, table.concat(report.lines, "\n"))
 assert(report.connection.initialized == true, "smoke should reach initialized state")
 
+local base_window = vim.api.nvim_get_current_win()
 codex.chat()
 local chat_state = codex.get_chat_state()
 assert(chat_state.visible == true, "chat overlay should be visible after opening")
@@ -47,6 +52,22 @@ assert(chat_state.composer_buf and vim.api.nvim_buf_is_valid(chat_state.composer
 assert(vim.bo[chat_state.transcript_buf].filetype == "markdown", "transcript should use markdown")
 assert(vim.bo[chat_state.composer_buf].filetype == "markdown", "composer should use markdown")
 assert(vim.bo[chat_state.composer_buf].buftype == "nofile", "composer should be a normal scratch buffer")
+
+vim.api.nvim_set_current_win(chat_state.transcript_win)
+vim.api.nvim_feedkeys(termcodes("<C-w>w"), "xt", false)
+vim.wait(1000, function()
+  return codex.get_chat_state().composer_win == vim.api.nvim_get_current_win()
+end, 20)
+assert(codex.get_chat_state().composer_win == vim.api.nvim_get_current_win(), "Ctrl-w w should switch from the transcript to the composer inside the overlay")
+
+vim.api.nvim_set_current_win(base_window)
+vim.wait(1000, function()
+  return codex.get_chat_state().visible == false
+end, 20)
+assert(codex.get_chat_state().visible == false, "leaving plugin-owned windows should close the chat overlay")
+
+codex.chat()
+assert(codex.get_chat_state().visible == true, "chat command should reopen the overlay after focus escape")
 
 codex.chat()
 local hidden_chat_state = codex.get_chat_state()

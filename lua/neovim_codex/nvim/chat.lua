@@ -88,6 +88,11 @@ local function ensure_surface()
     hide = function()
       M.close()
     end,
+    focus_transcript = function()
+      if state.surface then
+        state.surface:focus_transcript()
+      end
+    end,
     open_help = open_help,
     on_height_changed = function(height)
       if state.surface then

@@ -30,6 +30,10 @@ local function valid_window(winid)
   return winid and vim.api.nvim_win_is_valid(winid)
 end
 
+local function buffer_is_codex_owned(bufnr)
+  return valid_buffer(bufnr) and vim.b[bufnr].neovim_codex == true
+end
+
 local function map_if(lhs, mode, rhs, opts)
   if not lhs then
     return
@@ -199,6 +203,9 @@ function Surface:_bind_transcript_keymaps(bufnr)
   map_if(keymaps.focus_composer, "n", function()
     self.handlers.focus_composer()
   end, { buffer = bufnr, desc = "Focus Codex composer" })
+  map_if(keymaps.switch_pane, "n", function()
+    self:focus_next_pane()
+  end, { buffer = bufnr, desc = "Switch Codex chat pane" })
   map_if(keymaps.inspect, "n", function()
     self.handlers.inspect_current_block()
   end, { buffer = bufnr, desc = "Inspect current Codex block" })
@@ -291,6 +298,15 @@ function Surface:_ensure_components()
       end
     end,
   })
+
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = self.augroup,
+    callback = function()
+      vim.schedule(function()
+        self:_handle_focus_change()
+      end)
+    end,
+  })
 end
 
 function Surface:_refresh_layout()
@@ -312,6 +328,33 @@ function Surface:_set_footer(text)
     return
   end
   self.container.border:set_text("bottom", text or "", "left")
+end
+
+function Surface:_is_overlay_window(winid)
+  if not valid_window(winid) then
+    return false
+  end
+
+  local bufnr = vim.api.nvim_win_get_buf(winid)
+  return buffer_is_codex_owned(bufnr)
+end
+
+function Surface:_handle_focus_change()
+  if not self.visible then
+    return
+  end
+
+  local current = vim.api.nvim_get_current_win()
+  if self:_is_overlay_window(current) then
+    return
+  end
+
+  if self.handlers.close_overlay then
+    self.handlers.close_overlay()
+    return
+  end
+
+  self:hide()
 end
 
 function Surface:_sync_windows()
@@ -530,6 +573,24 @@ end
 function Surface:focus_composer()
   self:show()
   return self.composer:focus()
+end
+
+function Surface:focus_transcript()
+  self:show()
+  if not valid_window(self.transcript_popup and self.transcript_popup.winid) then
+    return false
+  end
+
+  vim.api.nvim_set_current_win(self.transcript_popup.winid)
+  return true
+end
+
+function Surface:focus_next_pane()
+  local current = vim.api.nvim_get_current_win()
+  if current == (self.transcript_popup and self.transcript_popup.winid) then
+    return self:focus_composer()
+  end
+  return self:focus_transcript()
 end
 
 function Surface:inspect()

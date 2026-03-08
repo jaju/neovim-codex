@@ -42,7 +42,7 @@ You should expect to see:
 
 You should not expect the main transcript to become a raw protocol dump or a live execution log.
 
-Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing. Both now open in the same stacked viewer layer above the chat overlay, so `q` or `<Esc>` closes the latest viewer and returns you to the previous one.
+Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing. Both now open in the same stacked viewer layer above the chat overlay, so `q` or `<Esc>` closes the latest viewer and returns you to the previous one. If focus leaves all plugin-owned windows, the chat overlay closes instead of leaving a hidden cursor behind the modal.
 
 ## Blocking requests
 
@@ -80,6 +80,7 @@ Transcript buffer:
 
 - `q` - hide the overlay
 - `i` - jump to the composer
+- `<C-w>w` - switch to the composer without leaving the overlay
 - `<CR>` - inspect the selected transcript block in the stacked viewer layer
 - `[[` - previous turn
 - `]]` - next turn
@@ -89,6 +90,7 @@ Composer buffer:
 
 - `<C-s>` - send the current draft from normal or insert mode
 - `gS` - send the current draft from normal mode
+- `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
 - `g?` in normal mode - open help
 - `<CR>` - insert a newline

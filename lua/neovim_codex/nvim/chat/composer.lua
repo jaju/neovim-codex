@@ -46,6 +46,11 @@ function Composer:_bind_keymaps(bufnr)
   map_if(keymaps.send_normal, "n", function()
     self.handlers.send()
   end, { buffer = bufnr, desc = "Send Codex prompt" })
+  map_if(keymaps.switch_pane, "n", function()
+    if self.handlers.focus_transcript then
+      self.handlers.focus_transcript()
+    end
+  end, { buffer = bufnr, desc = "Switch Codex chat pane" })
   map_if(keymaps.close, "n", function()
     self.handlers.hide()
   end, { buffer = bufnr, desc = "Hide Codex overlay" })

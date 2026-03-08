@@ -159,6 +159,7 @@ Transcript buffer defaults:
 
 - `q` - hide the overlay
 - `i` - focus the composer
+- `<C-w>w` - switch between transcript and composer without leaving the overlay
 - `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
@@ -168,6 +169,7 @@ Composer buffer defaults:
 
 - `<C-s>` - send the current draft from normal or insert mode
 - `gS` - send the current draft from normal mode
+- `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
 - `g?` in normal mode - open help for the chat buffer
 - `<CR>` - insert a newline

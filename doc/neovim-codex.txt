@@ -104,6 +104,7 @@ Default transcript mappings:
 
 - `q` hide the overlay
 - `i` focus the composer
+- `<C-w>w` switch between transcript and composer without leaving the overlay
 - `<CR>` inspect the selected transcript block in the stacked viewer layer
 - `[[` jump to the previous turn
 - `]]` jump to the next turn
@@ -113,6 +114,7 @@ Default composer mappings:
 
 - `<C-s>` send the current draft from normal or insert mode
 - `gS` send the current draft from normal mode
+- `<C-w>w` in normal mode switches back to the transcript
 - `q` in normal mode hides the overlay
 - `g?` in normal mode opens this help topic
 - `<CR>` inserts a newline
@@ -139,7 +141,7 @@ individual mappings to `false`.
 If `<C-s>` is captured by terminal flow control, remap
 `keymaps.composer.send` or run `stty -ixon`.
 
-Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one.
+Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one. If focus leaves plugin-owned windows, the chat overlay closes so the cursor never disappears behind the modal.
 
 Blocking request flows are protocol-first and do not render inline as transcript content. When Codex asks for command approval, file-change approval, or tool input, the plugin opens a dedicated request viewer above the chat overlay. Use `:CodexRequest` to reopen the active request if you hide it before responding.
 
