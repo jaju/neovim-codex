@@ -430,6 +430,41 @@ test("packet compiler rejects unreferenced staged fragments", function()
   assert(err:find("f2", 1, true), "unreferenced handle should be reported")
 end)
 
+
+test("thread renderer accepts raw thread/read payloads", function()
+  local renderer = require("neovim_codex.nvim.thread_renderer")
+  local view = renderer.render_thread({
+    id = "thr_raw",
+    name = "Raw thread",
+    status = { type = "idle" },
+    turns = {
+      {
+        id = "turn_raw",
+        status = "completed",
+        items = {
+          {
+            id = "user_raw",
+            type = "userMessage",
+            content = {
+              { type = "text", text = "Summarize the current setup." },
+            },
+          },
+          {
+            id = "assistant_raw",
+            type = "agentMessage",
+            text = "The setup is stable.",
+          },
+        },
+      },
+    },
+  }, { title = "# Codex Thread" })
+
+  local body = table.concat(view.lines, "\n")
+  assert(body:find("Summarize the current setup.", 1, true), "raw thread report should include the user message")
+  assert(body:find("The setup is stable.", 1, true), "raw thread report should include the assistant message")
+  assert((view.footer or ""):find("1 turn", 1, true), "raw thread footer should include the turn count")
+end)
+
 for _, case in ipairs(tests) do
   local ok, err = pcall(case.fn)
   if ok then

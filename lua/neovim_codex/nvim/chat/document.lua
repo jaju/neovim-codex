@@ -350,10 +350,42 @@ local function turn_title(turn, index)
   return string.format("## Turn %d", index)
 end
 
+local function list_thread_turns(thread)
+  if type(thread) ~= "table" then
+    return {}
+  end
+
+  if type(thread.turns_order) == "table" and type(thread.turns_by_id) == "table" then
+    return selectors.list_turns(thread)
+  end
+
+  if type(thread.turns) == "table" then
+    return thread.turns
+  end
+
+  return {}
+end
+
+local function list_turn_items(turn)
+  if type(turn) ~= "table" then
+    return {}
+  end
+
+  if type(turn.items_order) == "table" and type(turn.items_by_id) == "table" then
+    return selectors.list_items(turn)
+  end
+
+  if type(turn.items) == "table" then
+    return turn.items
+  end
+
+  return {}
+end
+
 local function thread_footer(state, thread, pending_requests)
-  local turns = selectors.list_turns(thread)
+  local turns = list_thread_turns(thread)
   local status = thread.status and thread.status.type or "unknown"
-  local active_turn = selectors.get_turn(thread, thread.turns_order[#thread.turns_order])
+  local active_turn = turns[#turns]
   local status_bits = { status }
   local fragment_count = state and selectors.workbench_fragment_count(state, thread.id) or 0
 
@@ -796,7 +828,7 @@ local function project_thread(thread, opts)
     }))
   end
 
-  local turns = selectors.list_turns(thread)
+  local turns = list_thread_turns(thread)
   if #turns == 0 then
     add_block(doc.blocks, new_block({
       kind = "metadata",
@@ -816,7 +848,7 @@ local function project_thread(thread, opts)
     heading.turn_id = turn.id
     add_block(doc.blocks, heading)
 
-    local items = selectors.list_items(turn)
+    local items = list_turn_items(turn)
     if #items == 0 then
       add_block(doc.blocks, {
         id = string.format("turn:%s:pending", turn.id),
