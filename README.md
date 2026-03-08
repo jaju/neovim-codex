@@ -117,7 +117,7 @@ Useful thread commands:
 - `:CodexThreadNew` - create and activate a fresh thread
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
-- `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
+- `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexRequest` - reopen the active approval or question request if one is pending
 - `:CodexShortcuts` - show contextual Codex shortcuts for the current surface
@@ -163,6 +163,7 @@ Transcript buffer defaults:
 
 - `q` - hide the overlay
 - `i` - focus the composer
+- insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode in the read-only transcript
 - `<C-w>w` - switch between transcript and composer without leaving the overlay
 - `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
@@ -180,6 +181,7 @@ Composer buffer defaults:
 
 Pending request viewer defaults:
 
+- the viewer is read-only and opens in normal mode
 - `<CR>` - resolve the current request
 - `a` - approve once when that decision exists
 - `s` - approve for session when that decision exists

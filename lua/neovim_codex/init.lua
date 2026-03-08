@@ -792,6 +792,43 @@ function M.pick_thread(opts)
   return threads, nil
 end
 
+local function submit_thread_rename(rt, thread, name, opts)
+  local normalized_name = vim.trim(tostring(name))
+
+  if opts.wait == true then
+    local result, request_err = request_with_wait(function(done)
+      rt.client:thread_name_set({ threadId = thread.id, name = normalized_name }, done)
+    end, wait_opts(opts))
+
+    if request_err then
+      notify(request_err, vim.log.levels.ERROR, opts.notify)
+      return nil, request_err
+    end
+
+    if normalized_name == "" then
+      notify(string.format("Cleared thread name · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
+    else
+      notify(string.format("Renamed thread %s to %s", short_thread_id(thread.id), normalized_name), vim.log.levels.INFO, opts.notify)
+    end
+    return result, nil
+  end
+
+  rt.client:thread_name_set({ threadId = thread.id, name = normalized_name }, function(request_err)
+    if request_err then
+      notify(request_err, vim.log.levels.ERROR, opts.notify)
+      return
+    end
+
+    if normalized_name == "" then
+      notify(string.format("Cleared thread name · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
+    else
+      notify(string.format("Renamed thread %s to %s", short_thread_id(thread.id), normalized_name), vim.log.levels.INFO, opts.notify)
+    end
+  end)
+
+  return { threadId = thread.id, name = normalized_name }, nil
+end
+
 function M.rename_thread(opts)
   opts = opts or {}
   local rt, err = ensure_ready(opts.timeout_ms)
@@ -809,39 +846,25 @@ function M.rename_thread(opts)
 
   local name = opts.name
   if name == nil then
-    local done = false
     vim.ui.input({
       prompt = string.format("Rename Codex thread %s: ", short_thread_id(thread.id)),
       default = thread.name ~= nil and thread.name ~= vim.NIL and tostring(thread.name) or thread_title(thread),
     }, function(input)
-      name = input
-      done = true
+      if input == nil then
+        notify("Cancelled thread rename", vim.log.levels.INFO, opts.notify)
+        return
+      end
+      M.rename_thread({
+        thread_id = thread.id,
+        name = input,
+        notify = opts.notify,
+        timeout_ms = opts.timeout_ms,
+      })
     end)
-    vim.wait(10000, function()
-      return done
-    end, 20)
-    if name == nil then
-      notify("Cancelled thread rename", vim.log.levels.INFO, opts.notify)
-      return nil, "cancelled"
-    end
+    return { threadId = thread.id }, nil
   end
 
-  name = vim.trim(tostring(name))
-  local result, request_err = request_with_wait(function(done)
-    rt.client:thread_name_set({ threadId = thread.id, name = name }, done)
-  end, wait_opts(opts))
-
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  if name == "" then
-    notify(string.format("Cleared thread name · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
-  else
-    notify(string.format("Renamed thread %s to %s", short_thread_id(thread.id), name), vim.log.levels.INFO, opts.notify)
-  end
-  return result, nil
+  return submit_thread_rename(rt, thread, name, opts)
 end
 
 function M.open_shortcuts(opts)

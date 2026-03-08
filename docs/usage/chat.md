@@ -60,6 +60,7 @@ Use `:CodexRequest` to reopen the active request if you hide it before respondin
 
 Default request viewer mappings:
 
+- the viewer opens in normal mode and stays read-only
 - `<CR>` - resolve the current request
 - `a` - approve once when available
 - `s` - approve for session when available
@@ -74,6 +75,7 @@ Default request viewer mappings:
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a thread without resuming it
 - `:CodexThreadRename [name]` - rename the active thread
+  - when no name is supplied, the prompt is collected asynchronously so the UI does not freeze first
 - `:CodexInterrupt` - interrupt the current turn
 
 ## Default overlay mappings
@@ -82,6 +84,7 @@ Transcript buffer:
 
 - `q` - hide the overlay
 - `i` - jump to the composer
+- insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
 - `<C-w>w` - switch to the composer without leaving the overlay
 - `<CR>` - inspect the selected transcript block in the stacked viewer layer
 - `[[` - previous turn

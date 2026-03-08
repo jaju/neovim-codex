@@ -110,6 +110,7 @@ Default transcript mappings:
 
 - `q` hide the overlay
 - `i` focus the composer
+- insert-like keys (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
 - `<C-w>w` switch between transcript and composer without leaving the overlay
 - `<CR>` inspect the selected transcript block in the stacked viewer layer
 - `[[` jump to the previous turn
@@ -153,6 +154,7 @@ Blocking request flows are protocol-first and do not render inline as transcript
 
 Default request viewer mappings:
 
+- the viewer opens in normal mode and stays read-only
 - `<CR>` resolve the current request
 - `a` approve once when available
 - `s` approve for session when available

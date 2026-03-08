@@ -203,6 +203,16 @@ function Surface:_bind_transcript_keymaps(bufnr)
   map_if(keymaps.focus_composer, "n", function()
     self.handlers.focus_composer()
   end, { buffer = bufnr, desc = "Focus Codex composer" })
+  for _, lhs in ipairs({ "a", "A", "i", "I", "o", "O", "R" }) do
+    vim.keymap.set("n", lhs, function()
+      self.handlers.focus_composer()
+    end, {
+      buffer = bufnr,
+      silent = true,
+      nowait = true,
+      desc = "Focus Codex composer",
+    })
+  end
   map_if(keymaps.switch_pane, "n", function()
     self:focus_next_pane()
   end, { buffer = bufnr, desc = "Switch Codex chat pane" })
@@ -429,6 +439,18 @@ function Surface:_set_transcript_lines(lines)
 end
 
 function Surface:show()
+  if self.layout and self.layout._ and self.layout._.mounted then
+    local stale = not valid_window(self.container and self.container.winid)
+      or not valid_window(self.transcript_popup and self.transcript_popup.winid)
+      or not valid_window(self.composer_popup and self.composer_popup.winid)
+    if stale then
+      self.layout = nil
+      self.container = nil
+      self.transcript_popup = nil
+      self.composer_popup = nil
+    end
+  end
+
   self:_ensure_components()
 
   if self.visible then
@@ -453,11 +475,12 @@ function Surface:hide()
   if not self.layout or not self.visible then
     return
   end
-  self.layout:hide()
-  if self.container and self.container.hide then
-    self.container:hide()
-  end
+  self.layout:unmount()
   self.visible = false
+  self.layout = nil
+  self.container = nil
+  self.transcript_popup = nil
+  self.composer_popup = nil
 end
 
 function Surface:toggle()
@@ -505,9 +528,6 @@ function Surface:update(render_result)
     self:_render_blocks(render_result.blocks)
   end
 
-  if self.visible then
-    self:_refresh_layout()
-  end
 end
 
 function Surface:set_composer_height(_)
@@ -582,6 +602,7 @@ function Surface:focus_transcript()
   end
 
   vim.api.nvim_set_current_win(self.transcript_popup.winid)
+  vim.cmd("stopinsert")
   return true
 end
 

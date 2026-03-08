@@ -518,6 +518,15 @@ function M:_request_spec(request)
     }
   end
 
+  for _, lhs in ipairs({ "i", "I", "o", "O", "A", "R" }) do
+    mappings[#mappings + 1] = {
+      mode = "n",
+      lhs = lhs,
+      rhs = function() end,
+      desc = "Request viewer is read-only",
+    }
+  end
+
   if request.method == "item/commandExecution/requestApproval" then
     local decisions = command_decisions(request)
     local shortcut_map = {

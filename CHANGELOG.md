@@ -6,9 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Guarded chat tool-error rendering against `vim.NIL` payloads so `mcpToolCall` items no longer crash the transcript or details views.
+- Thread rename no longer blocks behind a synchronous prompt path before it sends the protocol request.
 - Request viewers now open in normal mode so direct decision shortcuts like `a`, `s`, `d`, and `c` work without an extra `<Esc>`.
 - Routed the workbench tray and compose review through the shared viewer stack so secondary surfaces always appear above chat.
 - Leaving plugin-owned windows now collapses the chat overlay instead of silently dropping focus to the editor buffer under the modal.
+- Chat overlay reopen now rebuilds a clean NUI layout instead of reusing stale mounted state.
+- Streaming transcript updates no longer force layout refreshes, which removes bottom-border flicker during long responses.
 
 ### Changed
 - Removed transcript-to-workbench capture from the first slice; workbench capture is now explicitly code-world first.
