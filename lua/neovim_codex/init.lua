@@ -88,6 +88,7 @@ local defaults = {
       compose = false,
       capture_path = false,
       capture_selection = false,
+      capture_diagnostic = false,
     },
     transcript = {
       close = "q",
@@ -116,7 +117,8 @@ local defaults = {
       remove = "dd",
       clear = "D",
       compose = "o",
-      focus_message = "i",
+      insert_handle = "i",
+      focus_message = false,
       help = "g?",
     },
     compose_review = {
@@ -181,6 +183,9 @@ local function apply_global_keymaps()
       require("neovim_codex").capture_visual_selection()
     end, { silent = true, desc = "Add the current selection to the Codex workbench" })
   end
+  map_if(keymaps.capture_diagnostic, function()
+    require("neovim_codex").capture_current_diagnostic()
+  end, "Add the current diagnostic to the Codex workbench")
 end
 
 local function json_codec()
@@ -866,6 +871,16 @@ end
 function M.capture_visual_selection(opts)
   opts = opts or {}
   local result, err = workbench.add_selection(opts)
+  if err then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+  return result, nil
+end
+
+function M.capture_current_diagnostic(opts)
+  opts = opts or {}
+  local result, err = workbench.add_diagnostic(opts)
   if err then
     notify(err, vim.log.levels.ERROR, opts.notify)
     return nil, err

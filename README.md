@@ -126,6 +126,7 @@ Workbench and compose commands:
 - `:CodexCompose` - open compose review for the current thread
 - `:CodexCapturePath` - stage the current file as a `path_ref` fragment
 - `:CodexCaptureSelection` - stage the current visual selection as a `code_range` fragment
+- `:CodexCaptureDiagnostic` - stage the current diagnostic under cursor as a `diagnostic` fragment
 - workbench capture is code-world first in this slice; chat text can still be copied manually when needed
 
 ## Commands
@@ -147,6 +148,7 @@ Workbench and compose commands:
 - `:CodexCompose` - open compose review for the active thread
 - `:CodexCapturePath` - stage the current file as a fragment
 - `:CodexCaptureSelection` - stage the current visual selection as a code fragment
+- `:CodexCaptureDiagnostic` - stage the current diagnostic under cursor as a fragment
 - `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, `nui.nvim`, and handshake viability
 
 ## Keymaps

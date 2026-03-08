@@ -1,5 +1,7 @@
 local M = {}
 
+local HANDLE_PATTERN = "%[%[([%w_%-]+)%]%]"
+
 local function present(value)
   return value ~= nil and type(value) ~= "userdata"
 end
@@ -54,6 +56,15 @@ local function range_label(range)
   return string.format("%d-%d", start_line, end_line)
 end
 
+local function location_label(fragment)
+  local path = display_path(fragment.path or fragment.label)
+  local range = range_label(fragment.range)
+  if path and range then
+    return string.format("%s:%s", path, range)
+  end
+  return path or range
+end
+
 local function plain_snippet(value, limit)
   if not present(value) then
     return nil
@@ -81,9 +92,39 @@ local function heading_label(fragment)
   return trim(label)
 end
 
+function M.fragment_handle(fragment)
+  if type(fragment) ~= "table" then
+    return nil
+  end
+
+  local handle = trim(fragment.handle or "")
+  if handle == "" then
+    return nil
+  end
+  return handle
+end
+
+function M.handle_token(fragment_or_handle)
+  local handle = nil
+  if type(fragment_or_handle) == "table" then
+    handle = M.fragment_handle(fragment_or_handle)
+  else
+    handle = trim(fragment_or_handle or "")
+  end
+
+  if not handle or handle == "" then
+    return nil
+  end
+  return string.format("[[%s]]", handle)
+end
+
 function M.fragment_summary(fragment)
   local kind = tostring(fragment.kind or "fragment")
   local label = heading_label(fragment)
+  local handle = M.fragment_handle(fragment)
+  if handle then
+    return string.format("[%s] [%s] %s", handle, kind, label)
+  end
   return string.format("[%s] %s", kind, label)
 end
 
@@ -93,24 +134,70 @@ function M.fragment_preview(fragment)
   end
 
   if fragment.kind == "code_range" then
-    local path = display_path(fragment.path) or fragment.label or "selection"
-    local range = range_label(fragment.range)
-    if range then
-      return string.format("%s:%s", path, range)
-    end
-    return path
+    return location_label(fragment) or display_path(fragment.path) or fragment.label or "selection"
   end
 
   if fragment.kind == "diagnostic" then
-    return plain_snippet(fragment.message or fragment.label, 88) or heading_label(fragment)
+    local summary = plain_snippet(fragment.message or fragment.label, 88) or heading_label(fragment)
+    if present(fragment.code) then
+      return string.format("%s · %s", tostring(fragment.code), summary)
+    end
+    return summary
   end
 
   return plain_snippet(fragment.text or fragment.label, 88) or heading_label(fragment)
 end
 
+local function render_fragment_expansion(fragment)
+  local lines = {}
+
+  if fragment.kind == "path_ref" then
+    lines[#lines + 1] = string.format("The relevant file path is `%s`.", display_path(fragment.path or fragment.label) or fragment.label or "")
+    return lines
+  end
+
+  if fragment.kind == "code_range" then
+    local location = location_label(fragment) or display_path(fragment.path) or fragment.label or "snippet"
+    lines[#lines + 1] = string.format("The relevant code snippet from `%s` is:", location)
+    lines[#lines + 1] = string.format("```%s", fragment.filetype or "text")
+    append_lines(lines, split_lines(fragment.text))
+    lines[#lines + 1] = "```"
+    return lines
+  end
+
+  if fragment.kind == "diagnostic" then
+    local location = location_label(fragment)
+    if location then
+      lines[#lines + 1] = string.format("The relevant diagnostic from `%s` is:", location)
+    else
+      lines[#lines + 1] = "The relevant diagnostic is:"
+    end
+    if present(fragment.source) then
+      lines[#lines + 1] = string.format("- Source: `%s`", tostring(fragment.source))
+    end
+    if present(fragment.code) then
+      lines[#lines + 1] = string.format("- Code: `%s`", tostring(fragment.code))
+    end
+    if present(fragment.severity) then
+      lines[#lines + 1] = string.format("- Severity: `%s`", tostring(fragment.severity))
+    end
+    if present(fragment.message) then
+      lines[#lines + 1] = string.format("- Message: %s", tostring(fragment.message))
+    end
+    return lines
+  end
+
+  append_lines(lines, split_lines(fragment.text or fragment.label or ""))
+  return lines
+end
+
 function M.fragment_detail_lines(fragment)
   local lines = { string.format("# %s", M.fragment_summary(fragment)) }
 
+  local handle = M.fragment_handle(fragment)
+  if handle then
+    lines[#lines + 1] = string.format("- Handle: `%s`", M.handle_token(handle))
+  end
   if fragment.thread_id then
     lines[#lines + 1] = string.format("- Thread: `%s`", fragment.thread_id)
   end
@@ -134,18 +221,7 @@ function M.fragment_detail_lines(fragment)
     lines[#lines + 1] = string.format("- Severity: `%s`", fragment.severity)
   end
 
-  local body_lines = {}
-  if fragment.kind == "path_ref" then
-    body_lines = { string.format("`%s`", display_path(fragment.path or fragment.label) or fragment.label or "") }
-  elseif fragment.kind == "code_range" then
-    local fence = fragment.filetype or "text"
-    body_lines = { string.format("```%s", fence) }
-    append_lines(body_lines, split_lines(fragment.text))
-    body_lines[#body_lines + 1] = "```"
-  else
-    append_lines(body_lines, split_lines(fragment.text or fragment.message or fragment.label or ""))
-  end
-
+  local body_lines = render_fragment_expansion(fragment)
   if #body_lines > 0 then
     lines[#lines + 1] = ""
     append_lines(lines, body_lines)
@@ -154,84 +230,72 @@ function M.fragment_detail_lines(fragment)
   return lines
 end
 
-local function render_fragment_lines(fragment)
-  local lines = { string.format("### %s", heading_label(fragment)) }
+function M.compile_packet(template_text, fragments)
+  local template = tostring(template_text or "")
+  local by_handle = {}
+  local referenced_handles = {}
+  local referenced_seen = {}
+  local used_counts = {}
+  local missing_handles = {}
+  local unreferenced_handles = {}
 
-  if fragment.kind == "path_ref" then
-    lines[#lines + 1] = string.format("- Path: `%s`", display_path(fragment.path or fragment.label) or fragment.label or "")
-    return lines
+  for _, fragment in ipairs(fragments or {}) do
+    local handle = M.fragment_handle(fragment)
+    if handle then
+      by_handle[handle] = fragment
+    end
   end
 
-  if fragment.kind == "code_range" then
-    lines[#lines + 1] = string.format("- Path: `%s`", display_path(fragment.path) or fragment.path or "")
-    local range = range_label(fragment.range)
-    if range then
-      lines[#lines + 1] = string.format("- Lines: `%s`", range)
+  local compiled_text = template:gsub(HANDLE_PATTERN, function(handle)
+    local fragment = by_handle[handle]
+    if not fragment then
+      missing_handles[#missing_handles + 1] = handle
+      return string.format("[[%s]]", handle)
     end
-    lines[#lines + 1] = ""
-    lines[#lines + 1] = string.format("```%s", fragment.filetype or "text")
-    append_lines(lines, split_lines(fragment.text))
-    lines[#lines + 1] = "```"
-    return lines
+
+    used_counts[handle] = (used_counts[handle] or 0) + 1
+    if not referenced_seen[handle] then
+      referenced_seen[handle] = true
+      referenced_handles[#referenced_handles + 1] = handle
+    end
+    return table.concat(render_fragment_expansion(fragment), "\n")
+  end)
+
+  for _, fragment in ipairs(fragments or {}) do
+    local handle = M.fragment_handle(fragment)
+    if handle and not referenced_seen[handle] then
+      unreferenced_handles[#unreferenced_handles + 1] = handle
+    end
   end
 
-  if fragment.kind == "diagnostic" then
-    lines[#lines + 1] = string.format("- Source: `%s`", fragment.source or "diagnostic")
-    if fragment.code then
-      lines[#lines + 1] = string.format("- Code: `%s`", fragment.code)
-    end
-    if fragment.path then
-      lines[#lines + 1] = string.format("- Path: `%s`", display_path(fragment.path) or fragment.path)
-    end
-    if fragment.message then
-      lines[#lines + 1] = ""
-      append_lines(lines, split_lines(fragment.message))
-    end
-    return lines
+  if #missing_handles > 0 then
+    return nil, string.format("Unknown fragment handle%s: %s", #missing_handles == 1 and "" or "s", table.concat(missing_handles, ", "))
   end
 
-  lines[#lines + 1] = ""
-  append_lines(lines, split_lines(fragment.text or fragment.label or ""))
-  return lines
+  if fragments and #fragments > 0 and #unreferenced_handles > 0 then
+    return nil, string.format("Reference every staged fragment before sending: %s", table.concat(unreferenced_handles, ", "))
+  end
+
+  return {
+    compiled_text = compiled_text,
+    referenced_handles = referenced_handles,
+    missing_handles = missing_handles,
+    unreferenced_handles = unreferenced_handles,
+  }, nil
 end
 
-function M.render_packet_text(message, fragments)
-  local lines = {}
-  local trimmed_message = trim(message or "")
-
-  if trimmed_message ~= "" then
-    append_lines(lines, split_lines(trimmed_message))
+function M.build_input_items(template_text, fragments)
+  local compiled, err = M.compile_packet(template_text, fragments)
+  if err then
+    return nil, nil, err
   end
 
-  if fragments and #fragments > 0 then
-    if #lines > 0 then
-      lines[#lines + 1] = ""
-      lines[#lines + 1] = "---"
-      lines[#lines + 1] = ""
-    end
-
-    lines[#lines + 1] = "## Workbench Context"
-
-    for _, fragment in ipairs(fragments) do
-      lines[#lines + 1] = ""
-      append_lines(lines, render_fragment_lines(fragment))
-    end
-  end
-
-  if #lines == 0 then
-    lines = { "" }
-  end
-
-  return table.concat(lines, "\n")
-end
-
-function M.build_input_items(message, fragments)
   return {
     {
       type = "text",
-      text = M.render_packet_text(message, fragments),
+      text = compiled.compiled_text,
     },
-  }
+  }, compiled, nil
 end
 
 return M

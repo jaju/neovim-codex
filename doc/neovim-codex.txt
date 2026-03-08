@@ -27,7 +27,8 @@ COMMANDS                                               *neovim-codex-commands*
     Toggle the Codex overlay.
 
 :CodexSend
-    Send the current composer contents.
+    Send the current composer contents, or open compose review when staged
+    fragments exist.
 
 :CodexThreadNew
     Start a fresh thread and make it active.
@@ -47,6 +48,21 @@ COMMANDS                                               *neovim-codex-commands*
 :CodexRequest
     Reopen the active pending approval or question request.
 
+:CodexWorkbench
+    Toggle the workbench tray for the active thread.
+
+:CodexCompose
+    Open compose review for the active thread.
+
+:CodexCapturePath
+    Stage the current file as a path fragment.
+
+:CodexCaptureSelection
+    Stage the current visual selection as a code fragment.
+
+:CodexCaptureDiagnostic
+    Stage the current diagnostic under cursor as a diagnostic fragment.
+
 ==============================================================================
 CHAT                                                           *neovim-codex-chat*
 
@@ -64,6 +80,8 @@ Usage:
 3. Press <C-s> or run >
     :CodexSend
 <
+   If the workbench is non-empty, compose review opens first so you can place
+   fragment handles such as [[f1]] into the packet template.
 4. Use <CR> for newlines.
 5. Run >
     :CodexChat
@@ -98,6 +116,22 @@ Default composer mappings:
 - `q` in normal mode hides the overlay
 - `g?` in normal mode opens this help topic
 - `<CR>` inserts a newline
+
+Workbench tray defaults:
+
+- `<CR>` inspect the selected fragment
+- `dd` remove the selected fragment
+- `D` clear the active thread workbench
+- `o` open compose review
+- `q` close the tray
+
+Compose review defaults:
+
+- `<C-s>` send the current packet from normal or insert mode
+- `gS` send the current packet from normal mode
+- `<Tab>` focus the staged fragment list
+- `i` insert the selected fragment handle into the packet template
+- `q` close compose review
 
 These mappings are configurable through `setup()` and can be disabled by setting
 individual mappings to `false`.
@@ -172,6 +206,25 @@ conservative defaults.
 ==============================================================================
 LIMITATIONS                                            *neovim-codex-limits*
 
+WORKBENCH                                               *neovim-codex-workbench*
+
+The workbench is a thread-local staging area for semantic fragments.
+
+Current capture commands:
+
+- `:CodexCapturePath` adds the current file as a `path_ref`
+- `:CodexCaptureSelection` adds the current visual selection as a `code_range`
+- `:CodexCaptureDiagnostic` adds the current diagnostic under cursor as a
+  `diagnostic`
+
+Compose review edits a packet template, not a plain appendix. Staged fragments
+receive short handles such as `[[f1]]`. Only referenced handles are expanded
+and sent; unreferenced staged fragments block send until they are removed or
+referenced.
+
+==============================================================================
+LIMITATIONS                                            *neovim-codex-limits*
+
 Current known limits:
 
 - a brand-new empty thread may not appear in `thread/list` yet
@@ -195,10 +248,3 @@ Then write a short prompt in the composer and send it with `<C-s>`.
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:
 
-
-COMMANDS
-
-    :CodexWorkbench      Toggle the workbench tray for the active thread.
-    :CodexCompose        Open compose review for the active thread.
-    :CodexCapturePath    Stage the current file as a path fragment.
-    :CodexCaptureSelection Stage the current visual selection as a code fragment.

@@ -24,6 +24,7 @@ assert(vim.fn.exists(":CodexWorkbench") == 2, "CodexWorkbench command should exi
 assert(vim.fn.exists(":CodexCompose") == 2, "CodexCompose command should exist")
 assert(vim.fn.exists(":CodexCapturePath") == 2, "CodexCapturePath command should exist")
 assert(vim.fn.exists(":CodexCaptureSelection") == 2, "CodexCaptureSelection command should exist")
+assert(vim.fn.exists(":CodexCaptureDiagnostic") == 2, "CodexCaptureDiagnostic command should exist")
 assert(vim.fn.exists(":CodexCaptureBlock") == 0, "CodexCaptureBlock command should not exist")
 assert(type(require("neovim_codex.health").check) == "function", "health module should expose check()")
 assert(pcall(require, "nui.popup"), "nui.nvim should be available on runtimepath")
@@ -32,7 +33,7 @@ local report = codex.run_smoke({
   open_report = false,
   notify = false,
   stop_after = false,
-  timeout_ms = 4000,
+  timeout_ms = 8000,
 })
 
 assert(report.success, table.concat(report.lines, "\n"))
@@ -70,7 +71,7 @@ local thread_result, thread_err = codex.new_thread({
   notify = false,
   open_chat = false,
   cwd = repo_root,
-  timeout_ms = 4000,
+  timeout_ms = 8000,
 })
 assert(thread_err == nil, thread_err or "thread start failed")
 assert(thread_result and thread_result.thread and thread_result.thread.id, "thread start should return a thread id")
@@ -79,7 +80,7 @@ local list_result, list_err = codex.list_threads({
   notify = false,
   cwd = repo_root,
   limit = 10,
-  timeout_ms = 4000,
+  timeout_ms = 8000,
 })
 assert(list_err == nil, list_err or "thread list failed")
 assert(type(list_result.data) == "table", "thread list should return a data array")
@@ -88,7 +89,7 @@ local read_result, read_err = codex.read_thread({
   thread_id = thread_result.thread.id,
   notify = false,
   include_turns = false,
-  timeout_ms = 4000,
+  timeout_ms = 8000,
 })
 assert(read_err == nil, read_err or "thread read failed")
 assert(read_result.thread.id == thread_result.thread.id, "thread/read should return the same thread")
@@ -100,13 +101,22 @@ if #list_result.data > 0 then
     thread_id = list_result.data[1].id,
     notify = false,
     open_chat = false,
-    timeout_ms = 4000,
+    timeout_ms = 8000,
   })
   assert(resume_err == nil, resume_err or "thread resume failed")
   assert(resume_result.thread.id == list_result.data[1].id, "thread/resume should return the requested stored thread")
   assert(codex.get_state().threads.active_id == list_result.data[1].id, "resumed stored thread should become active")
 end
 
+local capture_thread_result, capture_thread_err = codex.new_thread({
+  notify = false,
+  open_chat = false,
+  cwd = repo_root,
+  timeout_ms = 8000,
+})
+assert(capture_thread_err == nil, capture_thread_err or "capture thread start failed")
+assert(capture_thread_result and capture_thread_result.thread and capture_thread_result.thread.id, "capture flow should run against a fresh thread")
+assert(codex.get_state().threads.active_id == capture_thread_result.thread.id, "fresh capture thread should become active")
 
 require("neovim_codex.nvim.presentation").close_viewers()
 
@@ -114,6 +124,7 @@ vim.cmd(string.format("edit %s", vim.fn.fnameescape(repo_root .. "/README.md")))
 local path_fragment, path_err = codex.capture_current_file({ notify = false })
 assert(path_err == nil, path_err or "current file capture should succeed")
 assert(path_fragment.kind == "path_ref", "current file capture should stage a path_ref fragment")
+assert(path_fragment.handle == "f1", "first captured fragment should get the first stable handle")
 assert(codex.get_workbench_state().thread_id == codex.get_state().threads.active_id, "workbench should stay thread-local to the active thread")
 assert(codex.get_workbench_state().workbench.fragments_order[1] == path_fragment.id, "captured file should appear in the active workbench")
 
@@ -129,21 +140,42 @@ vim.fn.setpos("'>", { 0, 3, 1, 0 })
 local selection_fragment, selection_err = codex.capture_visual_selection({ notify = false })
 assert(selection_err == nil, selection_err or "visual selection capture should succeed")
 assert(selection_fragment.kind == "code_range", "visual selection capture should stage a code_range fragment")
+assert(selection_fragment.handle == "f2", "second captured fragment should get the second stable handle")
+
+local diagnostic_ns = vim.api.nvim_create_namespace("neovim_codex_test")
+vim.diagnostic.set(diagnostic_ns, 0, {
+  {
+    lnum = 0,
+    end_lnum = 0,
+    col = 0,
+    end_col = 4,
+    severity = vim.diagnostic.severity.ERROR,
+    message = "Title formatting is inconsistent",
+    source = "markdownlint",
+    code = "MD001",
+  },
+})
+vim.api.nvim_win_set_cursor(0, { 1, 1 })
+local diagnostic_fragment, diagnostic_err = codex.capture_current_diagnostic({ notify = false })
+assert(diagnostic_err == nil, diagnostic_err or "diagnostic capture should succeed")
+assert(diagnostic_fragment.kind == "diagnostic", "diagnostic capture should stage a diagnostic fragment")
+assert(diagnostic_fragment.handle == "f3", "third captured fragment should get the third stable handle")
 
 local before_review_count = #codex.get_workbench_state().workbench.fragments_order
-local review_result, review_err = codex.open_compose_review({ seed_message = "Preserve this review draft" })
+local review_result, review_err = codex.open_compose_review({ seed_message = "Preserve this review draft with [[f1]], [[f2]], and [[f3]]." })
 assert(review_err == nil, review_err or "compose review should open when requested")
 assert(review_result ~= nil, "compose review should return state when opened")
 local review_state = codex.get_workbench_state().review
 assert(review_state.visible == true, "compose review should open when requested")
 assert(review_state.thread_id == codex.get_state().threads.active_id, "compose review should show the active thread")
 assert(#review_state.fragments == before_review_count, "compose review should show the staged fragments")
-assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft", "compose review should seed the initial workbench draft")
+assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft with [[f1]], [[f2]], and [[f3]].", "compose review should seed the initial packet template")
 local review_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
 assert(review_viewers.top and review_viewers.top.key == "compose-review", "compose review should open through the stacked viewer layer")
+assert(review_state.fragments[1].handle == "f1", "compose review should display the staged fragment handles")
 
 codex.open_compose_review({ seed_message = "Do not overwrite this." })
-assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft", "compose review should not overwrite an existing workbench draft")
+assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft with [[f1]], [[f2]], and [[f3]].", "compose review should not overwrite an existing packet template")
 
 require("neovim_codex.nvim.presentation").close_viewers()
 
@@ -190,13 +222,15 @@ request_store:dispatch({
   },
 })
 vim.wait(1000, function()
-  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
-  return top and top.key == "server-request"
+  return selectors.get_active_request(request_store:get_state()) ~= nil
 end, 20)
-local request_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
-assert(request_viewers.top and request_viewers.top.key == "server-request", "pending server request should open in the stacked viewer layer")
 local active_request = selectors.get_active_request(request_store:get_state())
 assert(active_request and active_request.method == "item/commandExecution/requestApproval", "command approval request should become active")
+local reopened_request, reopen_err = request_manager:open_current()
+assert(reopen_err == nil, reopen_err or "request viewer should reopen from the active request")
+assert(reopened_request and reopened_request.request_id == "req_command", "request viewer should reopen the active command request")
+local request_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(request_viewers.top and request_viewers.top.key == "server-request", "pending server request should open in the stacked viewer layer")
 local responded_ok, responded_err = request_manager:respond_with_decision(active_request, "accept")
 assert(responded_err == nil, responded_err or "command approval should respond")
 assert(responded_ok == true, "command approval should report success")

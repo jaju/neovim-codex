@@ -12,11 +12,14 @@ All notable changes to this project will be documented in this file.
 - Removed transcript-to-workbench capture from the first slice; workbench capture is now explicitly code-world first.
 - Compose review now preserves an existing thread-local draft instead of silently overwriting it on reopen.
 - Workbench capture now rejects plugin scratch buffers and other non-file buffers.
+- Workbench fragments now receive stable short handles per thread, and compose review inserts them into packet templates instead of appending a distant fragment dump.
+- Sending with staged fragments now requires every fragment to be referenced explicitly before packet compilation succeeds.
 
 ### Added
 - `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
 - The first thread-local semantic-composition slice: pure-Lua workbench state, a workbench tray, a compose-review overlay, and the initial fragment capture flows.
-- `lua/neovim_codex/core/packet.lua` as the pure-Lua outbound packet renderer that folds staged fragments into the final app-server `turn/start` input.
+- Diagnostic capture under cursor through `:CodexCaptureDiagnostic`.
+- `lua/neovim_codex/core/packet.lua` as the pure-Lua outbound packet compiler for handle-based packet templates.
 - `docs/vision/workbench-model.md`, `docs/contracts/neovim/workbench-packet.md`, and `docs/episodes/0011-workbench-packet-contract.md` to lock the next semantic-composition slice around thread-local workbench state and outbound packet assembly.
 - `scripts/contracts-check` as the stable entrypoint for app-server contract drift checks.
 - Agent-facing repository entry points in `AGENTS.md` so protocol-contract questions start from the docs index and contract docs instead of code spelunking.

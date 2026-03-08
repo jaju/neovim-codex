@@ -5,8 +5,8 @@ This document freezes the next implementation target for staged context and outb
 It is an internal design contract, not a public API promise.
 
 Current implementation note:
-- the existing code still renders a covering message followed by a grouped `## Workbench Context` appendix
-- the accepted next step is an authored packet template with inline fragment handles and send-time expansion
+- the current code compiles an authored packet template with inline fragment handles at send time
+- only referenced staged fragments are included in the compiled packet
 
 ## Terms
 
@@ -73,7 +73,8 @@ Implemented target fields:
 - `thread_id`
 - `fragments_order`
 - `fragments_by_id`
-- `draft_template_text`
+- `draft_message`
+  - semantically, this is the packet template text
 - `updated_at`
 
 Rules:

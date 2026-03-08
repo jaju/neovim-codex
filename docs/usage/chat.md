@@ -21,7 +21,7 @@ Run `:CodexChat` again to hide it.
 2. press `<C-s>` or run `:CodexSend`
 3. keep using `<CR>` for newlines inside the draft
 
-If the workbench is non-empty, `:CodexSend` opens compose review instead of sending immediately. Compose review is where the final packet gets assembled from the covering message plus the staged fragments.
+If the workbench is non-empty, `:CodexSend` opens compose review instead of sending immediately. Compose review is where you write the packet template, insert fragment handles such as `[[f1]]`, and preview the staged context that will be expanded at send time.
 
 If no active thread exists yet, the plugin creates one first and then sends the turn.
 
@@ -184,6 +184,7 @@ Current capture commands:
 
 - `:CodexCapturePath` - add the current file as a `path_ref`
 - `:CodexCaptureSelection` - add the current visual selection as a `code_range`
+- `:CodexCaptureDiagnostic` - add the current diagnostic under cursor as a `diagnostic`
 - chat text can still be copied manually when needed; the workbench stays code-first in this slice
 
 
@@ -200,9 +201,11 @@ Compose review defaults:
 - `<C-s>` - send the current packet from normal or insert mode
 - `gS` - send the current packet from normal mode
 - `<Tab>` - focus the fragment list from the message editor
+- `i` - insert the selected fragment handle into the packet template
 - `q` - close compose review
 
 The workbench is thread-local and consumed on successful send by default.
+Only referenced fragment handles are compiled into the outbound packet. If staged fragments remain unreferenced, send fails cleanly so the packet stays explicit.
 
 ## Suggested keymap grouping
 
@@ -218,6 +221,7 @@ require("neovim_codex").setup({
       compose = "<leader>ap",
       capture_path = "<leader>af",
       capture_selection = "<leader>as",
+      capture_diagnostic = "<leader>ad",
     },
   },
 })

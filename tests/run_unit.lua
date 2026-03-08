@@ -379,23 +379,26 @@ test("workbench state tracks fragments and per-thread packet draft text", functi
   local workbench = selectors.get_active_workbench(store:get_state())
   eq(selectors.workbench_fragment_count(store:get_state()), 1)
   eq(selectors.list_fragments(workbench)[1].id, "frag_path")
+  eq(selectors.list_fragments(workbench)[1].handle, "f1")
   eq(selectors.workbench_message(workbench), "Cover this in the next turn")
 
   store:dispatch({ type = "workbench_fragment_removed", thread_id = "thr_workbench", fragment_id = "frag_path" })
   eq(selectors.workbench_fragment_count(store:get_state()), 0)
 end)
 
-test("packet renderer folds message and fragments into one outbound text item", function()
+test("packet compiler expands referenced fragment handles inline", function()
   local packet = require("neovim_codex.core.packet")
-  local input = packet.build_input_items("Please review this.", {
+  local input, compiled, err = packet.build_input_items("Review [[f1]] before changing [[f2]].", {
     {
       id = "frag_path",
+      handle = "f1",
       kind = "path_ref",
       label = "README.md",
       path = "/tmp/demo/README.md",
     },
     {
       id = "frag_code",
+      handle = "f2",
       kind = "code_range",
       label = "src/app.ts:10-14",
       path = "/tmp/demo/src/app.ts",
@@ -405,9 +408,26 @@ test("packet renderer folds message and fragments into one outbound text item", 
     },
   })
 
+  eq(err, nil)
   eq(input[1].type, "text")
-  assert(input[1].text:find("## Workbench Context", 1, true), "packet should contain a workbench section")
+  eq(compiled.referenced_handles[1], "f1")
+  eq(compiled.referenced_handles[2], "f2")
+  assert(input[1].text:find("The relevant file path is `~/README.md`", 1, true) == nil, "path rendering should preserve the actual path")
+  assert(input[1].text:find("The relevant file path is `/tmp/demo/README.md`.", 1, true), "packet should inline referenced path fragments")
+  assert(input[1].text:find("The relevant code snippet from `/tmp/demo/src/app.ts:10-14` is:", 1, true), "packet should inline referenced code fragments")
   assert(input[1].text:find("```typescript", 1, true), "packet should preserve code fences for code fragments")
+end)
+
+test("packet compiler rejects unreferenced staged fragments", function()
+  local packet = require("neovim_codex.core.packet")
+  local input, compiled, err = packet.build_input_items("Only use [[f1]].", {
+    { id = "frag_path", handle = "f1", kind = "path_ref", label = "README.md", path = "/tmp/demo/README.md" },
+    { id = "frag_diag", handle = "f2", kind = "diagnostic", label = "TS2322 README.md:10", path = "/tmp/demo/README.md", range = { start_line = 10, end_line = 10 }, message = "Type mismatch", source = "tsserver", code = "TS2322" },
+  })
+
+  eq(input, nil)
+  eq(compiled, nil)
+  assert(err:find("f2", 1, true), "unreferenced handle should be reported")
 end)
 
 for _, case in ipairs(tests) do

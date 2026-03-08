@@ -169,6 +169,22 @@ local function display_path(path)
   return text
 end
 
+local function diagnostic_severity_label(severity)
+  if severity == vim.diagnostic.severity.ERROR then
+    return "error"
+  end
+  if severity == vim.diagnostic.severity.WARN then
+    return "warn"
+  end
+  if severity == vim.diagnostic.severity.INFO then
+    return "info"
+  end
+  if severity == vim.diagnostic.severity.HINT then
+    return "hint"
+  end
+  return nil
+end
+
 local function current_file_target()
   local bufnr = vim.api.nvim_get_current_buf()
   local path = vim.api.nvim_buf_get_name(bufnr)
@@ -185,6 +201,36 @@ local function current_file_target()
     path = path,
     filetype = vim.bo[bufnr].filetype,
   }, nil
+end
+
+local function current_diagnostic_target()
+  local target, err = current_file_target()
+  if err then
+    return nil, nil, err
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local lnum = cursor[1] - 1
+  local col = cursor[2]
+  local diagnostics = vim.diagnostic.get(target.bufnr, { lnum = lnum })
+  if not diagnostics or #diagnostics == 0 then
+    return nil, nil, "No diagnostic under cursor"
+  end
+
+  local current = diagnostics[1]
+  for _, diagnostic in ipairs(diagnostics) do
+    local start_col = tonumber(diagnostic.col) or 0
+    local end_col = tonumber(diagnostic.end_col) or start_col
+    if end_col < start_col then
+      end_col = start_col
+    end
+    if col >= start_col and col <= end_col then
+      current = diagnostic
+      break
+    end
+  end
+
+  return target, current, nil
 end
 
 local function ensure_thread(opts)
@@ -212,9 +258,12 @@ local function add_fragment_for_thread(thread_id, fragment, opts)
     thread_id = thread_id,
     fragment = fragment,
   })
-  notify(string.format("Added %s to workbench · thread %s", fragment.kind, thread_id), vim.log.levels.INFO, opts and opts.notify)
+
+  local workbench = selectors().get_workbench(state.store:get_state(), thread_id)
+  local stored_fragment = selectors().get_fragment(workbench, fragment.id) or fragment
+  notify(string.format("Added %s to workbench · thread %s", stored_fragment.kind, thread_id), vim.log.levels.INFO, opts and opts.notify)
   refresh_ui()
-  return fragment, nil
+  return stored_fragment, nil
 end
 
 function M.attach(store, opts, actions)
@@ -340,6 +389,39 @@ function M.add_selection(opts)
   return add_fragment_for_thread(thread_id, fragment, opts)
 end
 
+function M.add_diagnostic(opts)
+  opts = opts or {}
+  local target, diagnostic, err = current_diagnostic_target()
+  if err then
+    return nil, err
+  end
+
+  local thread_id, err = ensure_thread({ notify = false, open_chat = false })
+  if err then
+    return nil, err
+  end
+
+  local start_line = (tonumber(diagnostic.lnum) or 0) + 1
+  local end_line = (tonumber(diagnostic.end_lnum) or tonumber(diagnostic.lnum) or 0) + 1
+  local code = diagnostic.code and tostring(diagnostic.code) or nil
+  local severity = diagnostic_severity_label(diagnostic.severity)
+  local label = string.format("%s %s:%d", code or "diagnostic", display_path(target.path), start_line)
+  local fragment = {
+    id = now_id("diag"),
+    kind = "diagnostic",
+    label = label,
+    path = target.path,
+    filetype = target.filetype,
+    range = { start_line = start_line, end_line = end_line },
+    message = diagnostic.message,
+    source = diagnostic.source or "diagnostic",
+    severity = severity,
+    code = code,
+  }
+
+  return add_fragment_for_thread(thread_id, fragment, opts)
+end
+
 function M.remove_fragment(fragment_id, opts)
   opts = opts or {}
   if not fragment_id then
@@ -394,9 +476,15 @@ function M.send_packet()
     return nil, "Packet submission is unavailable"
   end
 
-  local input = packet.build_input_items(message, fragments)
-  local result, err = submit(message, input)
+  local input, compiled, build_err = packet.build_input_items(message, fragments)
+  if build_err then
+    notify(build_err, vim.log.levels.ERROR, true)
+    return nil, build_err
+  end
+
+  local result, err = submit(compiled.compiled_text, input)
   if err then
+    notify(err, vim.log.levels.ERROR, true)
     return nil, err
   end
 

@@ -92,11 +92,16 @@ function ListView:_bind_keymaps(bufnr)
       self.handlers.compose()
     end
   end, { buffer = bufnr, desc = "Open compose review" })
+  map_if(keymaps.insert_handle, "n", function()
+    if self.handlers.insert_handle then
+      self.handlers.insert_handle()
+    end
+  end, { buffer = bufnr, desc = "Insert selected fragment handle into the packet template" })
   map_if(keymaps.focus_message, "n", function()
     if self.handlers.focus_message then
       self.handlers.focus_message()
     end
-  end, { buffer = bufnr, desc = "Focus packet message" })
+  end, { buffer = bufnr, desc = "Focus packet template" })
   map_if(keymaps.help, "n", function()
     if self.handlers.open_help then
       self.handlers.open_help()

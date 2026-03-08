@@ -287,6 +287,7 @@ local function ensure_workbench(state, thread_id)
     thread_id = thread_id,
     fragments_order = {},
     fragments_by_id = {},
+    next_handle_seq = 1,
     draft_message = "",
     updated_at = nil,
   }
@@ -367,8 +368,14 @@ local function add_workbench_fragment(state, thread_id, fragment)
     return nil
   end
 
-  workbench.fragments_by_id[fragment.id] = clone(fragment)
-  upsert_order(workbench.fragments_order, fragment.id)
+  local next_fragment = clone(fragment)
+  if not next_fragment.handle then
+    next_fragment.handle = string.format("f%d", workbench.next_handle_seq)
+    workbench.next_handle_seq = workbench.next_handle_seq + 1
+  end
+
+  workbench.fragments_by_id[next_fragment.id] = next_fragment
+  upsert_order(workbench.fragments_order, next_fragment.id)
   workbench.updated_at = now_iso()
   return workbench
 end

@@ -70,3 +70,7 @@ end, {})
 vim.api.nvim_create_user_command("CodexCaptureSelection", function()
   require("neovim_codex").capture_visual_selection()
 end, { range = true })
+
+vim.api.nvim_create_user_command("CodexCaptureDiagnostic", function()
+  require("neovim_codex").capture_current_diagnostic()
+end, {})

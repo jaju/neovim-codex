@@ -172,7 +172,7 @@ function Review:_ensure_components()
     enter = false,
     focusable = true,
     zindex = 71,
-    border = { style = "single", text = { top = " Covering message ", top_align = "left" } },
+    border = { style = "single", text = { top = " Packet template ", top_align = "left" } },
     bufnr = self:_ensure_message_buffer(),
     win_options = { winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder" },
   })
@@ -181,7 +181,7 @@ function Review:_ensure_components()
     enter = false,
     focusable = true,
     zindex = 71,
-    border = { style = "single", text = { top = " Workbench fragments ", top_align = "left" } },
+    border = { style = "single", text = { top = " Staged fragments ", top_align = "left" } },
     bufnr = self.list:bufnr_value(),
     win_options = { winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder" },
   })
@@ -253,6 +253,30 @@ function Review:focus_fragments()
     return true
   end
   return false
+end
+
+function Review:insert_current_handle()
+  local fragment = self:current_fragment()
+  local token = packet.handle_token(fragment)
+  if not token then
+    return false
+  end
+
+  local winid = self.message_popup and self.message_popup.winid or nil
+  if not valid_window(winid) then
+    return false
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(winid)
+  local row = cursor[1]
+  local col = cursor[2]
+  local bufnr = self:_ensure_message_buffer()
+  local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1] or ""
+  local next_line = line:sub(1, col) .. token .. line:sub(col + 1)
+  vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { next_line })
+  vim.api.nvim_win_set_cursor(winid, { row, col + #token })
+  self:focus_message()
+  return true
 end
 
 function Review:current_fragment()
@@ -352,6 +376,9 @@ function M.new(opts, handlers)
       if handlers.clear then
         handlers.clear()
       end
+    end,
+    insert_handle = function()
+      review:insert_current_handle()
     end,
     focus_message = function()
       review:focus_message()
