@@ -859,6 +859,7 @@ function M.rename_thread(opts)
         name = input,
         notify = opts.notify,
         timeout_ms = opts.timeout_ms,
+        wait = true,
       })
     end)
     return { threadId = thread.id }, nil

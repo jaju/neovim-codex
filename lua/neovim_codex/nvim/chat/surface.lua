@@ -475,7 +475,25 @@ function Surface:hide()
   if not self.layout or not self.visible then
     return
   end
-  self.layout:unmount()
+
+  vim.cmd("stopinsert")
+
+  local windows = {
+    self.composer_popup and self.composer_popup.winid or nil,
+    self.transcript_popup and self.transcript_popup.winid or nil,
+    self.container and self.container.winid or nil,
+  }
+
+  pcall(function()
+    self.layout:unmount()
+  end)
+
+  for _, winid in ipairs(windows) do
+    if valid_window(winid) then
+      pcall(vim.api.nvim_win_close, winid, true)
+    end
+  end
+
   self.visible = false
   self.layout = nil
   self.container = nil

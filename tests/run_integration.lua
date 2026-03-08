@@ -78,10 +78,15 @@ assert(codex.get_chat_state().visible == false, "leaving plugin-owned windows sh
 codex.chat()
 assert(codex.get_chat_state().visible == true, "chat command should reopen the overlay after focus escape")
 
+local visible_again_state = codex.get_chat_state()
+vim.api.nvim_set_current_win(visible_again_state.composer_win)
+vim.cmd("startinsert")
 codex.chat()
 local hidden_chat_state = codex.get_chat_state()
 assert(hidden_chat_state.visible == false, "chat command should toggle the overlay closed")
 assert(hidden_chat_state.container_win == nil or not vim.api.nvim_win_is_valid(hidden_chat_state.container_win), "container window should be closed when the overlay hides")
+assert(hidden_chat_state.transcript_win == nil or not vim.api.nvim_win_is_valid(hidden_chat_state.transcript_win), "transcript window should close when the overlay hides")
+assert(hidden_chat_state.composer_win == nil or not vim.api.nvim_win_is_valid(hidden_chat_state.composer_win), "composer window should close when the overlay hides")
 
 codex.chat()
 assert(codex.get_chat_state().visible == true, "chat command should toggle the overlay open again")
