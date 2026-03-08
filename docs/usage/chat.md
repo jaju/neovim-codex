@@ -74,9 +74,19 @@ Default request viewer mappings:
 - `:CodexThreadNew` - start a fresh thread explicitly
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a thread without resuming it
+- `:CodexThreadContext` - inspect the bootstrap context captured when a thread was started or resumed through this plugin in the current session
 - `:CodexThreadRename [name]` - rename the active thread
   - when no name is supplied, the prompt is collected asynchronously so the UI does not freeze first
 - `:CodexInterrupt` - interrupt the current turn
+
+The thread-context report is intentionally narrow. It shows:
+
+- the startup settings this plugin passed for the thread
+- whether base instructions were left at the upstream Codex default
+- any explicit developer-layer overlay sent by the plugin
+- the `AGENTS.md` layers captured from the thread cwd upward at startup time
+
+It does not pretend to dump hidden Codex prompt internals or reconstruct arbitrary older threads that were not started or resumed through this NeoVim session.
 
 ## Default overlay mappings
 

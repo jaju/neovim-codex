@@ -117,6 +117,7 @@ Useful thread commands:
 - `:CodexThreadNew` - create and activate a fresh thread
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
+- `:CodexThreadContext` - inspect the startup context captured for the active thread in this NeoVim session
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexRequest` - reopen the active approval or question request if one is pending
@@ -143,6 +144,7 @@ Workbench and compose commands:
 - `:CodexThreadNew` - create a new thread and activate it
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
+- `:CodexThreadContext [thread-id]` - open the plugin-captured bootstrap context for a started or resumed thread
 - `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn

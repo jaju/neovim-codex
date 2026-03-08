@@ -5,6 +5,7 @@ local chat = require("neovim_codex.nvim.chat")
 local presentation = require("neovim_codex.nvim.presentation")
 local requests = require("neovim_codex.nvim.server_requests")
 local smoke = require("neovim_codex.nvim.smoke")
+local thread_bootstrap = require("neovim_codex.nvim.thread_bootstrap")
 local workbench = require("neovim_codex.nvim.workbench")
 local renderer = require("neovim_codex.nvim.thread_renderer")
 local transport_mod = require("neovim_codex.nvim.transport")
@@ -423,6 +424,22 @@ local function build_thread_list_params(opts)
   }
 end
 
+local function capture_thread_bootstrap(rt, origin, params, thread)
+  if not rt or not thread then
+    return
+  end
+
+  rt.store:dispatch({
+    type = "thread_bootstrap_captured",
+    thread_id = thread.id,
+    bootstrap = thread_bootstrap.capture({
+      origin = origin,
+      params = params,
+      thread = thread,
+    }),
+  })
+end
+
 local function build_turn_start_params(thread_id, text, opts)
   local params = {
     threadId = thread_id,
@@ -647,8 +664,9 @@ function M.new_thread(opts)
     reveal_chat(rt)
   end
 
+  local params = build_thread_start_params(opts)
   local result, request_err = request_with_wait(function(done)
-    rt.client:thread_start(build_thread_start_params(opts), done)
+    rt.client:thread_start(params, done)
   end, wait_opts(opts))
 
   if request_err then
@@ -656,6 +674,7 @@ function M.new_thread(opts)
     return nil, request_err
   end
 
+  capture_thread_bootstrap(rt, "thread/start", params, result.thread)
   notify(string.format("Started thread %s", result.thread.id), vim.log.levels.INFO, opts.notify)
   return result, nil
 end
@@ -672,8 +691,9 @@ function M.resume_thread(opts)
     return nil, err
   end
 
+  local params = build_thread_resume_params(opts)
   local result, request_err = request_with_wait(function(done)
-    rt.client:thread_resume(build_thread_resume_params(opts), done)
+    rt.client:thread_resume(params, done)
   end, wait_opts(opts))
 
   if request_err then
@@ -685,6 +705,7 @@ function M.resume_thread(opts)
     reveal_chat(rt)
   end
 
+  capture_thread_bootstrap(rt, "thread/resume", params, result.thread)
   notify(string.format("Resumed thread %s", result.thread.id), vim.log.levels.INFO, opts.notify)
   return result, nil
 end
@@ -749,6 +770,28 @@ function M.open_thread_report(opts)
   local view = renderer.render_thread(result.thread, { title = "# Codex Thread" })
   presentation.open_report(string.format("thread-%s", result.thread.id), view.lines)
   return result, nil
+end
+
+function M.open_thread_context_report(opts)
+  opts = opts or {}
+  local rt = ensure_runtime()
+  local state = rt.client:get_state()
+  local thread = opts.thread_id and selectors.get_thread(state, opts.thread_id) or selectors.get_active_thread(state)
+  if not thread then
+    notify("No active Codex thread to inspect", vim.log.levels.INFO, opts.notify)
+    return nil, "no active thread"
+  end
+
+  local lines = thread_bootstrap.render(thread)
+  presentation.open_report(string.format("thread-context-%s", thread.id), lines, {
+    title = string.format("Codex Thread Context · %s", short_thread_id(thread.id)),
+    role = "thread_context",
+    width = 0.74,
+    height = 0.78,
+    wrap = true,
+  })
+
+  return thread, nil
 end
 
 function M.pick_thread(opts)

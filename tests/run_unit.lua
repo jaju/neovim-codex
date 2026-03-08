@@ -152,6 +152,45 @@ test("store tracks pending server requests and resolution", function()
   eq(selectors.get_active_request(state), nil)
 end)
 
+test("store keeps thread bootstrap snapshots", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 10 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_bootstrap",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+
+  store:dispatch({
+    type = "thread_bootstrap_captured",
+    thread_id = "thr_bootstrap",
+    bootstrap = {
+      captured_at = "2026-03-08T00:00:00Z",
+      origin = "thread/start",
+      requested = {
+        personality = "balanced",
+      },
+      agents_layers = {},
+    },
+  })
+
+  local thread = selectors.get_active_thread(store:get_state())
+  eq(thread.bootstrap.origin, "thread/start")
+  eq(thread.bootstrap.requested.personality, "balanced")
+end)
+
 test("chat document renders assistant replies as markdown blocks", function()
   local document = require("neovim_codex.nvim.chat.document")
   local render = require("neovim_codex.nvim.chat.render")
@@ -430,6 +469,39 @@ test("packet compiler rejects unreferenced staged fragments", function()
   assert(err:find("f2", 1, true), "unreferenced handle should be reported")
 end)
 
+test("thread bootstrap capture records AGENTS layers from root to cwd", function()
+  local thread_bootstrap = require("neovim_codex.nvim.thread_bootstrap")
+  local root = vim.fn.tempname()
+  local nested = root .. "/pkg/feature"
+
+  vim.fn.mkdir(nested, "p")
+  vim.fn.writefile({ "# Root agents", "root" }, root .. "/AGENTS.md")
+  vim.fn.writefile({ "# Nested agents", "nested" }, root .. "/pkg/AGENTS.md")
+
+  local snapshot = thread_bootstrap.capture({
+    origin = "thread/start",
+    params = {
+      cwd = nested,
+      personality = "careful",
+      approvalPolicy = "on-request",
+      sandbox = "workspace-write",
+    },
+    thread = {
+      id = "thr_agents",
+      cwd = nested,
+      ephemeral = false,
+      modelProvider = "openai",
+      cliVersion = "0.0.0",
+      source = { type = "appServer" },
+    },
+  })
+
+  eq(#snapshot.agents_layers, 2)
+  eq(snapshot.agents_layers[1].path, root .. "/AGENTS.md")
+  eq(snapshot.agents_layers[2].path, root .. "/pkg/AGENTS.md")
+  assert(snapshot.agents_layers[1].content:find("Root agents", 1, true), "root AGENTS content should be captured")
+  assert(snapshot.agents_layers[2].content:find("Nested agents", 1, true), "nested AGENTS content should be captured")
+end)
 
 test("thread renderer accepts raw thread/read payloads", function()
   local renderer = require("neovim_codex.nvim.thread_renderer")
@@ -446,7 +518,10 @@ test("thread renderer accepts raw thread/read payloads", function()
             id = "user_raw",
             type = "userMessage",
             content = {
-              { type = "text", text = "Summarize the current setup." },
+              {
+                type = "text",
+                text = "Summarize the current setup.",
+              },
             },
           },
           {
@@ -463,6 +538,40 @@ test("thread renderer accepts raw thread/read payloads", function()
   assert(body:find("Summarize the current setup.", 1, true), "raw thread report should include the user message")
   assert(body:find("The setup is stable.", 1, true), "raw thread report should include the assistant message")
   assert((view.footer or ""):find("1 turn", 1, true), "raw thread footer should include the turn count")
+end)
+
+test("thread bootstrap renderer explains upstream defaults and captured overlays", function()
+  local thread_bootstrap = require("neovim_codex.nvim.thread_bootstrap")
+  local lines = thread_bootstrap.render({
+    id = "thr_render",
+    name = "Bootstrap demo",
+    bootstrap = {
+      captured_at = "2026-03-08T00:00:00Z",
+      origin = "thread/start",
+      requested = {
+        model = "gpt-5-codex",
+        personality = "balanced",
+        approval_policy = "on-request",
+        developer_instructions = "Role: researcher",
+      },
+      thread = {
+        cwd = "/tmp/demo",
+        model_provider = "openai",
+        ephemeral = false,
+      },
+      agents_layers = {
+        {
+          path = "/tmp/demo/AGENTS.md",
+          content = "# Agent instructions\nUse README first.",
+        },
+      },
+    },
+  })
+
+  local body = table.concat(lines, "\n")
+  assert(body:find("upstream Codex default", 1, true), "report should call out the upstream base prompt")
+  assert(body:find("Role: researcher", 1, true), "report should include explicit developer overlay text")
+  assert(body:find("/tmp/demo/AGENTS.md", 1, true), "report should include AGENTS source paths")
 end)
 
 for _, case in ipairs(tests) do
