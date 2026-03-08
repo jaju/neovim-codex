@@ -52,39 +52,38 @@ Both commands should print `1`.
 
 ### lazy.nvim
 
-Add this plugin spec to your `lazy.nvim` setup:
+For a normal install from a Git remote, add a plugin spec like this to your `lazy.nvim` setup.
+Install from the public GitHub repository:
 
 ```lua
 {
-  dir = "/Users/jaju/github/neovim-codex",
-  name = "neovim-codex",
+  "jaju/neovim-codex",
   dependencies = {
     "MunifTanjim/nui.nvim",
   },
   config = function()
     require("neovim_codex").setup({
-      codex_cmd = { "codex", "app-server" },
-      client_info = {
-        name = "neovim_codex",
-        title = "NeoVim Codex",
-        version = "0.3.0-dev",
-      },
-      experimental_api = true,
-      max_log_entries = 400,
       keymaps = {
+        global_modes = { "n", "i", "x" }, -- keep your global Codex shortcuts available across common modes
         global = {
-          chat = false,
-          new_thread = false,
-          threads = false,
-          read_thread = false,
-          interrupt = false,
-          request = false,
+          chat = false, -- set a mapping like "<C-,>" to toggle the chat overlay
+          threads = false, -- open the thread picker
+          request = false, -- reopen the active approval or question
+          workbench = false, -- toggle the thread-local workbench tray
+          compose = false, -- open compose review for the active thread
+          capture_path = false, -- stage the current file path into the workbench
+          capture_selection = false, -- stage the current visual selection as a code fragment
+          capture_diagnostic = false, -- stage the diagnostic under cursor
         },
       },
     })
   end,
 }
 ```
+
+For local development or dogfooding, use a `dir = ...` spec instead. That workflow is documented in [`docs/usage/lazy-nvim.md`](docs/usage/lazy-nvim.md).
+
+`client_info`, `experimental_api`, and `max_log_entries` are plugin-managed defaults. They are omitted here on purpose because they are not meaningful day-to-day user configuration knobs.
 
 Then inside NeoVim:
 
@@ -310,68 +309,44 @@ A fuller workflow note lives in [`docs/development/workflow.md`](docs/developmen
 
 ```lua
 require("neovim_codex").setup({
-  codex_cmd = { "codex", "app-server" },
-  client_info = {
-    name = "neovim_codex",
-    title = "NeoVim Codex",
-    version = "0.3.0-dev",
+  keymaps = {
+    global_modes = { "n", "i", "x" }, -- make your chosen global Codex shortcuts work across common modes
+    global = {
+      chat = "<C-,>", -- toggle the chat overlay
+      threads = "<leader>ct", -- open the thread picker
+      request = "<leader>cq", -- reopen the active approval or question
+      workbench = "<leader>cw", -- toggle the workbench tray
+      compose = "<leader>cp", -- open compose review
+      capture_path = "<leader>cf", -- stage the current file path
+      capture_selection = "<leader>cx", -- stage the current visual selection
+      capture_diagnostic = "<leader>cd", -- stage the diagnostic under cursor
+    },
   },
-  experimental_api = true,
-  max_log_entries = 400,
   ui = {
     chat = {
       layout = {
-        width = 0.88,
-        height = 0.84,
-        border = "rounded",
-      },
-      transcript = {
-        wrap = true,
-      },
-      details = {
-        width = 0.72,
-        height = 0.68,
-        border = "rounded",
-        wrap = true,
-      },
-      requests = {
-        width = 0.64,
-        height = 0.58,
-        border = "rounded",
-        wrap = true,
+        width = 0.88, -- relative editor width for the main chat overlay
+        height = 0.84, -- relative editor height for the main chat overlay
+        border = "rounded", -- border style passed through to the floating layout
       },
       composer = {
-        min_height = 6,
-        max_height = 12,
-        default_height = 8,
-        wrap = true,
+        min_height = 6, -- keep the composer comfortably multiline
+        max_height = 12, -- cap the composer so transcript space is preserved
       },
     },
-  },
-  keymaps = {
-    global = {
-      chat = false,
-      new_thread = false,
-      threads = false,
-      read_thread = false,
-      interrupt = false,
-    },
-    transcript = {
-      close = "q",
-      focus_composer = "i",
-      next_turn = "]]",
-      prev_turn = "[[",
-      help = "g?",
-    },
-    composer = {
-      send = "<C-s>",
-      send_normal = "gS",
-      close = "q",
-      help = "g?",
+    workbench = {
+      tray = {
+        width = 0.34, -- compact peek window for staged fragments
+        height = 0.30,
+      },
     },
   },
 })
 ```
+
+Most users only need `keymaps.global`.
+
+Use `codex_cmd` only if `codex` is not on your `PATH` or you want to point at a specific binary. The `client_info`, `experimental_api`, and log-limit fields are plugin-owned defaults and are intentionally left out of normal user config examples.
 
 The older `ui.chat.width`, `ui.chat.prompt_height`, `ui.chat.wrap`, and `keymaps.prompt` values are normalized into the new layout/composer shape so your local config does not break immediately.
 

@@ -1,37 +1,55 @@
 # lazy.nvim Setup
 
-This guide installs the current local checkout of `neovim-codex` into an existing `lazy.nvim` setup.
+This guide covers both a normal install from a Git remote and a local checkout for development or dogfooding.
 
 ## 1. Add the plugin spec
 
-Add this to your plugin list:
+### Remote install
+
+Add this to your plugin list to install from the public GitHub repository:
 
 ```lua
 {
-  dir = "/Users/jaju/github/neovim-codex",
+  "jaju/neovim-codex",
+  dependencies = {
+    "MunifTanjim/nui.nvim",
+  },
+  config = function()
+    require("neovim_codex").setup({
+      keymaps = {
+        global_modes = { "n", "i", "x" }, -- let your chosen global Codex mappings work across common modes
+        global = {
+          chat = false, -- toggle the chat overlay globally
+          threads = false, -- open the thread picker
+          request = false, -- reopen the current approval or question
+          workbench = false, -- toggle the workbench tray
+          compose = false, -- open compose review
+          capture_path = false, -- stage the current file path
+          capture_selection = false, -- stage the current visual selection
+          capture_diagnostic = false, -- stage the current diagnostic
+        },
+      },
+    })
+  end,
+}
+```
+
+`client_info`, `experimental_api`, and `max_log_entries` are internal plugin defaults. Leave them alone unless you are working on the plugin itself.
+
+### Local checkout
+
+For local development, swap the repo string for a `dir = ...` entry that points at your checkout:
+
+```lua
+{
+  dir = vim.fn.expand("~/src/neovim-codex"),
   name = "neovim-codex",
   dependencies = {
     "MunifTanjim/nui.nvim",
   },
   config = function()
     require("neovim_codex").setup({
-      codex_cmd = { "codex", "app-server" },
-      client_info = {
-        name = "neovim_codex",
-        title = "NeoVim Codex",
-        version = "0.3.0-dev",
-      },
-      experimental_api = true,
-      max_log_entries = 400,
-      keymaps = {
-        global = {
-          chat = false,
-          new_thread = false,
-          threads = false,
-          read_thread = false,
-          interrupt = false,
-        },
-      },
+      codex_cmd = { "codex", "app-server" }, -- only override this if you want a non-default Codex binary
     })
   end,
 }
