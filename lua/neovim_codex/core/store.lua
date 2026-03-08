@@ -477,6 +477,8 @@ local function reducer(state, event)
     ensure_thread(next_state, event.thread_id).status = clone(event.status)
   elseif event.type == "thread_archived" then
     ensure_thread(next_state, event.thread_id).archived = true
+  elseif event.type == "thread_name_updated" then
+    ensure_thread(next_state, event.thread_id).name = event.thread_name
   elseif event.type == "thread_unarchived" then
     ensure_thread(next_state, event.thread_id).archived = false
   elseif event.type == "thread_closed" then

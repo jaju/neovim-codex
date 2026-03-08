@@ -23,12 +23,14 @@ assert(vim.fn.exists(":CodexSend") == 2, "CodexSend command should exist")
 assert(vim.fn.exists(":CodexThreadNew") == 2, "CodexThreadNew command should exist")
 assert(vim.fn.exists(":CodexThreads") == 2, "CodexThreads command should exist")
 assert(vim.fn.exists(":CodexThreadRead") == 2, "CodexThreadRead command should exist")
+assert(vim.fn.exists(":CodexThreadRename") == 2, "CodexThreadRename command should exist")
 assert(vim.fn.exists(":CodexRequest") == 2, "CodexRequest command should exist")
 assert(vim.fn.exists(":CodexWorkbench") == 2, "CodexWorkbench command should exist")
 assert(vim.fn.exists(":CodexCompose") == 2, "CodexCompose command should exist")
 assert(vim.fn.exists(":CodexCapturePath") == 2, "CodexCapturePath command should exist")
 assert(vim.fn.exists(":CodexCaptureSelection") == 2, "CodexCaptureSelection command should exist")
 assert(vim.fn.exists(":CodexCaptureDiagnostic") == 2, "CodexCaptureDiagnostic command should exist")
+assert(vim.fn.exists(":CodexShortcuts") == 2, "CodexShortcuts command should exist")
 assert(vim.fn.exists(":CodexCaptureBlock") == 0, "CodexCaptureBlock command should not exist")
 assert(type(require("neovim_codex.health").check) == "function", "health module should expose check()")
 assert(pcall(require, "nui.popup"), "nui.nvim should be available on runtimepath")
@@ -138,6 +140,14 @@ local capture_thread_result, capture_thread_err = codex.new_thread({
 assert(capture_thread_err == nil, capture_thread_err or "capture thread start failed")
 assert(capture_thread_result and capture_thread_result.thread and capture_thread_result.thread.id, "capture flow should run against a fresh thread")
 assert(codex.get_state().threads.active_id == capture_thread_result.thread.id, "fresh capture thread should become active")
+
+local rename_result, rename_err = codex.rename_thread({ name = "Workbench thread", notify = false, timeout_ms = 8000 })
+assert(rename_err == nil, rename_err or "thread rename should succeed")
+assert(rename_result ~= nil, "thread rename should return a result")
+vim.wait(1000, function()
+  return codex.get_state().threads.by_id[capture_thread_result.thread.id].name == "Workbench thread"
+end, 20)
+assert(codex.get_state().threads.by_id[capture_thread_result.thread.id].name == "Workbench thread", "thread rename should update the active thread name")
 
 require("neovim_codex.nvim.presentation").close_viewers()
 
@@ -252,20 +262,18 @@ assert(reopen_err == nil, reopen_err or "request viewer should reopen from the a
 assert(reopened_request and reopened_request.request_id == "req_command", "request viewer should reopen the active command request")
 local request_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
 assert(request_viewers.top and request_viewers.top.key == "server-request", "pending server request should open in the stacked viewer layer")
-local responded_ok, responded_err = request_manager:respond_with_decision(active_request, "accept")
-assert(responded_err == nil, responded_err or "command approval should respond")
-assert(responded_ok == true, "command approval should report success")
-assert(captured_command and captured_command.payload.decision == "accept", "command approval payload should be forwarded")
+assert(vim.api.nvim_get_mode().mode == "n", "request viewer should open in normal mode")
+vim.api.nvim_feedkeys(termcodes("s"), "xt", false)
+vim.wait(1000, function()
+  return captured_command ~= nil
+end, 20)
+assert(captured_command and captured_command.payload.decision == "acceptForSession", "command approval payload should honor the session shortcut")
 request_store:dispatch({ type = "server_request_resolved", request_id = "req_command" })
 vim.wait(1000, function()
   local top = require("neovim_codex.nvim.viewer_stack").inspect().top
   return top == nil or top.key ~= "server-request"
 end, 20)
 
-local original_input = vim.ui.input
-vim.ui.input = function(opts, callback)
-  callback("captured answer")
-end
 request_store:dispatch({
   type = "server_request_received",
   request = {
@@ -288,8 +296,17 @@ request_store:dispatch({
     },
   },
 })
+vim.schedule(function()
+  vim.wait(1000, function()
+    return request_manager.input_session ~= nil and request_manager.input_bufnr ~= nil and vim.api.nvim_buf_is_valid(request_manager.input_bufnr)
+  end, 20)
+  assert(request_manager.input_session ~= nil, "tool answer popup should activate an input session")
+  vim.api.nvim_buf_set_lines(request_manager.input_bufnr, 6, -1, false, { "captured answer" })
+  request_manager.input_session.text = "captured answer"
+  request_manager.input_session.done = true
+  require("neovim_codex.nvim.viewer_stack").close("server-request-input")
+end)
 local tool_ok, tool_err = request_manager:respond_current()
-vim.ui.input = original_input
 assert(tool_err == nil, tool_err or "tool question should collect an answer")
 assert(tool_ok == true, "tool question should report success")
 assert(captured_tool ~= nil, "tool answer payload should be forwarded")

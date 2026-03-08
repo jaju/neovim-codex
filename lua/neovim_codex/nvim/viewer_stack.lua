@@ -122,6 +122,17 @@ local function hide_entry(entry)
   end
 end
 
+local function apply_entry_mode(entry)
+  if not entry or not entry.spec then
+    return
+  end
+  if entry.spec.enter_mode == "normal" then
+    vim.cmd("stopinsert")
+  elseif entry.spec.enter_mode == "insert" then
+    vim.cmd("startinsert")
+  end
+end
+
 local function show_entry(entry)
   if not entry then
     return
@@ -132,6 +143,7 @@ local function show_entry(entry)
     if entry.surface.focus then
       entry.surface.focus(entry)
     end
+    apply_entry_mode(entry)
     return
   end
 
@@ -146,6 +158,7 @@ local function show_entry(entry)
   if valid_window(entry.popup.winid) then
     vim.api.nvim_set_current_win(entry.popup.winid)
   end
+  apply_entry_mode(entry)
 end
 
 local function stack_index(key)

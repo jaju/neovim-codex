@@ -70,7 +70,7 @@ local function ensure_modules()
       M.open_review()
     end,
     open_help = function()
-      vim.cmd("help neovim-codex-chat")
+      require("neovim_codex").open_shortcuts({ surface = "workbench" })
     end,
   })
 
@@ -91,7 +91,7 @@ local function ensure_modules()
       M.clear()
     end,
     open_help = function()
-      vim.cmd("help neovim-codex-chat")
+      require("neovim_codex").open_shortcuts({ surface = "compose_review" })
     end,
     message_changed = function(message)
       M.set_message(message)

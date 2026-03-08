@@ -77,12 +77,15 @@ local defaults = {
     },
   },
   keymaps = {
+    global_modes = { "n", "i", "x" },
     global = {
       chat = false,
       new_thread = false,
       threads = false,
       read_thread = false,
+      thread_rename = false,
       interrupt = false,
+      shortcuts = false,
       request = false,
       workbench = false,
       compose = false,
@@ -112,6 +115,7 @@ local defaults = {
       accept_for_session = "s",
       decline = "d",
       cancel = "c",
+      help = "g?",
     },
     workbench = {
       close = "q",
@@ -144,40 +148,47 @@ local function notify(message, level, enabled)
   vim.notify(message, level)
 end
 
-local function map_if(lhs, rhs, desc)
+local function map_if(lhs, modes, rhs, desc)
   if not lhs then
     return
   end
-  vim.keymap.set("n", lhs, rhs, { silent = true, desc = desc })
+  vim.keymap.set(modes or "n", lhs, rhs, { silent = true, desc = desc })
 end
 
 local function apply_global_keymaps()
   local keymaps = config.keymaps.global or {}
-  map_if(keymaps.chat, function()
+  local global_modes = config.keymaps.global_modes or { "n" }
+  map_if(keymaps.chat, global_modes, function()
     require("neovim_codex").chat()
-  end, "Open Codex chat")
-  map_if(keymaps.new_thread, function()
+  end, "Toggle Codex chat")
+  map_if(keymaps.new_thread, global_modes, function()
     require("neovim_codex").new_thread()
   end, "Create a new Codex thread")
-  map_if(keymaps.threads, function()
+  map_if(keymaps.threads, global_modes, function()
     require("neovim_codex").pick_thread({ action = "resume" })
   end, "Pick a Codex thread")
-  map_if(keymaps.read_thread, function()
+  map_if(keymaps.read_thread, global_modes, function()
     require("neovim_codex").pick_thread({ action = "read" })
   end, "Read a Codex thread")
-  map_if(keymaps.interrupt, function()
+  map_if(keymaps.thread_rename, global_modes, function()
+    require("neovim_codex").rename_thread()
+  end, "Rename the active Codex thread")
+  map_if(keymaps.interrupt, global_modes, function()
     require("neovim_codex").interrupt()
   end, "Interrupt the active Codex turn")
-  map_if(keymaps.request, function()
+  map_if(keymaps.request, global_modes, function()
     require("neovim_codex").open_request()
   end, "Open the active Codex request")
-  map_if(keymaps.workbench, function()
+  map_if(keymaps.shortcuts, global_modes, function()
+    require("neovim_codex").open_shortcuts()
+  end, "Show contextual Codex shortcuts")
+  map_if(keymaps.workbench, global_modes, function()
     require("neovim_codex").toggle_workbench()
   end, "Toggle the Codex workbench")
-  map_if(keymaps.compose, function()
+  map_if(keymaps.compose, global_modes, function()
     require("neovim_codex").open_compose_review()
   end, "Open Codex compose review")
-  map_if(keymaps.capture_path, function()
+  map_if(keymaps.capture_path, global_modes, function()
     require("neovim_codex").capture_current_file()
   end, "Add the current file to the Codex workbench")
   if keymaps.capture_selection then
@@ -185,7 +196,7 @@ local function apply_global_keymaps()
       require("neovim_codex").capture_visual_selection()
     end, { silent = true, desc = "Add the current selection to the Codex workbench" })
   end
-  map_if(keymaps.capture_diagnostic, function()
+  map_if(keymaps.capture_diagnostic, global_modes, function()
     require("neovim_codex").capture_current_diagnostic()
   end, "Add the current diagnostic to the Codex workbench")
 end
@@ -458,7 +469,15 @@ local function toggle_chat(rt)
   return chat.toggle(rt.store, config, chat_actions())
 end
 
-local function format_thread_label(thread)
+local function short_thread_id(thread_id)
+  local text = tostring(thread_id or "")
+  if #text <= 8 then
+    return text
+  end
+  return text:sub(1, 8)
+end
+
+local function thread_title(thread)
   local title = nil
   if thread.name ~= nil and thread.name ~= vim.NIL and thread.name ~= "" then
     title = thread.name
@@ -467,8 +486,17 @@ local function format_thread_label(thread)
   else
     title = "(untitled thread)"
   end
-  title = tostring(title):gsub("\n", " ")
-  return string.format("%s  [%s]  %s", thread.id, thread.status and thread.status.type or "unknown", title)
+  title = tostring(title):gsub("\n", " "):gsub("%s+", " ")
+  if #title > 72 then
+    title = title:sub(1, 69) .. "..."
+  end
+  return title
+end
+
+local function format_thread_label(thread, active_id)
+  local marker = thread.id == active_id and "●" or "○"
+  local status = thread.status and thread.status.type or "unknown"
+  return string.format("%s %s  [%s]  %s", marker, short_thread_id(thread.id), status, thread_title(thread))
 end
 
 local function merge_current_thread(threads, active_thread)
@@ -737,9 +765,12 @@ function M.pick_thread(opts)
     return nil, "no threads found"
   end
 
+  local active_id = M.get_state().threads.active_id
   vim.ui.select(threads, {
     prompt = opts.prompt or "Select Codex thread",
-    format_item = format_thread_label,
+    format_item = function(thread)
+      return format_thread_label(thread, active_id)
+    end,
   }, function(choice)
     if not choice then
       return
@@ -759,6 +790,63 @@ function M.pick_thread(opts)
   end)
 
   return threads, nil
+end
+
+function M.rename_thread(opts)
+  opts = opts or {}
+  local rt, err = ensure_ready(opts.timeout_ms)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+
+  local snapshot = rt.client:get_state()
+  local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+  if not thread then
+    notify("No active Codex thread to rename", vim.log.levels.INFO, opts.notify)
+    return nil, "no active thread"
+  end
+
+  local name = opts.name
+  if name == nil then
+    local done = false
+    vim.ui.input({
+      prompt = string.format("Rename Codex thread %s: ", short_thread_id(thread.id)),
+      default = thread.name ~= nil and thread.name ~= vim.NIL and tostring(thread.name) or thread_title(thread),
+    }, function(input)
+      name = input
+      done = true
+    end)
+    vim.wait(10000, function()
+      return done
+    end, 20)
+    if name == nil then
+      notify("Cancelled thread rename", vim.log.levels.INFO, opts.notify)
+      return nil, "cancelled"
+    end
+  end
+
+  name = vim.trim(tostring(name))
+  local result, request_err = request_with_wait(function(done)
+    rt.client:thread_name_set({ threadId = thread.id, name = name }, done)
+  end, wait_opts(opts))
+
+  if request_err then
+    notify(request_err, vim.log.levels.ERROR, opts.notify)
+    return nil, request_err
+  end
+
+  if name == "" then
+    notify(string.format("Cleared thread name · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
+  else
+    notify(string.format("Renamed thread %s to %s", short_thread_id(thread.id), name), vim.log.levels.INFO, opts.notify)
+  end
+  return result, nil
+end
+
+function M.open_shortcuts(opts)
+  opts = opts or {}
+  return require("neovim_codex.nvim.shortcuts").open(config, opts)
 end
 
 function M.submit_text(text, opts)

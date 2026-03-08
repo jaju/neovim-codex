@@ -33,7 +33,7 @@ local function clone_value(value)
 end
 
 local function open_help()
-  vim.cmd("help neovim-codex-chat")
+  require("neovim_codex").open_shortcuts()
 end
 
 local function ensure_modules()

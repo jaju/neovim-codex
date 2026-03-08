@@ -122,6 +122,12 @@ function M:_handle_notification(message)
     })
   elseif message.method == "thread/archived" then
     self.store:dispatch({ type = "thread_archived", thread_id = params.threadId })
+  elseif message.method == "thread/name/updated" then
+    self.store:dispatch({
+      type = "thread_name_updated",
+      thread_id = params.threadId,
+      thread_name = params.threadName,
+    })
   elseif message.method == "thread/unarchived" then
     self.store:dispatch({ type = "thread_unarchived", thread_id = params.threadId })
   elseif message.method == "thread/closed" then
@@ -362,6 +368,21 @@ function M:thread_resume(params, on_result)
         thread = result.thread,
         replace_turns = true,
         activate = true,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_name_set(params, on_result)
+  return self:_request("thread/name/set", params, function(err, result, message)
+    if not err then
+      self.store:dispatch({
+        type = "thread_name_updated",
+        thread_id = params.threadId,
+        thread_name = params.name,
       })
     end
     if on_result then

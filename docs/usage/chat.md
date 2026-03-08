@@ -56,7 +56,7 @@ This applies to:
 
 These are server-request state machines, not transcript content.
 
-Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer uses your configured `vim.ui.select` / `vim.ui.input` surfaces for the actual choice or answer collection.
+Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses.
 
 Default request viewer mappings:
 
@@ -65,6 +65,7 @@ Default request viewer mappings:
 - `s` - approve for session when available
 - `d` - decline
 - `c` - cancel
+- `g?` - show contextual Codex shortcuts
 - `q` or `<Esc>` - hide the viewer without resolving the request
 
 ## Thread commands
@@ -72,6 +73,7 @@ Default request viewer mappings:
 - `:CodexThreadNew` - start a fresh thread explicitly
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a thread without resuming it
+- `:CodexThreadRename [name]` - rename the active thread
 - `:CodexInterrupt` - interrupt the current turn
 
 ## Default overlay mappings
@@ -84,7 +86,7 @@ Transcript buffer:
 - `<CR>` - inspect the selected transcript block in the stacked viewer layer
 - `[[` - previous turn
 - `]]` - next turn
-- `g?` - open help
+- `g?` - show contextual Codex shortcuts
 
 Composer buffer:
 
@@ -92,7 +94,7 @@ Composer buffer:
 - `gS` - send the current draft from normal mode
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
-- `g?` in normal mode - open help
+- `g?` in normal mode - show contextual Codex shortcuts
 - `<CR>` - insert a newline
 
 ## Overriding mappings

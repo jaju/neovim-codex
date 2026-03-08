@@ -117,8 +117,10 @@ Useful thread commands:
 - `:CodexThreadNew` - create and activate a fresh thread
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
+- `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexRequest` - reopen the active approval or question request if one is pending
+- `:CodexShortcuts` - show contextual Codex shortcuts for the current surface
 
 Workbench and compose commands:
 
@@ -141,9 +143,11 @@ Workbench and compose commands:
 - `:CodexThreadNew` - create a new thread and activate it
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
+- `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
 - `:CodexRequest` - reopen the active pending Codex request
+- `:CodexShortcuts` - show contextual Codex shortcuts for the current surface
 - `:CodexWorkbench` - toggle the workbench tray for the active thread
 - `:CodexCompose` - open compose review for the active thread
 - `:CodexCapturePath` - stage the current file as a fragment
@@ -153,7 +157,7 @@ Workbench and compose commands:
 
 ## Keymaps
 
-Global mappings are disabled by default. Buffer-local mappings exist only inside plugin-owned chat buffers.
+Global mappings are disabled by default, but when you set them they can be applied across multiple modes through `keymaps.global_modes`. Buffer-local mappings exist only inside plugin-owned Codex buffers.
 
 Transcript buffer defaults:
 
@@ -163,7 +167,7 @@ Transcript buffer defaults:
 - `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
-- `g?` - open help for the chat buffer
+- `g?` - show contextual Codex shortcuts
 
 Composer buffer defaults:
 
@@ -171,7 +175,7 @@ Composer buffer defaults:
 - `gS` - send the current draft from normal mode
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
-- `g?` in normal mode - open help for the chat buffer
+- `g?` in normal mode - show contextual Codex shortcuts
 - `<CR>` - insert a newline
 
 Pending request viewer defaults:
@@ -181,9 +185,10 @@ Pending request viewer defaults:
 - `s` - approve for session when that decision exists
 - `d` - decline
 - `c` - cancel
+- `g?` - show contextual Codex shortcuts
 - `q` or `<Esc>` - hide the request viewer without resolving the request
 
-All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it.
+All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_modes = { "n", "i", "x" }` (the default) to keep global Codex shortcuts available without changing modes.
 
 ```lua
 require("neovim_codex").setup({
@@ -217,7 +222,7 @@ If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for tha
 
 The transcript is derived from the app-server protocol types, not from shell-string heuristics.
 
-Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items; they open in a stacked request viewer and collect answers through your configured `vim.ui.select` / `vim.ui.input` surfaces. Use `:CodexRequest` to reopen the current request if you close it before responding.
+Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses. Use `:CodexRequest` to reopen the current request if you close it before responding.
 
 Examples:
 

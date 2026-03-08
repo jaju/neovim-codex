@@ -6,11 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Guarded chat tool-error rendering against `vim.NIL` payloads so `mcpToolCall` items no longer crash the transcript or details views.
+- Request viewers now open in normal mode so direct decision shortcuts like `a`, `s`, `d`, and `c` work without an extra `<Esc>`.
 - Routed the workbench tray and compose review through the shared viewer stack so secondary surfaces always appear above chat.
 - Leaving plugin-owned windows now collapses the chat overlay instead of silently dropping focus to the editor buffer under the modal.
 
 ### Changed
 - Removed transcript-to-workbench capture from the first slice; workbench capture is now explicitly code-world first.
+- Thread pickers now show compact thread ids so more of the thread title or preview text remains visible.
+- `g?` now opens contextual shortcut summaries across Codex surfaces instead of jumping straight into `:help`.
 - `Ctrl-w w` now stays inside the chat surface by switching between the transcript and composer panes.
 - Compose review now preserves an existing thread-local draft instead of silently overwriting it on reopen.
 - Workbench capture now rejects plugin scratch buffers and other non-file buffers.
@@ -19,6 +22,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
+- `:CodexThreadRename` and `:CodexShortcuts`, plus `keymaps.global_modes`, for faster thread control and configurable cross-mode shortcut access.
+- A dedicated stacked text-answer popup for free-form `requestUserInput` answers, reusing `<C-s>` as the submit key.
 - The first thread-local semantic-composition slice: pure-Lua workbench state, a workbench tray, a compose-review overlay, and the initial fragment capture flows.
 - Diagnostic capture under cursor through `:CodexCaptureDiagnostic`.
 - `lua/neovim_codex/core/packet.lua` as the pure-Lua outbound packet compiler for handle-based packet templates.

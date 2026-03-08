@@ -213,7 +213,31 @@ local function input_sync(opts)
   return value
 end
 
-local function ask_question(question)
+local function set_prompt_buffer_contract(bufnr)
+  vim.bo[bufnr].buftype = "nofile"
+  vim.bo[bufnr].bufhidden = "hide"
+  vim.bo[bufnr].swapfile = false
+  vim.bo[bufnr].modifiable = true
+  vim.bo[bufnr].filetype = "markdown"
+  vim.api.nvim_buf_set_name(bufnr, "neovim-codex://request/input")
+  vim.b[bufnr].neovim_codex = true
+  vim.b[bufnr].neovim_codex_role = "request_input"
+end
+
+local function set_prompt_buffer_lines(bufnr, lines)
+  vim.bo[bufnr].modifiable = true
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+end
+
+local function prompt_buffer_text(bufnr, start_line)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, -1, false)
+  while #lines > 0 and vim.trim(lines[#lines]) == "" do
+    table.remove(lines)
+  end
+  return table.concat(lines, "\n")
+end
+
+local function ask_question(manager, question)
   local options = question.options
   if type(options) == "table" and #options > 0 then
     local choices = {}
@@ -247,9 +271,16 @@ local function ask_question(question)
       return nil, "cancelled"
     end
     if selection.is_other then
-      local text = question.isSecret and vim.fn.inputsecret(value_or(question.question, "Answer: ")) or input_sync({
-        prompt = value_or(question.question, "Answer: "),
-      })
+      local text
+      if question.isSecret then
+        text = vim.fn.inputsecret(value_or(question.question, "Answer: "))
+      else
+        local response, err = manager:_open_text_input(question)
+        if err then
+          return nil, err
+        end
+        text = response
+      end
       if text == nil then
         return nil, "cancelled"
       end
@@ -258,17 +289,59 @@ local function ask_question(question)
     return { tostring(selection.value) }, nil
   end
 
-  local text = question.isSecret and vim.fn.inputsecret(value_or(question.question, "Answer: ")) or input_sync({
-    prompt = value_or(question.question, "Answer: "),
-  })
+  local text
+  if question.isSecret then
+    text = vim.fn.inputsecret(value_or(question.question, "Answer: "))
+  else
+    local response, err = manager:_open_text_input(question)
+    if err then
+      return nil, err
+    end
+    text = response
+  end
   if text == nil then
     return nil, "cancelled"
   end
   return { tostring(text) }, nil
 end
 
-local function render_command_request(request)
-  local lines = { "# Command approval", "" }
+local function request_action_line(request, keymaps)
+  keymaps = keymaps or {}
+  local pieces = {}
+
+  local function add(lhs, label)
+    if lhs == false or lhs == nil then
+      return
+    end
+    pieces[#pieces + 1] = string.format("[%s] %s", lhs, label)
+  end
+
+  if request.method == "item/tool/requestUserInput" then
+    add(keymaps.respond or "<CR>", "Answer")
+  else
+    local decisions = request.method == "item/commandExecution/requestApproval" and command_decisions(request) or file_change_decisions()
+    if choice_for_shortcut("a", decisions) then
+      add(keymaps.accept or "a", "Approve once")
+    end
+    if choice_for_shortcut("s", decisions) then
+      add(keymaps.accept_for_session or "s", "Approve session")
+    end
+    if choice_for_shortcut("d", decisions) then
+      add(keymaps.decline or "d", "Decline")
+    end
+    if choice_for_shortcut("c", decisions) then
+      add(keymaps.cancel or "c", "Cancel")
+    end
+    add(keymaps.respond or "<CR>", "Choose")
+  end
+
+  add(keymaps.help or "g?", "Shortcuts")
+  add("q", "Hide")
+  return string.format("> Actions: %s", table.concat(pieces, " · "))
+end
+
+local function render_command_request(request, keymaps)
+  local lines = { "# Command approval", "", request_action_line(request, keymaps), "" }
   lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
   lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
   lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
@@ -306,16 +379,11 @@ local function render_command_request(request)
     decision_lines[#decision_lines + 1] = string.format("- %s", decision_label(decision))
   end
   append_section(lines, "## Available decisions", decision_lines)
-  append_section(lines, "## Interaction", {
-    "- Press <CR> to choose a decision.",
-    "- Approval shortcuts are configurable; defaults are `a`, `s`, `d`, and `c` when available.",
-    "- `q` closes the modal without resolving the request.",
-  })
   return { title = "Command Approval", lines = lines }
 end
 
-local function render_file_change_request(request)
-  local lines = { "# File change approval", "" }
+local function render_file_change_request(request, keymaps)
+  local lines = { "# File change approval", "", request_action_line(request, keymaps), "" }
   lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
   lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
   lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
@@ -331,16 +399,11 @@ local function render_file_change_request(request)
     "- Decline",
     "- Cancel",
   })
-  append_section(lines, "## Interaction", {
-    "- Press <CR> to choose a decision.",
-    "- Approval shortcuts are configurable; defaults are `a`, `s`, `d`, and `c`.",
-    "- `q` closes the modal without resolving the request.",
-  })
   return { title = "File Change Approval", lines = lines }
 end
 
-local function render_tool_request(request)
-  local lines = { "# Tool question", "" }
+local function render_tool_request(request, keymaps)
+  local lines = { "# Tool question", "", request_action_line(request, keymaps), "" }
   lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
   lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
   lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
@@ -358,26 +421,21 @@ local function render_tool_request(request)
     append_section(lines, string.format("## %s", header), question_lines)
   end
 
-  append_section(lines, "## Interaction", {
-    "- Press <CR> to answer the questions.",
-    "- Answers are collected through your configured `vim.ui.select` / `vim.ui.input` surfaces.",
-    "- `q` closes the modal without resolving the request.",
-  })
   return { title = "Tool Input Request", lines = lines }
 end
 
-local function render_request(request)
+local function render_request(request, keymaps)
   if not request then
     return { title = "Pending Request", lines = { "# Pending request", "", "No request is active." } }
   end
   if request.method == "item/commandExecution/requestApproval" then
-    return render_command_request(request)
+    return render_command_request(request, keymaps)
   end
   if request.method == "item/fileChange/requestApproval" then
-    return render_file_change_request(request)
+    return render_file_change_request(request, keymaps)
   end
   if request.method == "item/tool/requestUserInput" then
-    return render_tool_request(request)
+    return render_tool_request(request, keymaps)
   end
   return {
     title = value_or(request.method, "Pending Request"),
@@ -398,6 +456,8 @@ function M.new(opts, handlers)
     unsubscribe = nil,
     dismissed = {},
     current = nil,
+    input_bufnr = nil,
+    input_session = nil,
   }, M)
 end
 
@@ -432,8 +492,8 @@ function M:_request_keymaps()
 end
 
 function M:_request_spec(request)
-  local rendered = render_request(request)
   local keymaps = self:_request_keymaps()
+  local rendered = render_request(request, keymaps)
   local mappings = {}
 
   if keymaps.respond ~= false then
@@ -444,6 +504,17 @@ function M:_request_spec(request)
         self:respond_current()
       end,
       desc = "Resolve pending Codex request",
+    }
+  end
+
+  if keymaps.help ~= false then
+    mappings[#mappings + 1] = {
+      mode = "n",
+      lhs = keymaps.help or "g?",
+      rhs = function()
+        require("neovim_codex").open_shortcuts({ surface = "request" })
+      end,
+      desc = "Show Codex request shortcuts",
     }
   end
 
@@ -492,9 +563,9 @@ function M:_request_spec(request)
         mappings[#mappings + 1] = {
           mode = "n",
           lhs = configured or lhs,
-        rhs = function()
-          self:respond_with_decision(request, decision)
-        end,
+          rhs = function()
+            self:respond_with_decision(request, decision)
+          end,
           desc = string.format("Respond to Codex file change request with %s", decision),
         }
       end
@@ -512,11 +583,112 @@ function M:_request_spec(request)
     wrap = ((self.opts.ui or {}).requests or {}).wrap ~= false,
     lines = rendered.lines,
     sticky = true,
+    enter_mode = "normal",
     on_close = function()
       self:dismiss_request(request.key)
     end,
     mappings = mappings,
   }
+end
+
+function M:_ensure_input_buffer()
+  if self.input_bufnr and vim.api.nvim_buf_is_valid(self.input_bufnr) then
+    return self.input_bufnr
+  end
+  self.input_bufnr = vim.api.nvim_create_buf(false, true)
+  set_prompt_buffer_contract(self.input_bufnr)
+  return self.input_bufnr
+end
+
+function M:_open_text_input(question)
+  local bufnr = self:_ensure_input_buffer()
+  local prompt_lines = {
+    string.format("# %s", value_or(question.header, "Answer")),
+    "",
+    value_or(question.question, "Answer:"),
+    "",
+    "> Submit with <C-s>. Press q to cancel.",
+    "",
+    "",
+  }
+  set_prompt_buffer_lines(bufnr, prompt_lines)
+
+  local input_start_line = #prompt_lines
+  local session = {
+    done = false,
+    cancelled = false,
+    text = nil,
+  }
+  self.input_session = session
+
+  local send_key = ((((self.opts or {}).keymaps or {}).composer or {}).send) or ((((self.opts or {}).keymaps or {}).compose_review or {}).send) or "<C-s>"
+  local request_keymaps = self:_request_keymaps()
+
+  local entry = viewer_stack.open({
+    key = "server-request-input",
+    title = value_or(question.header, "Tool answer"),
+    role = "request_input",
+    filetype = "markdown",
+    bufnr = bufnr,
+    manage_buffer = false,
+    width = 0.58,
+    height = 0.28,
+    border = ((self.opts.ui or {}).requests or {}).border or "rounded",
+    wrap = true,
+    sticky = true,
+    enter_mode = "insert",
+    on_close = function()
+      if self.input_session == session and not session.done then
+        session.cancelled = true
+        session.done = true
+      end
+    end,
+    mappings = {
+      {
+        mode = { "i", "n" },
+        lhs = send_key,
+        rhs = function()
+          local answer = prompt_buffer_text(bufnr, input_start_line)
+          if vim.trim(answer) == "" then
+            if self.handlers.notify then
+              self.handlers.notify("Answer is empty", vim.log.levels.INFO)
+            end
+            return
+          end
+          session.text = answer
+          session.done = true
+          viewer_stack.close("server-request-input")
+        end,
+        desc = "Submit Codex request answer",
+      },
+      {
+        mode = "n",
+        lhs = request_keymaps.help or "g?",
+        rhs = function()
+          require("neovim_codex").open_shortcuts({ surface = "request_input" })
+        end,
+        desc = "Show Codex request input shortcuts",
+      },
+    },
+  })
+
+  if entry and entry.popup and entry.popup.winid and vim.api.nvim_win_is_valid(entry.popup.winid) then
+    vim.api.nvim_set_current_win(entry.popup.winid)
+    vim.api.nvim_win_set_cursor(entry.popup.winid, { input_start_line, 0 })
+  end
+
+  vim.wait(10000, function()
+    return session.done
+  end, 20)
+
+  if self.input_session == session then
+    self.input_session = nil
+  end
+
+  if session.cancelled then
+    return nil, "cancelled"
+  end
+  return session.text, nil
 end
 
 function M:sync(store_state)
@@ -525,6 +697,7 @@ function M:sync(store_state)
 
   if not request then
     viewer_stack.close("server-request")
+    viewer_stack.close("server-request-input")
     self.dismissed = {}
     return
   end
@@ -588,7 +761,7 @@ function M:respond_current()
   if request.method == "item/tool/requestUserInput" then
     local answers = {}
     for _, question in ipairs(array_items(request.params.questions)) do
-      local response, err = ask_question(question)
+      local response, err = ask_question(self, question)
       if err then
         if self.handlers.notify then
           self.handlers.notify("Cancelled tool input collection", vim.log.levels.INFO)
@@ -641,6 +814,7 @@ function M:inspect()
   return {
     current = clone_value(self.current),
     dismissed = clone_value(self.dismissed),
+    input_active = self.input_session ~= nil,
   }
 end
 
