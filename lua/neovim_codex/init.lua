@@ -9,6 +9,7 @@ local thread_bootstrap = require("neovim_codex.nvim.thread_bootstrap")
 local workbench = require("neovim_codex.nvim.workbench")
 local renderer = require("neovim_codex.nvim.thread_renderer")
 local transport_mod = require("neovim_codex.nvim.transport")
+local thread_identity = require("neovim_codex.nvim.thread_identity")
 
 local M = {}
 

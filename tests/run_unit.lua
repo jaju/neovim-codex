@@ -537,6 +537,8 @@ test("thread renderer accepts raw thread/read payloads", function()
   local body = table.concat(view.lines, "\n")
   assert(body:find("Summarize the current setup.", 1, true), "raw thread report should include the user message")
   assert(body:find("The setup is stable.", 1, true), "raw thread report should include the assistant message")
+  assert((view.footer or ""):find("thread thr_raw", 1, true), "raw thread footer should use a short thread id")
+  assert((view.footer or ""):find("Raw thread", 1, true), "raw thread footer should include the thread title")
   assert((view.footer or ""):find("1 turn", 1, true), "raw thread footer should include the turn count")
 end)
 

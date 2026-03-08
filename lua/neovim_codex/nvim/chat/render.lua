@@ -61,6 +61,7 @@ function M.render(document)
     blocks = blocks,
     turn_lines = turn_lines,
     footer = document.footer,
+    footer_segments = clone_value(document.footer_segments),
     thread_id = document.thread_id,
   }
 end

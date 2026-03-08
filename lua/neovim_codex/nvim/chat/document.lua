@@ -1,4 +1,5 @@
 local selectors = require("neovim_codex.core.selectors")
+local thread_identity = require("neovim_codex.nvim.thread_identity")
 
 local M = {}
 
@@ -388,6 +389,8 @@ local function thread_footer(state, thread, pending_requests)
   local active_turn = turns[#turns]
   local status_bits = { status }
   local fragment_count = state and selectors.workbench_fragment_count(state, thread.id) or 0
+  local short_id = thread_identity.short_id(thread.id)
+  local title = thread_identity.title(thread, { max_length = 32 })
 
   if active_turn and active_turn.status == "inProgress" then
     local running = in_progress_item_count(active_turn)
@@ -402,15 +405,25 @@ local function thread_footer(state, thread, pending_requests)
     status_bits[#status_bits + 1] = string.format("%d request%s pending", pending_requests, pending_requests == 1 and "" or "s")
   end
 
-  return string.format(
-    "thread %s · workbench %d fragment%s · %d turn%s · %s",
-    thread.id,
+  local footer = string.format(
+    "thread %s · %s · workbench %d fragment%s · %d turn%s · %s",
+    short_id,
+    title,
     fragment_count,
     fragment_count == 1 and "" or "s",
     #turns,
     #turns == 1 and "" or "s",
     table.concat(status_bits, " · ")
   )
+
+  local segments = {
+    { text = string.format("thread %s", short_id), highlight = "NeovimCodexChatFooterMeta" },
+    { text = " · ", highlight = "NeovimCodexChatFooterMeta" },
+    { text = title, highlight = "NeovimCodexChatFooterThread" },
+    { text = string.format(" · workbench %d fragment%s · %d turn%s · %s", fragment_count, fragment_count == 1 and "" or "s", #turns, #turns == 1 and "" or "s", table.concat(status_bits, " · ")), highlight = "NeovimCodexChatFooterMeta" },
+  }
+
+  return footer, segments
 end
 
 local function summarize_user_message(item)
@@ -810,10 +823,12 @@ local function project_thread(thread, opts)
   opts = opts or {}
 
   local pending_requests = opts.state and selectors.pending_request_count(opts.state) or 0
+  local footer, footer_segments = thread_footer(opts.state, thread, pending_requests)
   local doc = {
     title = opts.title,
     thread_id = thread.id,
-    footer = thread_footer(opts.state, thread, pending_requests),
+    footer = footer,
+    footer_segments = footer_segments,
     blocks = {},
   }
 

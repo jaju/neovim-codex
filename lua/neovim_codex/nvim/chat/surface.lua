@@ -1,5 +1,7 @@
 local Layout = require("nui.layout")
 local Popup = require("nui.popup")
+local Line = require("nui.line")
+local Text = require("nui.text")
 
 local M = {}
 
@@ -104,6 +106,18 @@ local function block_signature(block)
   }
 end
 
+local function clone_value(value)
+  if type(value) ~= "table" then
+    return value
+  end
+
+  local out = {}
+  for key, item in pairs(value) do
+    out[key] = clone_value(item)
+  end
+  return out
+end
+
 local function render_signature(render_result)
   local block_signatures = {}
   for _, block in ipairs(render_result.blocks or {}) do
@@ -113,6 +127,7 @@ local function render_signature(render_result)
   return {
     thread_id = render_result.thread_id,
     footer = render_result.footer,
+    footer_segments = clone_value(render_result.footer_segments),
     lines = clone_lines(render_result.lines),
     turn_lines = clone_value(render_result.turn_lines or {}),
     blocks = block_signatures,
@@ -134,6 +149,8 @@ function Surface:_ensure_highlights()
   define_default_highlight("NeovimCodexChatToolHeading", "Type")
   define_default_highlight("NeovimCodexChatReviewHeading", "MoreMsg")
   define_default_highlight("NeovimCodexChatNoticeHeading", "Comment")
+  define_default_highlight("NeovimCodexChatFooterMeta", "Comment")
+  define_default_highlight("NeovimCodexChatFooterThread", "Identifier")
 end
 
 function Surface:_ui_size()
@@ -333,10 +350,20 @@ function Surface:_refresh_layout()
   self:_sync_windows()
 end
 
-function Surface:_set_footer(text)
+function Surface:_set_footer(text, segments)
   if not self.container then
     return
   end
+
+  if type(segments) == "table" and #segments > 0 then
+    local line = Line()
+    for _, segment in ipairs(segments) do
+      line:append(Text(segment.text or "", segment.highlight))
+    end
+    self.container.border:set_text("bottom", line, "left")
+    return
+  end
+
   self.container.border:set_text("bottom", text or "", "left")
 end
 
@@ -519,7 +546,7 @@ function Surface:update(render_result)
   local next_signature = render_signature(render_result)
   local previous_signature = self.last_signature
   local thread_changed = not previous_signature or previous_signature.thread_id ~= next_signature.thread_id
-  local footer_changed = not previous_signature or previous_signature.footer ~= next_signature.footer
+  local footer_changed = not previous_signature or previous_signature.footer ~= next_signature.footer or not vim.deep_equal(previous_signature.footer_segments, next_signature.footer_segments)
   local lines_changed = not previous_signature or not vim.deep_equal(previous_signature.lines, next_signature.lines)
   local blocks_changed = not previous_signature or not vim.deep_equal(previous_signature.blocks, next_signature.blocks)
   local turn_lines_changed = not previous_signature or not vim.deep_equal(previous_signature.turn_lines, next_signature.turn_lines)
@@ -537,7 +564,7 @@ function Surface:update(render_result)
     self:_update_thread_context(render_result.thread_id)
   end
   if footer_changed then
-    self:_set_footer(render_result.footer)
+    self:_set_footer(render_result.footer, render_result.footer_segments)
   end
   if lines_changed then
     self:_set_transcript_lines(render_result.lines)
