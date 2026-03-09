@@ -39,6 +39,23 @@ local function buffer_is_codex_owned(bufnr)
   return valid_buffer(bufnr) and vim.b[bufnr].neovim_codex == true
 end
 
+local function window_is_auxiliary(winid)
+  if not valid_window(winid) then
+    return false
+  end
+
+  local config = vim.api.nvim_win_get_config(winid)
+  if config and config.relative and config.relative ~= "" then
+    return true
+  end
+
+  if vim.wo[winid].previewwindow then
+    return true
+  end
+
+  return false
+end
+
 local function map_if(lhs, mode, rhs, opts)
   if not lhs then
     return
@@ -411,7 +428,7 @@ function Surface:_handle_focus_change()
   end
 
   local current = vim.api.nvim_get_current_win()
-  if self:_is_overlay_window(current) then
+  if self:_is_overlay_window(current) or window_is_auxiliary(current) then
     return
   end
 

@@ -17,6 +17,15 @@ For Codex app-server protocol, contract, or drift questions:
 - machine-checked artifacts live at `contracts/codex-app-server/watch-manifest.json`, `contracts/codex-app-server/snapshots/`, and `scripts/check_codex_app_server_contracts.py`
 - prefer `./scripts/contracts-check` for drift checks; use `--generate` only when intentionally comparing against the installed `codex` binary instead of the configured checkout
 
+## UI Invariants
+
+Before touching any UI surface, re-read `docs/contracts/neovim/ui-surface-mapping.md` and keep these invariants intact:
+
+- read-only Codex surfaces must enter and remain in normal mode; they share the `readonly_surface` guard instead of bespoke insert-mode fixes
+- stacked secondary surfaces must go through `viewer_stack`; do not mount ad hoc popups that bypass the shared z-index, focus, and close behavior
+- the chat overlay may close when focus returns to a real editing window, but auxiliary floating or preview windows are not considered a chat exit
+- if a new surface changes how users invoke or discover actions, update the shortcut/help docs in `README.md`, `docs/usage/chat.md`, and `doc/neovim-codex.txt`
+
 ## Issue Tracking
 
 This repository uses `bd` (beads) for task tracking.

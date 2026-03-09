@@ -108,6 +108,24 @@ assert(shortcuts_body:find("## Global workflow", 1, true), "shortcut sheet shoul
 assert(shortcuts_body:find("g? / <F1>", 1, true), "shortcut sheet should explain the local help entrypoints")
 require("neovim_codex.nvim.presentation").close_viewers()
 
+vim.cmd("startinsert")
+local shortcuts_surface_insert, _ = codex.open_shortcuts({ surface = "composer" })
+assert(shortcuts_surface_insert == "composer", "shortcut sheet should still target the requested surface from insert mode")
+assert(vim.api.nvim_get_mode().mode:sub(1, 1) ~= "i", "shortcut sheet should force normal mode on read-only reports")
+require("neovim_codex.nvim.presentation").close_viewers()
+
+local aux_buf = vim.api.nvim_create_buf(false, true)
+local aux_win = vim.api.nvim_open_win(aux_buf, true, {
+  relative = "editor",
+  row = 2,
+  col = 4,
+  width = 24,
+  height = 4,
+  style = "minimal",
+})
+assert(codex.get_chat_state().visible == true, "chat should remain visible while an auxiliary float is focused")
+vim.api.nvim_win_close(aux_win, true)
+
 codex.open_events()
 local event_viewers = codex.get_chat_state().viewers
 assert(event_viewers.top and event_viewers.top.key == "events", "events should open in the stacked viewer layer")

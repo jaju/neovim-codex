@@ -122,6 +122,8 @@ function M.open_report(name, lines, opts)
     width = opts.width or 0.78,
     height = opts.height or 0.74,
     wrap = opts.wrap ~= false,
+    enter_mode = "normal",
+    prevent_insert = true,
     lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false),
   })
   return buf
