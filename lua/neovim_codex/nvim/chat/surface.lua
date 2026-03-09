@@ -83,12 +83,24 @@ local function clone_value(value)
   return out
 end
 
-local function clone_lines(lines)
+local function normalize_lines(lines)
   local out = {}
   for _, line in ipairs(lines or {}) do
-    out[#out + 1] = tostring(line)
+    local value = tostring(line)
+    local split = vim.split(value, "\n", { plain = true })
+    if #split == 0 then
+      out[#out + 1] = ""
+    else
+      for _, part in ipairs(split) do
+        out[#out + 1] = part
+      end
+    end
   end
   return out
+end
+
+local function clone_lines(lines)
+  return normalize_lines(lines)
 end
 
 local function block_signature(block)
@@ -461,7 +473,10 @@ function Surface:_render_blocks(blocks)
 end
 
 function Surface:_set_transcript_lines(lines)
-  local normalized = lines or { "" }
+  local normalized = normalize_lines(lines or { "" })
+  if #normalized == 0 then
+    normalized = { "" }
+  end
   local cursor_at_end = false
   local previous_count = self.last_line_count or 1
 

@@ -152,6 +152,36 @@ test("store tracks pending server requests and resolution", function()
   eq(selectors.get_active_request(state), nil)
 end)
 
+test("chat renderer flattens multiline block entries into buffer-safe lines", function()
+  local render = require("neovim_codex.nvim.chat.render")
+
+  local result = render.render({
+    thread_id = "thr_flatten",
+    blocks = {
+      {
+        id = "block_1",
+        kind = "assistant_message",
+        surface = "message_assistant",
+        lines = {
+          "### Response · Example",
+          "First line\nSecond line",
+          "",
+          "```lua\nprint('hi')\n```",
+        },
+        protocol = { item_type = "agentMessage", item = { id = "item_1" } },
+      },
+    },
+  })
+
+  eq(result.lines[1], "### Response · Example")
+  eq(result.lines[2], "First line")
+  eq(result.lines[3], "Second line")
+  eq(result.lines[4], "")
+  eq(result.lines[5], "```lua")
+  eq(result.lines[6], "print('hi')")
+  eq(result.lines[7], "```")
+end)
+
 test("chat document renders assistant replies as markdown blocks", function()
   local document = require("neovim_codex.nvim.chat.document")
   local render = require("neovim_codex.nvim.chat.render")

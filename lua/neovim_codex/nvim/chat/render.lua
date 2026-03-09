@@ -2,7 +2,15 @@ local M = {}
 
 local function append_lines(target, source)
   for _, line in ipairs(source or {}) do
-    target[#target + 1] = tostring(line)
+    local value = tostring(line)
+    local split = vim.split(value, "\n", { plain = true })
+    if #split == 0 then
+      target[#target + 1] = ""
+    else
+      for _, part in ipairs(split) do
+        target[#target + 1] = part
+      end
+    end
   end
 end
 
