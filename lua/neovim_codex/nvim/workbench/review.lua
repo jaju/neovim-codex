@@ -146,11 +146,40 @@ function Review:_ensure_message_buffer()
 end
 
 function Review:_destroy_components()
-  if self.layout and self.layout.unmount and self.layout._ and self.layout._.mounted then
+  pcall(vim.cmd, "stopinsert")
+
+  self.list:set_window(nil)
+
+  if self.layout and self.layout.hide then
+    pcall(function()
+      self.layout:hide()
+    end)
+  end
+
+  if self.layout and self.layout.unmount then
     pcall(function()
       self.layout:unmount()
     end)
   end
+
+  if self.message_popup and self.message_popup.unmount then
+    pcall(function()
+      self.message_popup:unmount()
+    end)
+  end
+
+  if self.list_popup and self.list_popup.unmount then
+    pcall(function()
+      self.list_popup:unmount()
+    end)
+  end
+
+  if self.container and self.container.unmount then
+    pcall(function()
+      self.container:unmount()
+    end)
+  end
+
   self.layout = nil
   self.container = nil
   self.message_popup = nil

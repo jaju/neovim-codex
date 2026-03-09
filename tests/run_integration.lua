@@ -221,6 +221,10 @@ codex.open_compose_review({ seed_message = "Do not overwrite this." })
 assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft with [[f1]], [[f2]], and [[f3]].", "compose review should not overwrite an existing packet template")
 
 require("neovim_codex.nvim.presentation").close_viewers()
+local review_closed = codex.get_workbench_state().review
+assert(review_closed.visible == false, "compose review should report hidden after viewer close")
+local viewers_after_close = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(viewers_after_close.top == nil, "compose review close should not leave a stacked viewer shell behind")
 
 vim.cmd("enew")
 local invalid_path, invalid_path_err = codex.capture_current_file({ notify = false })
