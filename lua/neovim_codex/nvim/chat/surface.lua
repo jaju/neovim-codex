@@ -230,7 +230,7 @@ function Surface:_bind_transcript_keymaps(bufnr)
       desc = "Focus Codex composer",
     })
   end
-  map_if(keymaps.switch_pane, "n", function()
+  map_if(keymaps.switch_pane, { "n", "i" }, function()
     self:focus_next_pane()
   end, { buffer = bufnr, desc = "Switch Codex chat pane" })
   map_if(keymaps.inspect, "n", function()
@@ -256,6 +256,26 @@ function Surface:_ensure_transcript_buffer()
   self.transcript_bufnr = bufnr
   self:_apply_transcript_contract(bufnr)
   self:_bind_transcript_keymaps(bufnr)
+  vim.api.nvim_create_autocmd("InsertEnter", {
+    group = self.augroup,
+    buffer = bufnr,
+    callback = function()
+      vim.schedule(function()
+        if not valid_window(self.transcript_popup and self.transcript_popup.winid) then
+          vim.cmd("stopinsert")
+          return
+        end
+        if vim.api.nvim_get_current_win() ~= self.transcript_popup.winid then
+          return
+        end
+        if self.handlers.focus_composer then
+          self.handlers.focus_composer()
+          return
+        end
+        vim.cmd("stopinsert")
+      end)
+    end,
+  })
   return bufnr
 end
 

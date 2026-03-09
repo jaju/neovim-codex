@@ -229,6 +229,28 @@ local function apply_custom_mappings(entry)
   end
 end
 
+local function apply_insert_guard(entry)
+  if not entry.spec.prevent_insert then
+    return
+  end
+
+  vim.api.nvim_create_autocmd("InsertEnter", {
+    buffer = entry.bufnr,
+    callback = function()
+      vim.schedule(function()
+        if not valid_window(entry.popup and entry.popup.winid) then
+          vim.cmd("stopinsert")
+          return
+        end
+        if vim.api.nvim_get_current_win() ~= entry.popup.winid then
+          return
+        end
+        vim.cmd("stopinsert")
+      end)
+    end,
+  })
+end
+
 local function close_key(key)
   local index = stack_index(key)
   if not index then
@@ -313,6 +335,7 @@ local function apply_spec(entry, spec)
 
   apply_window_options(entry)
   apply_custom_mappings(entry)
+  apply_insert_guard(entry)
 end
 
 function M.open(spec)

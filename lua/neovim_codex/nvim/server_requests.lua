@@ -593,6 +593,7 @@ function M:_request_spec(request)
     lines = rendered.lines,
     sticky = true,
     enter_mode = "normal",
+    prevent_insert = true,
     on_close = function()
       self:dismiss_request(request.key)
     end,
