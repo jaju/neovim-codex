@@ -2,6 +2,7 @@ local Layout = require("nui.layout")
 local Popup = require("nui.popup")
 
 local list_mod = require("neovim_codex.nvim.workbench.list")
+local thread_identity = require("neovim_codex.nvim.thread_identity")
 
 local M = {}
 
@@ -144,6 +145,18 @@ function Review:_ensure_message_buffer()
   return bufnr
 end
 
+function Review:_destroy_components()
+  if self.layout and self.layout.unmount and self.layout._ and self.layout._.mounted then
+    pcall(function()
+      self.layout:unmount()
+    end)
+  end
+  self.layout = nil
+  self.container = nil
+  self.message_popup = nil
+  self.list_popup = nil
+end
+
 function Review:_ensure_components()
   if self.layout then
     return
@@ -284,10 +297,13 @@ function Review:current_fragment()
 end
 
 function Review:show(thread_id, message, fragments)
+  if self.layout and not self.visible then
+    self:_destroy_components()
+  end
   self:_ensure_components()
   self.thread_id = thread_id
   self.fragments = fragments or {}
-  self.container.border:set_text("top", string.format(" Compose review · thread %s ", thread_id or "none"), "center")
+  self.container.border:set_text("top", string.format(" Compose review · thread %s ", thread_id and thread_identity.short_id(thread_id) or "none"), "center")
   self.list:update(thread_id, self.fragments)
   self:set_message(message or "")
 
@@ -309,7 +325,7 @@ function Review:update(thread_id, message, fragments)
     return
   end
 
-  self.container.border:set_text("top", string.format(" Compose review · thread %s ", thread_id or "none"), "center")
+  self.container.border:set_text("top", string.format(" Compose review · thread %s ", thread_id and thread_identity.short_id(thread_id) or "none"), "center")
   self.list:update(thread_id, self.fragments)
   if message ~= nil and message ~= self:read_message() then
     self:set_message(message)
@@ -321,11 +337,8 @@ function Review:hide()
   if not self.layout or not self.visible then
     return
   end
-  self.layout:hide()
-  if self.container and self.container.hide then
-    self.container:hide()
-  end
   self.visible = false
+  self:_destroy_components()
 end
 
 function Review:is_visible()

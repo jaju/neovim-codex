@@ -1,6 +1,7 @@
 local packet = require("neovim_codex.core.packet")
 local presentation = require("neovim_codex.nvim.presentation")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
+local thread_identity = require("neovim_codex.nvim.thread_identity")
 
 local M = {}
 
@@ -527,39 +528,37 @@ function M.inspect()
 end
 
 function M._tray_viewer_spec(thread_id, fragments)
+  local layout = state.tray:layout_config()
   return {
     key = "workbench-tray",
-    title = "Workbench",
+    title = state.tray:title(thread_id, fragments or {}),
     role = "workbench",
     thread_id = thread_id,
     fragments = clone_value(fragments or {}),
-    surface = {
-      open = function(entry)
-        state.tray:show(entry.spec.thread_id, entry.spec.fragments)
-      end,
-      refresh = function(entry)
-        state.tray:update(entry.spec.thread_id, entry.spec.fragments)
-      end,
-      hide = function()
-        state.tray:hide()
-      end,
-      focus = function()
-        state.tray:focus()
-      end,
-      is_visible = function()
-        return state.tray:is_visible()
-      end,
-      inspect = function()
-        return state.tray:inspect()
-      end,
-    },
+    bufnr = state.tray:bufnr_value(),
+    manage_buffer = false,
+    relative = layout.relative,
+    position = layout.position,
+    size = layout.size,
+    border = ((state.opts.ui or {}).workbench or {}).tray.border or "rounded",
+    wrap = true,
+    prevent_insert = true,
+    on_show = function(entry)
+      state.tray:show(entry.spec.thread_id, entry.spec.fragments, entry.popup and entry.popup.winid)
+    end,
+    on_refresh = function(entry)
+      state.tray:update(entry.spec.thread_id, entry.spec.fragments, entry.popup and entry.popup.winid)
+    end,
+    on_hide = function()
+      state.tray:hide()
+    end,
   }
 end
 
 function M._review_viewer_spec(thread_id, message, fragments)
   return {
     key = "compose-review",
-    title = string.format("Compose review · thread %s", thread_id or "none"),
+    title = string.format("Compose review · thread %s", thread_id and thread_identity.short_id(thread_id) or "none"),
     role = "compose_review",
     thread_id = thread_id,
     message = message or "",

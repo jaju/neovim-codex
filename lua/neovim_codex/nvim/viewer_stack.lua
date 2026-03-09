@@ -117,6 +117,10 @@ local function hide_entry(entry)
     return
   end
 
+  if entry.spec and entry.spec.on_hide then
+    entry.spec.on_hide(entry)
+  end
+
   if entry.popup and entry.popup._ and entry.popup._.mounted then
     entry.popup:hide()
   end
@@ -157,6 +161,9 @@ local function show_entry(entry)
 
   if valid_window(entry.popup.winid) then
     vim.api.nvim_set_current_win(entry.popup.winid)
+  end
+  if entry.spec and entry.spec.on_show then
+    entry.spec.on_show(entry)
   end
   apply_entry_mode(entry)
 end
@@ -368,6 +375,9 @@ function M.refresh(key, spec)
   end
 
   apply_spec(entry, vim.tbl_extend("force", spec or {}, { key = key }))
+  if entry_visible(entry) and entry.spec and entry.spec.on_refresh then
+    entry.spec.on_refresh(entry)
+  end
   return entry
 end
 

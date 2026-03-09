@@ -71,14 +71,16 @@ local function lines_for_surface(config, surface)
     local keymaps = (config.keymaps or {}).transcript or {}
     add_mapping(entries, keymaps.inspect, "Inspect the current transcript block")
     add_mapping(entries, keymaps.focus_composer, "Focus the composer")
+    add_mapping(entries, global.compose, "Open compose review directly")
     add_mapping(entries, keymaps.switch_pane, "Switch between transcript and composer")
     add_mapping(entries, keymaps.prev_turn, "Jump to the previous turn")
     add_mapping(entries, keymaps.next_turn, "Jump to the next turn")
     add_mapping(entries, keymaps.close, "Hide the chat overlay")
   elseif surface == "composer" then
     local keymaps = (config.keymaps or {}).composer or {}
-    add_mapping(entries, keymaps.send, "Send the current message")
+    add_mapping(entries, keymaps.send, "Send the current message, or open compose review when fragments are staged")
     add_mapping(entries, keymaps.send_normal, "Send the current message from normal mode")
+    add_mapping(entries, global.compose, "Open compose review directly")
     add_mapping(entries, keymaps.switch_pane, "Switch between composer and transcript")
     add_mapping(entries, keymaps.close, "Hide the chat overlay")
   elseif surface == "request" then

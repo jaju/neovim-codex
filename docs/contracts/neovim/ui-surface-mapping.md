@@ -91,6 +91,8 @@ For the current implementation slice, structured workbench capture should come f
 
 Thread visibility must remain explicit across chat footer, workbench tray, and compose review so staged context never feels detached from its owning conversation.
 
+Read-only secondary surfaces must be hosted by the shared `viewer_stack` popup path and opt into the no-insert baseline. If a surface is immutable, it should not own a one-off popup lifecycle or allow itself to drift into insert mode. Composite editor surfaces may use custom layouts, but they must rebuild cleanly after hide/show cycles instead of reusing stale window ids.
+
 That requires:
 - stable semantic block identities
 - provenance retained behind rendered content

@@ -1,6 +1,5 @@
-local Popup = require("nui.popup")
-
 local list_mod = require("neovim_codex.nvim.workbench.list")
+local thread_identity = require("neovim_codex.nvim.thread_identity")
 
 local M = {}
 
@@ -32,7 +31,7 @@ function Tray:_ui_size()
   return ui and ui.width or vim.o.columns, ui and ui.height or vim.o.lines
 end
 
-function Tray:_config()
+function Tray:layout_config()
   local opts = self.opts.ui.workbench.tray or {}
   local total_width, total_height = self:_ui_size()
   local width = resolve_dimension(opts.width or 0.34, total_width, 34)
@@ -50,90 +49,44 @@ function Tray:_config()
   }
 end
 
-function Tray:_title(thread_id, fragments)
+function Tray:title(thread_id, fragments)
   if not thread_id then
-    return " Workbench · no active thread "
+    return "Workbench · no active thread"
   end
-  return string.format(" Workbench · thread %s · %d fragment%s ", thread_id, #fragments, #fragments == 1 and "" or "s")
+  return string.format(
+    "Workbench · thread %s · %d fragment%s",
+    thread_identity.short_id(thread_id),
+    #fragments,
+    #fragments == 1 and "" or "s"
+  )
 end
 
-function Tray:_ensure_popup()
-  if self.popup then
-    return self.popup
-  end
-
-  self.popup = Popup({
-    enter = false,
-    focusable = true,
-    zindex = 70,
-    border = {
-      style = (self.opts.ui.workbench.tray or {}).border or "rounded",
-      text = { top = " Workbench ", top_align = "center" },
-    },
-    bufnr = self.list:bufnr_value(),
-    win_options = {
-      winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder",
-    },
-  })
-
-  return self.popup
+function Tray:bufnr_value()
+  return self.list:bufnr_value()
 end
 
-function Tray:_sync_window()
-  self.list:set_window(self.popup and self.popup.winid)
-end
-
-function Tray:show(thread_id, fragments)
-  local popup = self:_ensure_popup()
-  popup.border:set_text("top", self:_title(thread_id, fragments or {}), "center")
-  popup:update_layout(self:_config())
-  self.list:update(thread_id, fragments or {})
-
-  if popup._ and popup._.mounted then
-    popup:show()
-  else
-    popup:mount()
-  end
-
+function Tray:show(thread_id, fragments, winid)
+  self.thread_id = thread_id
+  self.fragments = fragments or {}
   self.visible = true
-  self:_sync_window()
+  self.list:update(thread_id, self.fragments)
+  self.list:set_window(winid)
 end
 
 function Tray:hide()
-  if not self.popup or not self.visible then
-    return
-  end
-  self.popup:hide()
   self.visible = false
+  self.list:set_window(nil)
 end
 
-function Tray:toggle(thread_id, fragments)
-  if self.visible then
-    self:hide()
-    return false
-  end
-
-  self:show(thread_id, fragments)
-  return true
-end
-
-function Tray:update(thread_id, fragments)
+function Tray:update(thread_id, fragments, winid)
   self.thread_id = thread_id
   self.fragments = fragments or {}
-  if not self.visible then
-    return
-  end
-
-  local popup = self:_ensure_popup()
-  popup.border:set_text("top", self:_title(thread_id, self.fragments), "center")
   self.list:update(thread_id, self.fragments)
-  if valid_window(popup.winid) then
-    self:_sync_window()
-  end
+  self.list:set_window(winid)
 end
 
 function Tray:is_visible()
-  return self.visible
+  return self.visible == true and valid_window(self.list.winid)
 end
 
 function Tray:current_fragment()
@@ -141,8 +94,8 @@ function Tray:current_fragment()
 end
 
 function Tray:focus()
-  if self.popup and valid_window(self.popup.winid) then
-    vim.api.nvim_set_current_win(self.popup.winid)
+  if valid_window(self.list.winid) then
+    vim.api.nvim_set_current_win(self.list.winid)
     return true
   end
   return false
@@ -151,10 +104,9 @@ end
 function Tray:inspect()
   return {
     visible = self.visible,
-    popup = self.popup and self.popup.winid or nil,
-    list = self.list:inspect(),
     thread_id = self.thread_id,
     fragments = self.fragments,
+    list = self.list:inspect(),
   }
 end
 
@@ -171,9 +123,7 @@ function M.new(opts, handlers)
     close = function()
       if handlers.close then
         handlers.close()
-        return
       end
-      tray:hide()
     end,
     inspect = function()
       if handlers.inspect then
@@ -195,7 +145,11 @@ function M.new(opts, handlers)
         handlers.compose()
       end
     end,
-    open_help = handlers.open_help,
+    open_help = function()
+      if handlers.open_help then
+        handlers.open_help()
+      end
+    end,
   })
 
   return tray
