@@ -43,11 +43,6 @@ vim.api.nvim_create_user_command("CodexThreadRead", function(command)
   require("neovim_codex").open_thread_report({ thread_id = args })
 end, { nargs = "?" })
 
-vim.api.nvim_create_user_command("CodexThreadContext", function(command)
-  local args = vim.trim(command.args or "")
-  require("neovim_codex").open_thread_context_report(args == "" and {} or { thread_id = args })
-end, { nargs = "?" })
-
 vim.api.nvim_create_user_command("CodexThreadRename", function(command)
   local args = vim.trim(command.args or "")
   require("neovim_codex").rename_thread(args == "" and {} or { name = args })

@@ -25,7 +25,6 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
-- `:CodexThreadContext` as a minimum bootstrap-context inspector for threads started or resumed through `neovim-codex`, including captured `AGENTS.md` layers and explicit startup knobs.
 - `:CodexThreadRename` and `:CodexShortcuts`, plus `keymaps.global_modes`, for faster thread control and configurable cross-mode shortcut access.
 - A dedicated stacked text-answer popup for free-form `requestUserInput` answers, reusing `<C-s>` as the submit key.
 - The first thread-local semantic-composition slice: pure-Lua workbench state, a workbench tray, a compose-review overlay, and the initial fragment capture flows.

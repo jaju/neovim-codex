@@ -32,7 +32,7 @@ function M.check()
     end
   end
 
-  health.info("Commands: :CodexStart, :CodexStop, :CodexStatus, :CodexEvents, :CodexSmoke, :CodexChat, :CodexSend, :CodexThreadContext")
+  health.info("Commands: :CodexStart, :CodexStop, :CodexStatus, :CodexEvents, :CodexSmoke, :CodexChat, :CodexSend")
   health.info("Dogfood loop: :Lazy reload neovim-codex -> :checkhealth neovim_codex -> :CodexChat")
 end
 

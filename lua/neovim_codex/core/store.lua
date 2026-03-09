@@ -98,7 +98,6 @@ local function ensure_thread(state, thread_id)
     name = nil,
     archived = false,
     closed = false,
-    bootstrap = nil,
     turns_order = {},
     turns_by_id = {},
   }
@@ -461,8 +460,6 @@ local function reducer(state, event)
       archived = event.archived,
       closed = event.closed,
     })
-  elseif event.type == "thread_bootstrap_captured" then
-    ensure_thread(next_state, event.thread_id).bootstrap = clone(event.bootstrap)
   elseif event.type == "threads_list_received" then
     local ordered_ids = {}
     for _, thread in ipairs(event.threads or {}) do
