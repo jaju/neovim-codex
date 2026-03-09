@@ -2,6 +2,7 @@ local Layout = require("nui.layout")
 local Popup = require("nui.popup")
 local Line = require("nui.line")
 local Text = require("nui.text")
+local readonly_surface = require("neovim_codex.nvim.readonly_surface")
 
 local M = {}
 
@@ -268,24 +269,18 @@ function Surface:_ensure_transcript_buffer()
   self.transcript_bufnr = bufnr
   self:_apply_transcript_contract(bufnr)
   self:_bind_transcript_keymaps(bufnr)
-  vim.api.nvim_create_autocmd("InsertEnter", {
-    group = self.augroup,
-    buffer = bufnr,
-    callback = function()
-      vim.schedule(function()
-        if not valid_window(self.transcript_popup and self.transcript_popup.winid) then
-          vim.cmd("stopinsert")
-          return
-        end
-        if vim.api.nvim_get_current_win() ~= self.transcript_popup.winid then
-          return
-        end
-        if self.handlers.focus_composer then
-          self.handlers.focus_composer()
-          return
-        end
-        vim.cmd("stopinsert")
-      end)
+  readonly_surface.attach(bufnr, {
+    augroup = self.augroup,
+    is_target_active = function()
+      return valid_window(self.transcript_popup and self.transcript_popup.winid)
+        and vim.api.nvim_get_current_win() == self.transcript_popup.winid
+    end,
+    on_insert_attempt = function()
+      if self.handlers.focus_composer then
+        self.handlers.focus_composer()
+        return true
+      end
+      return false
     end,
   })
   return bufnr

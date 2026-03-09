@@ -69,6 +69,14 @@ end, 20)
 assert(codex.get_chat_state().transcript_win == vim.api.nvim_get_current_win(), "Ctrl-w w should switch back to the transcript inside the overlay")
 assert(vim.api.nvim_get_mode().mode == "n", "transcript focus should leave insert mode")
 
+vim.api.nvim_set_current_win(codex.get_chat_state().composer_win)
+vim.cmd("startinsert")
+vim.api.nvim_set_current_win(codex.get_chat_state().transcript_win)
+vim.wait(1000, function()
+  return vim.api.nvim_get_mode().mode == "n"
+end, 20)
+assert(vim.api.nvim_get_mode().mode == "n", "transcript focus should force normal mode even when entered from insert mode")
+
 vim.api.nvim_set_current_win(base_window)
 vim.wait(1000, function()
   return codex.get_chat_state().visible == false

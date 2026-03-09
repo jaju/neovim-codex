@@ -2,6 +2,8 @@ local Popup = nil
 
 local M = {}
 
+local readonly_surface = require("neovim_codex.nvim.readonly_surface")
+
 local state = {
   entries = {},
   stack = {},
@@ -241,19 +243,10 @@ local function apply_insert_guard(entry)
     return
   end
 
-  vim.api.nvim_create_autocmd("InsertEnter", {
-    buffer = entry.bufnr,
-    callback = function()
-      vim.schedule(function()
-        if not valid_window(entry.popup and entry.popup.winid) then
-          vim.cmd("stopinsert")
-          return
-        end
-        if vim.api.nvim_get_current_win() ~= entry.popup.winid then
-          return
-        end
-        vim.cmd("stopinsert")
-      end)
+  readonly_surface.attach(entry.bufnr, {
+    is_target_active = function()
+      return valid_window(entry.popup and entry.popup.winid)
+        and vim.api.nvim_get_current_win() == entry.popup.winid
     end,
   })
 end
