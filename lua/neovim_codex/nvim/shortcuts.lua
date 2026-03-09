@@ -1,19 +1,21 @@
 local presentation = require("neovim_codex.nvim.presentation")
+local surface_help = require("neovim_codex.nvim.surface_help")
 
 local M = {}
 
-local function add_section(lines, title, entries)
-  if not entries or #entries == 0 then
-    return
-  end
+local function add_section(lines, title, entries, empty_note)
   if #lines > 0 then
     lines[#lines + 1] = ""
   end
   lines[#lines + 1] = title
   lines[#lines + 1] = ""
-  for _, entry in ipairs(entries) do
-    lines[#lines + 1] = entry
+  if entries and #entries > 0 then
+    for _, entry in ipairs(entries) do
+      lines[#lines + 1] = entry
+    end
+    return
   end
+  lines[#lines + 1] = empty_note or "- Nothing is configured for this lane."
 end
 
 local function add_mapping(entries, lhs, label)
@@ -21,6 +23,12 @@ local function add_mapping(entries, lhs, label)
     return
   end
   entries[#entries + 1] = string.format("- `%s` — %s", lhs, label)
+end
+
+local function add_mappings(entries, keys, label)
+  for _, lhs in ipairs(keys or {}) do
+    add_mapping(entries, lhs, label)
+  end
 end
 
 local function surface_from_role(role)
@@ -49,40 +57,47 @@ local function infer_surface(opts)
   return "global"
 end
 
-local function lines_for_surface(config, surface)
-  local lines = { "# Codex shortcuts", "", string.format("- Surface: `%s`", surface) }
+local function fast_entries(config)
   local global = (config.keymaps or {}).global or {}
-  local global_entries = {}
-  add_mapping(global_entries, global.chat, "Toggle chat overlay")
-  add_mapping(global_entries, global.threads, "Pick or resume a thread")
-  add_mapping(global_entries, global.read_thread, "Open a thread report")
-  add_mapping(global_entries, global.thread_rename, "Rename the active thread")
-  add_mapping(global_entries, global.request, "Reopen the active request")
-  add_mapping(global_entries, global.workbench, "Toggle the workbench tray")
-  add_mapping(global_entries, global.compose, "Open compose review")
-  add_mapping(global_entries, global.capture_path, "Stage the current file path")
-  add_mapping(global_entries, global.capture_selection, "Stage the current visual selection")
-  add_mapping(global_entries, global.capture_diagnostic, "Stage the diagnostic under cursor")
-  add_mapping(global_entries, global.shortcuts, "Show contextual shortcuts")
-  add_section(lines, "## Global", global_entries)
+  local entries = {}
+  add_mapping(entries, global.chat, "Toggle the chat overlay")
+  return entries
+end
 
+local function workflow_entries(config)
+  local global = (config.keymaps or {}).global or {}
+  local entries = {}
+  add_mapping(entries, global.threads, "Pick or resume a thread")
+  add_mapping(entries, global.read_thread, "Open a thread report")
+  add_mapping(entries, global.thread_rename, "Rename the active thread")
+  add_mapping(entries, global.request, "Reopen the active request")
+  add_mapping(entries, global.workbench, "Toggle the workbench tray")
+  add_mapping(entries, global.compose, "Open compose review")
+  add_mapping(entries, global.capture_path, "Stage the current file path")
+  add_mapping(entries, global.capture_selection, "Stage the current visual selection")
+  add_mapping(entries, global.capture_diagnostic, "Stage the diagnostic under cursor")
+  add_mapping(entries, global.shortcuts, "Open this shortcut sheet from anywhere")
+  return entries
+end
+
+local function surface_entries(config, surface)
   local entries = {}
   if surface == "transcript" then
     local keymaps = (config.keymaps or {}).transcript or {}
     add_mapping(entries, keymaps.inspect, "Inspect the current transcript block")
     add_mapping(entries, keymaps.focus_composer, "Focus the composer")
-    add_mapping(entries, global.compose, "Open compose review directly")
     add_mapping(entries, keymaps.switch_pane, "Switch between transcript and composer")
     add_mapping(entries, keymaps.prev_turn, "Jump to the previous turn")
     add_mapping(entries, keymaps.next_turn, "Jump to the next turn")
     add_mapping(entries, keymaps.close, "Hide the chat overlay")
+    add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
   elseif surface == "composer" then
     local keymaps = (config.keymaps or {}).composer or {}
-    add_mapping(entries, keymaps.send, "Send the current message, or open compose review when fragments are staged")
-    add_mapping(entries, keymaps.send_normal, "Send the current message from normal mode")
-    add_mapping(entries, global.compose, "Open compose review directly")
+    add_mapping(entries, keymaps.send, "Send the message, or open compose review when fragments are staged")
+    add_mapping(entries, keymaps.send_normal, "Send from normal mode")
     add_mapping(entries, keymaps.switch_pane, "Switch between composer and transcript")
     add_mapping(entries, keymaps.close, "Hide the chat overlay")
+    add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
   elseif surface == "request" then
     local keymaps = (config.keymaps or {}).request or {}
     add_mapping(entries, keymaps.respond, "Choose a decision or answer")
@@ -90,12 +105,14 @@ local function lines_for_surface(config, surface)
     add_mapping(entries, keymaps.accept_for_session, "Approve for session")
     add_mapping(entries, keymaps.decline, "Decline")
     add_mapping(entries, keymaps.cancel, "Cancel")
-    add_mapping(entries, keymaps.help, "Show request shortcuts")
+    add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
     add_mapping(entries, "q", "Hide the request viewer")
   elseif surface == "request_input" then
+    local help_keys = surface_help.keys(config, ((config.keymaps or {}).request or {}).help)
     local send = ((config.keymaps or {}).composer or {}).send or ((config.keymaps or {}).compose_review or {}).send or "<C-s>"
     add_mapping(entries, send, "Submit the typed answer")
     add_mapping(entries, "q", "Cancel the typed answer")
+    add_mappings(entries, help_keys, "Open contextual Codex help")
     add_mapping(entries, "<Esc>", "Leave insert mode")
   elseif surface == "workbench" then
     local keymaps = (config.keymaps or {}).workbench or {}
@@ -103,20 +120,41 @@ local function lines_for_surface(config, surface)
     add_mapping(entries, keymaps.remove, "Remove the selected fragment")
     add_mapping(entries, keymaps.clear, "Clear the active workbench")
     add_mapping(entries, keymaps.compose, "Open compose review")
-    add_mapping(entries, keymaps.insert_handle, "Insert the selected handle")
-    add_mapping(entries, keymaps.close, "Close the workbench tray")
+    add_mapping(entries, keymaps.insert_handle, "Insert the selected fragment handle")
+    add_mapping(entries, keymaps.focus_message, "Focus the packet template")
+    add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
   elseif surface == "compose_review" then
     local keymaps = (config.keymaps or {}).compose_review or {}
     add_mapping(entries, keymaps.send, "Compile and send the packet")
     add_mapping(entries, keymaps.send_normal, "Compile and send from normal mode")
     add_mapping(entries, keymaps.focus_fragments, "Focus the staged fragments list")
     add_mapping(entries, keymaps.close, "Close compose review")
+    add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
+  end
+  return entries
+end
+
+local function lines_for_surface(config, surface)
+  local lines = {
+    "# Codex shortcuts",
+    "",
+    string.format("- Surface: `%s`", surface),
+    string.format("- From Codex surfaces, use `%s` to reopen this sheet.", surface_help.label(config, (((config.keymaps or {})[surface == "compose_review" and "compose_review" or surface] or {}).help) or "g?")),
+    "- From anywhere, use `:CodexShortcuts` or your configured global shortcut.",
+  }
+
+  add_section(lines, "## This surface", surface_entries(config, surface), "- No contextual shortcuts are defined for this surface.")
+  add_section(lines, "## Global fast", fast_entries(config), "- No global fast shortcuts are configured.")
+  add_section(lines, "## Global workflow", workflow_entries(config), "- No global workflow shortcuts are configured.")
+
+  if surface == "global" then
+    add_section(lines, "## Start here", {
+      "- Open chat with the fast toggle, then pick or create a thread.",
+      "- Use the workbench only when you need staged code context.",
+      "- Use compose review when fragments are staged or you want a final packet check.",
+    })
   end
 
-  add_section(lines, string.format("## %s", surface:gsub("_", " "):gsub("^%l", string.upper)), entries)
-  if #entries == 0 then
-    add_section(lines, "## Notes", { "- No contextual shortcuts are defined for this surface yet." })
-  end
   return lines
 end
 
@@ -124,10 +162,10 @@ function M.open(config, opts)
   local surface = infer_surface(opts)
   local lines = lines_for_surface(config, surface)
   presentation.open_report(string.format("shortcuts:%s", surface), lines, {
-    title = string.format("Codex Shortcuts · %s", surface),
+    title = string.format("Codex Shortcuts · %s", surface:gsub("_", " ")),
     role = "shortcuts",
-    width = 0.56,
-    height = 0.58,
+    width = 0.58,
+    height = 0.62,
     wrap = true,
   })
   return surface, lines

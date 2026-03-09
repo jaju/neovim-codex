@@ -79,6 +79,7 @@ local defaults = {
   },
   keymaps = {
     global_modes = { "n", "i", "x" },
+    surface_help = "<F1>",
     global = {
       chat = false,
       new_thread = false,

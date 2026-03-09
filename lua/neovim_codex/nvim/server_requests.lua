@@ -4,6 +4,8 @@ local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 local M = {}
 M.__index = M
 
+local surface_help = require("neovim_codex.nvim.surface_help")
+
 local function present(value)
   return value ~= nil and type(value) ~= "userdata"
 end
@@ -508,14 +510,27 @@ function M:_request_spec(request)
   end
 
   if keymaps.help ~= false then
+    local primary_help = keymaps.help or "g?"
     mappings[#mappings + 1] = {
       mode = "n",
-      lhs = keymaps.help or "g?",
+      lhs = primary_help,
       rhs = function()
         require("neovim_codex").open_shortcuts({ surface = "request" })
       end,
       desc = "Show Codex request shortcuts",
     }
+    for _, lhs in ipairs(surface_help.keys(self.opts, primary_help)) do
+      if lhs ~= primary_help then
+        mappings[#mappings + 1] = {
+          mode = "n",
+          lhs = lhs,
+          rhs = function()
+            require("neovim_codex").open_shortcuts({ surface = "request" })
+          end,
+          desc = "Show Codex request shortcuts",
+        }
+      end
+    end
   end
 
   for _, lhs in ipairs({ "i", "I", "o", "O", "A", "R" }) do
@@ -683,6 +698,13 @@ function M:_open_text_input(question)
   })
 
   if entry and entry.popup and entry.popup.winid and vim.api.nvim_win_is_valid(entry.popup.winid) then
+    for _, lhs in ipairs(surface_help.keys(self.opts, request_keymaps.help or "g?")) do
+      if lhs ~= (request_keymaps.help or "g?") then
+        vim.keymap.set({ "n", "i" }, lhs, function()
+          require("neovim_codex").open_shortcuts({ surface = "request_input" })
+        end, { buffer = bufnr, silent = true, nowait = true, desc = "Show Codex request input shortcuts" })
+      end
+    end
     vim.api.nvim_set_current_win(entry.popup.winid)
     vim.api.nvim_win_set_cursor(entry.popup.winid, { input_start_line, 0 })
   end

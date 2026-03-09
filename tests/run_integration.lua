@@ -99,6 +99,15 @@ assert(hidden_chat_state.composer_win == nil or not vim.api.nvim_win_is_valid(hi
 codex.chat()
 assert(codex.get_chat_state().visible == true, "chat command should toggle the overlay open again")
 
+local shortcuts_surface, shortcut_lines = codex.open_shortcuts({ surface = "composer" })
+assert(shortcuts_surface == "composer", "shortcut sheet should target the requested surface")
+local shortcuts_body = table.concat(shortcut_lines, "\n")
+assert(shortcuts_body:find("## This surface", 1, true), "shortcut sheet should show the current surface lane")
+assert(shortcuts_body:find("## Global fast", 1, true), "shortcut sheet should show the fast global lane")
+assert(shortcuts_body:find("## Global workflow", 1, true), "shortcut sheet should show the workflow global lane")
+assert(shortcuts_body:find("g? / <F1>", 1, true), "shortcut sheet should explain the local help entrypoints")
+require("neovim_codex.nvim.presentation").close_viewers()
+
 codex.open_events()
 local event_viewers = codex.get_chat_state().viewers
 assert(event_viewers.top and event_viewers.top.key == "events", "events should open in the stacked viewer layer")

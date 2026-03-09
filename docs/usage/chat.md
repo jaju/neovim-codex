@@ -66,7 +66,7 @@ Default request viewer mappings:
 - `s` - approve for session when available
 - `d` - decline
 - `c` - cancel
-- `g?` - show contextual Codex shortcuts
+- `g?` or `<F1>` - open the shortcut sheet for the current surface
 - `q` or `<Esc>` - hide the viewer without resolving the request
 
 ## Thread commands
@@ -89,7 +89,7 @@ Transcript buffer:
 - `<CR>` - inspect the selected transcript block in the stacked viewer layer
 - `[[` - previous turn
 - `]]` - next turn
-- `g?` - show contextual Codex shortcuts
+- `g?` or `<F1>` - open the shortcut sheet for the current surface
 
 Composer buffer:
 
@@ -97,7 +97,7 @@ Composer buffer:
 - `gS` - send the current draft from normal mode
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
-- `g?` in normal mode - show contextual Codex shortcuts
+- `g?` or `<F1>` in normal mode - open the shortcut sheet for the current surface
 - `<CR>` - insert a newline
 
 ## Overriding mappings

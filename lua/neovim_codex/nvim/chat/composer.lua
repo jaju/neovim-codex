@@ -1,5 +1,7 @@
 local M = {}
 
+local surface_help = require("neovim_codex.nvim.surface_help")
+
 local function clamp(value, minimum, maximum)
   return math.max(minimum, math.min(maximum, value))
 end
@@ -54,7 +56,7 @@ function Composer:_bind_keymaps(bufnr)
   map_if(keymaps.close, "n", function()
     self.handlers.hide()
   end, { buffer = bufnr, desc = "Hide Codex overlay" })
-  map_if(keymaps.help, "n", function()
+  surface_help.bind(map_if, self.opts, keymaps.help, { "n", "i" }, function()
     self.handlers.open_help()
   end, { buffer = bufnr, desc = "Codex chat help" })
 end

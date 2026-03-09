@@ -6,6 +6,8 @@ local readonly_surface = require("neovim_codex.nvim.readonly_surface")
 
 local M = {}
 
+local surface_help = require("neovim_codex.nvim.surface_help")
+
 local namespace = vim.api.nvim_create_namespace("neovim_codex.chat.surface")
 
 local HEADER_HIGHLIGHTS = {
@@ -255,7 +257,7 @@ function Surface:_bind_transcript_keymaps(bufnr)
   map_if(keymaps.prev_turn, "n", function()
     self:goto_turn(-1)
   end, { buffer = bufnr, desc = "Previous Codex turn" })
-  map_if(keymaps.help, "n", function()
+  surface_help.bind(map_if, self.opts, keymaps.help, "n", function()
     self.handlers.open_help()
   end, { buffer = bufnr, desc = "Codex chat help" })
 end
@@ -332,7 +334,7 @@ function Surface:_ensure_components()
     border = {
       style = "single",
       text = {
-        top = " Compose ",
+        top = string.format(" Compose · %s send · %s ", ((self.opts.keymaps.composer or {}).send or "<C-s>"), surface_help.label(self.opts, ((self.opts.keymaps.composer or {}).help or "g?"))),
         top_align = "left",
       },
     },

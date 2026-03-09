@@ -52,7 +52,7 @@ COMMANDS                                               *neovim-codex-commands*
     Reopen the active pending approval or question request.
 
 :CodexShortcuts
-    Show contextual Codex shortcuts for the current surface.
+    Open the Codex shortcut sheet for the current surface.
 
 :CodexWorkbench
     Toggle the workbench tray for the active thread.
@@ -115,7 +115,7 @@ Default transcript mappings:
 - `<CR>` inspect the selected transcript block in the stacked viewer layer
 - `[[` jump to the previous turn
 - `]]` jump to the next turn
-- `g?` show contextual Codex shortcuts
+- `g?` or `<F1>` open the shortcut sheet for the current surface
 
 Default composer mappings:
 
@@ -123,7 +123,7 @@ Default composer mappings:
 - `gS` send the current draft from normal mode
 - `<C-w>w` in normal mode switches back to the transcript
 - `q` in normal mode hides the overlay
-- `g?` in normal mode shows contextual Codex shortcuts
+- `g?` or `<F1>` in normal mode opens the shortcut sheet for the current surface
 - `<CR>` inserts a newline
 
 Workbench tray defaults:
@@ -160,7 +160,7 @@ Default request viewer mappings:
 - `s` approve for session when available
 - `d` decline
 - `c` cancel
-- `g?` show contextual Codex shortcuts
+- `g?` or `<F1>` open the shortcut sheet for the current surface
 - `q` or `<Esc>` hide the viewer without resolving the request
 
 ==============================================================================

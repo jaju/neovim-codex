@@ -2,6 +2,8 @@ local packet = require("neovim_codex.core.packet")
 
 local M = {}
 
+local surface_help = require("neovim_codex.nvim.surface_help")
+
 local function valid_buffer(bufnr)
   return bufnr and vim.api.nvim_buf_is_valid(bufnr)
 end
@@ -102,7 +104,7 @@ function ListView:_bind_keymaps(bufnr)
       self.handlers.focus_message()
     end
   end, { buffer = bufnr, desc = "Focus packet template" })
-  map_if(keymaps.help, "n", function()
+  surface_help.bind(map_if, self.opts, keymaps.help, "n", function()
     if self.handlers.open_help then
       self.handlers.open_help()
     end

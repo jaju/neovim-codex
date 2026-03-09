@@ -119,7 +119,7 @@ Useful thread commands:
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexRequest` - reopen the active approval or question request if one is pending
-- `:CodexShortcuts` - show contextual Codex shortcuts for the current surface
+- `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
 
 Workbench and compose commands:
 
@@ -146,7 +146,7 @@ Workbench and compose commands:
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
 - `:CodexRequest` - reopen the active pending Codex request
-- `:CodexShortcuts` - show contextual Codex shortcuts for the current surface
+- `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
 - `:CodexWorkbench` - toggle the workbench tray for the active thread
 - `:CodexCompose` - open compose review for the active thread
 - `:CodexCapturePath` - stage the current file as a fragment
@@ -156,7 +156,7 @@ Workbench and compose commands:
 
 ## Keymaps
 
-Global mappings are disabled by default, but when you set them they can be applied across multiple modes through `keymaps.global_modes`. Buffer-local mappings exist only inside plugin-owned Codex buffers.
+Global mappings are disabled by default, but when you set them they can be applied across multiple modes through `keymaps.global_modes`. Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or `<F1>` inside a Codex surface to reopen the current shortcut sheet, which is grouped into "This surface", "Global fast", and "Global workflow" lanes.
 
 Transcript buffer defaults:
 
@@ -167,7 +167,7 @@ Transcript buffer defaults:
 - `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
-- `g?` - show contextual Codex shortcuts
+- `g?` or `<F1>` - open the Codex shortcut sheet for the current surface
 
 Composer buffer defaults:
 
@@ -175,7 +175,7 @@ Composer buffer defaults:
 - `gS` - send the current draft from normal mode
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
-- `g?` in normal mode - show contextual Codex shortcuts
+- `g?` or `<F1>` in normal mode - open the Codex shortcut sheet for the current surface
 - `<CR>` - insert a newline
 
 Pending request viewer defaults:
@@ -186,7 +186,7 @@ Pending request viewer defaults:
 - `s` - approve for session when that decision exists
 - `d` - decline
 - `c` - cancel
-- `g?` - show contextual Codex shortcuts
+- `g?` or `<F1>` - open the Codex shortcut sheet for the current surface
 - `q` or `<Esc>` - hide the request viewer without resolving the request
 
 All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_modes = { "n", "i", "x" }` (the default) to keep global Codex shortcuts available without changing modes.
