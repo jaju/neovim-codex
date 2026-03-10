@@ -133,6 +133,13 @@ Workbench tray defaults:
 - `p` park the selected active fragment
 - `u` unpark the selected parked fragment
 - `P` open packet preview
+
+Packet preview shows:
+
+- referenced active fragments that will be sent
+- unreferenced active fragments that still need attention
+- parked fragments that will remain staged
+- the final compiled packet text
 - `D` clear the active thread workbench
 - `o` open compose review
 - `q` close the tray
@@ -264,4 +271,3 @@ Then write a short prompt in the composer and send it with `<C-s>`.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:
-

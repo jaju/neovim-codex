@@ -228,6 +228,7 @@ test("packet compiler ignores parked fragments and preserves them in preview met
   eq(analysis.active_handles[1], "f1")
   eq(#analysis.parked_handles, 1)
   eq(analysis.parked_handles[1], "f2")
+  assert(input[1].text:find("Code snapshot from", 1, true), "code fragments should expand with a self-describing lead-in")
 end)
 
 test("packet compiler requires active fragments to be referenced but allows parked ones to remain unused", function()
@@ -243,7 +244,10 @@ test("packet compiler requires active fragments to be referenced but allows park
 
   local preview_lines, analysis = packet.preview_lines("Use only [[f1]].", fragments)
   eq(analysis.valid, true)
-  assert(table.concat(preview_lines, "\n"):find("Parked handles", 1, true), "preview should surface parked fragments without treating them as send blockers")
+  local preview_text = table.concat(preview_lines, "\n")
+  assert(preview_text:find("## Referenced active fragments", 1, true), "preview should list the active fragments that will be sent")
+  assert(preview_text:find("## Parked fragments", 1, true), "preview should surface parked fragments without treating them as send blockers")
+  assert(preview_text:find("## Unreferenced active fragments", 1, true), "preview should explain which active fragments still need attention")
 end)
 
 test("packet compiler rejects references to parked fragments", function()
@@ -547,9 +551,9 @@ test("packet compiler expands referenced fragment handles inline", function()
   eq(input[1].type, "text")
   eq(compiled.referenced_handles[1], "f1")
   eq(compiled.referenced_handles[2], "f2")
-  assert(input[1].text:find("The relevant file path is `~/README.md`", 1, true) == nil, "path rendering should preserve the actual path")
-  assert(input[1].text:find("The relevant file path is `/tmp/demo/README.md`.", 1, true), "packet should inline referenced path fragments")
-  assert(input[1].text:find("The relevant code snippet from `/tmp/demo/src/app.ts:10-14` is:", 1, true), "packet should inline referenced code fragments")
+  assert(input[1].text:find("Path reference: `~/README.md`", 1, true) == nil, "path rendering should preserve the actual path")
+  assert(input[1].text:find("Path reference: `/tmp/demo/README.md`.", 1, true), "packet should inline referenced path fragments")
+  assert(input[1].text:find("Code snapshot from `/tmp/demo/src/app.ts:10-14`:", 1, true), "packet should inline referenced code fragments")
   assert(input[1].text:find("```typescript", 1, true), "packet should preserve code fences for code fragments")
 end)
 

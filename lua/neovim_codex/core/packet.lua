@@ -103,6 +103,41 @@ local function join_handles(handles)
   return table.concat(out, ", ")
 end
 
+local function handle_lookup(fragments)
+  local by_handle = {}
+  for _, fragment in ipairs(fragments or {}) do
+    local handle = M.fragment_handle(fragment)
+    if handle then
+      by_handle[handle] = fragment
+    end
+  end
+  return by_handle
+end
+
+local function add_fragment_summaries(lines, title, handles, by_handle, empty_label)
+  lines[#lines + 1] = title
+  lines[#lines + 1] = ""
+
+  if not handles or #handles == 0 then
+    lines[#lines + 1] = empty_label
+    return
+  end
+
+  for index, handle in ipairs(handles) do
+    local fragment = by_handle[handle]
+    if fragment then
+      lines[#lines + 1] = string.format("- %s", M.fragment_summary(fragment))
+      local preview = M.fragment_preview(fragment)
+      if preview then
+        lines[#lines + 1] = string.format("  %s", preview)
+      end
+      if index < #handles then
+        lines[#lines + 1] = ""
+      end
+    end
+  end
+end
+
 function M.fragment_handle(fragment)
   if type(fragment) ~= "table" then
     return nil
@@ -167,13 +202,15 @@ local function render_fragment_expansion(fragment)
   local lines = {}
 
   if fragment.kind == "path_ref" then
-    lines[#lines + 1] = string.format("The relevant file path is `%s`.", display_path(fragment.path or fragment.label) or fragment.label or "")
+    local path = display_path(fragment.path or fragment.label) or fragment.label or ""
+    lines[#lines + 1] = string.format("Path reference: `%s`.", path)
+    lines[#lines + 1] = "The file contents are not included in this fragment."
     return lines
   end
 
   if fragment.kind == "code_range" then
     local location = location_label(fragment) or display_path(fragment.path) or fragment.label or "snippet"
-    lines[#lines + 1] = string.format("The relevant code snippet from `%s` is:", location)
+    lines[#lines + 1] = string.format("Code snapshot from `%s`:", location)
     lines[#lines + 1] = string.format("```%s", fragment.filetype or "text")
     append_lines(lines, split_lines(fragment.text))
     lines[#lines + 1] = "```"
@@ -183,21 +220,26 @@ local function render_fragment_expansion(fragment)
   if fragment.kind == "diagnostic" then
     local location = location_label(fragment)
     if location then
-      lines[#lines + 1] = string.format("The relevant diagnostic from `%s` is:", location)
+      lines[#lines + 1] = string.format("Current diagnostic at `%s`:", location)
     else
-      lines[#lines + 1] = "The relevant diagnostic is:"
+      lines[#lines + 1] = "Current diagnostic:"
     end
-    if present(fragment.source) then
-      lines[#lines + 1] = string.format("- Source: `%s`", tostring(fragment.source))
-    end
+
+    local header = {}
     if present(fragment.code) then
-      lines[#lines + 1] = string.format("- Code: `%s`", tostring(fragment.code))
+      header[#header + 1] = string.format("`%s`", tostring(fragment.code))
     end
     if present(fragment.severity) then
-      lines[#lines + 1] = string.format("- Severity: `%s`", tostring(fragment.severity))
+      header[#header + 1] = string.format("severity `%s`", tostring(fragment.severity))
+    end
+    if present(fragment.source) then
+      header[#header + 1] = string.format("source `%s`", tostring(fragment.source))
+    end
+    if #header > 0 then
+      lines[#lines + 1] = string.format("- %s", table.concat(header, " · "))
     end
     if present(fragment.message) then
-      lines[#lines + 1] = string.format("- Message: %s", tostring(fragment.message))
+      lines[#lines + 1] = string.format("- %s", tostring(fragment.message))
     end
     return lines
   end
@@ -340,6 +382,7 @@ end
 
 function M.preview_lines(template_text, fragments)
   local analysis = M.analyze_packet(template_text, fragments)
+  local fragments_by_handle = handle_lookup(fragments)
   local lines = {
     "# Packet preview",
     "",
@@ -363,6 +406,15 @@ function M.preview_lines(template_text, fragments)
     lines[#lines + 1] = ""
     lines[#lines + 1] = string.format("- %s", error_message)
   end
+
+  lines[#lines + 1] = ""
+  add_fragment_summaries(lines, "## Referenced active fragments", analysis.referenced_handles, fragments_by_handle, "_No active fragments are referenced yet._")
+
+  lines[#lines + 1] = ""
+  add_fragment_summaries(lines, "## Unreferenced active fragments", analysis.unreferenced_handles, fragments_by_handle, "_No active fragments are waiting to be placed._")
+
+  lines[#lines + 1] = ""
+  add_fragment_summaries(lines, "## Parked fragments", analysis.parked_handles, fragments_by_handle, "_No parked fragments._")
 
   lines[#lines + 1] = ""
   lines[#lines + 1] = "## Compiled packet"
