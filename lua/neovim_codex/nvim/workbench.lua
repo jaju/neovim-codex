@@ -70,6 +70,15 @@ local function ensure_modules()
     compose = function()
       M.open_review()
     end,
+    park = function(fragment)
+      M.park_fragment(fragment and fragment.id)
+    end,
+    unpark = function(fragment)
+      M.unpark_fragment(fragment and fragment.id)
+    end,
+    preview = function()
+      M.preview_packet()
+    end,
     open_help = function()
       require("neovim_codex").open_shortcuts({ surface = "workbench" })
     end,
@@ -82,6 +91,9 @@ local function ensure_modules()
     send = function()
       M.send_packet()
     end,
+    preview = function()
+      M.preview_packet()
+    end,
     inspect = function(fragment)
       M.inspect_fragment(fragment)
     end,
@@ -90,6 +102,12 @@ local function ensure_modules()
     end,
     clear = function()
       M.clear()
+    end,
+    park = function(fragment)
+      M.park_fragment(fragment and fragment.id)
+    end,
+    unpark = function(fragment)
+      M.unpark_fragment(fragment and fragment.id)
     end,
     open_help = function()
       require("neovim_codex").open_shortcuts({ surface = "compose_review" })
@@ -440,6 +458,36 @@ function M.remove_fragment(fragment_id, opts)
   return true, nil
 end
 
+function M.set_fragment_parked(fragment_id, parked, opts)
+  opts = opts or {}
+  if not fragment_id then
+    return nil, "No fragment is selected"
+  end
+
+  local thread_id = active_thread_id()
+  if not thread_id then
+    return nil, "No active thread"
+  end
+
+  state.store:dispatch({
+    type = "workbench_fragment_parked",
+    thread_id = thread_id,
+    fragment_id = fragment_id,
+    parked = parked == true,
+  })
+  notify(parked and "Parked fragment" or "Unparked fragment", vim.log.levels.INFO, opts.notify)
+  refresh_ui()
+  return true, nil
+end
+
+function M.park_fragment(fragment_id, opts)
+  return M.set_fragment_parked(fragment_id, true, opts)
+end
+
+function M.unpark_fragment(fragment_id, opts)
+  return M.set_fragment_parked(fragment_id, false, opts)
+end
+
 function M.clear(opts)
   opts = opts or {}
   local thread_id = active_thread_id()
@@ -489,7 +537,7 @@ function M.send_packet()
     return nil, err
   end
 
-  state.store:dispatch({ type = "workbench_cleared", thread_id = thread_id })
+  state.store:dispatch({ type = "workbench_active_cleared", thread_id = thread_id })
   state.store:dispatch({ type = "workbench_message_updated", thread_id = thread_id, message = "" })
   if state.actions.after_packet_sent then
     state.actions.after_packet_sent()
@@ -497,6 +545,30 @@ function M.send_packet()
   viewer_stack.close("compose-review")
   refresh_ui()
   return result, nil
+end
+
+function M.preview_packet()
+  local workbench, thread_id = active_workbench()
+  if not thread_id then
+    return nil, "No active thread"
+  end
+
+  local fragments = selectors().list_fragments(workbench)
+  local message = selectors().workbench_message(workbench)
+  local lines = nil
+  local analysis = nil
+  local err = nil
+  lines, analysis, err = packet.preview_lines(message, fragments)
+  local key = string.format("packet-preview-%s", thread_id)
+  local title = string.format("Packet preview · thread %s", thread_identity.short_id(thread_id))
+  presentation.open_report(key, lines, {
+    title = title,
+    role = "packet_preview",
+    width = 0.78,
+    height = 0.70,
+    wrap = true,
+  })
+  return analysis, err
 end
 
 function M.inspect_fragment(fragment)

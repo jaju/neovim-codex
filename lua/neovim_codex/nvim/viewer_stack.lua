@@ -202,6 +202,23 @@ local function set_buffer_lines(entry, lines)
   vim.bo[bufnr].modifiable = false
 end
 
+local resize_augroup = vim.api.nvim_create_augroup("NeovimCodexViewerStackResize", { clear = true })
+vim.api.nvim_create_autocmd("VimResized", {
+  group = resize_augroup,
+  callback = function()
+    vim.schedule(function()
+      for _, entry in ipairs(state.stack) do
+        if entry.surface and entry.surface.refresh then
+          entry.surface.refresh(entry)
+        elseif entry.popup and valid_window(entry.popup.winid) then
+          entry.popup:update_layout(overlay_config(entry.spec))
+          apply_window_options(entry)
+        end
+      end
+    end)
+  end,
+})
+
 function apply_window_options(entry)
   local popup = entry.popup
   if not popup or not valid_window(popup.winid) then

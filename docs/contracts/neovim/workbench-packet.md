@@ -81,6 +81,7 @@ Rules:
 - thread-local only
 - visible count should be derivable cheaply
 - remove must be O(1) by id plus order update
+- fragments may be active or parked
 - no hidden fragment inclusion outside this state
 
 ## `PacketDraft`
@@ -149,13 +150,13 @@ A `WorkbenchState` belongs to exactly one thread.
 
 ### 2. Explicit inclusion
 
-Only fragments referenced in the authored packet template may become part of the compiled packet.
+Only active fragments referenced in the authored packet template may become part of the compiled packet.
 
-Fragments staged in the workbench but not referenced remain available but are not sent.
+Parked fragments remain staged but are not sent and do not block packet compilation.
 
 ### 3. Consume on send
 
-The default send behavior clears the active workbench and its draft template for that thread after successful packet submission.
+The default send behavior clears active fragments and the draft template for that thread after successful packet submission. Parked fragments remain staged.
 
 ### 4. No duplicate hidden state
 
@@ -175,7 +176,7 @@ Manual copy from the chat surface remains sufficient until transcript capture pr
 
 `Fragment`
 - appears as one row in the workbench tray
-- can be inspected or removed
+- can be inspected, removed, parked, or unparked
 - exposes a short user-facing handle for template insertion
 
 `WorkbenchState`

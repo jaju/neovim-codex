@@ -23,6 +23,19 @@ local function resolve_dimension(value, total, minimum)
   return math.max(minimum, total)
 end
 
+local function fragment_counts(fragments)
+  local counts = { total = 0, active = 0, parked = 0 }
+  for _, fragment in ipairs(fragments or {}) do
+    counts.total = counts.total + 1
+    if fragment.parked then
+      counts.parked = counts.parked + 1
+    else
+      counts.active = counts.active + 1
+    end
+  end
+  return counts
+end
+
 local Tray = {}
 Tray.__index = Tray
 
@@ -53,11 +66,12 @@ function Tray:title(thread_id, fragments)
   if not thread_id then
     return "Workbench · no active thread"
   end
+  local counts = fragment_counts(fragments)
   return string.format(
-    "Workbench · thread %s · %d fragment%s",
+    "Workbench · thread %s · %d active · %d parked",
     thread_identity.short_id(thread_id),
-    #fragments,
-    #fragments == 1 and "" or "s"
+    counts.active,
+    counts.parked
   )
 end
 
@@ -143,6 +157,21 @@ function M.new(opts, handlers)
     compose = function()
       if handlers.compose then
         handlers.compose()
+      end
+    end,
+    park = function()
+      if handlers.park then
+        handlers.park(tray:current_fragment())
+      end
+    end,
+    unpark = function()
+      if handlers.unpark then
+        handlers.unpark(tray:current_fragment())
+      end
+    end,
+    preview = function()
+      if handlers.preview then
+        handlers.preview()
       end
     end,
     open_help = function()

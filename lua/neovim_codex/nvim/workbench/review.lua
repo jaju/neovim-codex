@@ -102,6 +102,11 @@ function Review:_bind_message_keymaps(bufnr)
       self.handlers.send()
     end
   end, { buffer = bufnr, desc = "Send packet" })
+  map_if(keymaps.preview, "n", function()
+    if self.handlers.preview then
+      self.handlers.preview()
+    end
+  end, { buffer = bufnr, desc = "Preview packet" })
   map_if(keymaps.close, "n", function()
     if self.handlers.close then
       self.handlers.close()
@@ -203,7 +208,7 @@ function Review:_ensure_components()
     size = overlay.size,
     border = {
       style = review_opts.border or "rounded",
-      text = { top = " Compose review ", top_align = "center" },
+      text = { top = string.format(" Compose review · %s send · %s preview ", ((self.opts.keymaps.compose_review or {}).send or "<C-s>"), ((self.opts.keymaps.compose_review or {}).preview or "P")), top_align = "center" },
     },
     win_options = {
       winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder",
@@ -336,13 +341,10 @@ function Review:show(thread_id, message, fragments)
   self.list:update(thread_id, self.fragments)
   self:set_message(message or "")
 
-  if self.layout._ and self.layout._.mounted then
-    self.layout:show()
-  else
-    self.layout:show()
-  end
+  self.layout:show()
 
   self.visible = true
+  self:_refresh_layout()
   self:_sync_windows()
   self:focus_message()
 end
@@ -421,6 +423,21 @@ function M.new(opts, handlers)
     end,
     insert_handle = function()
       review:insert_current_handle()
+    end,
+    park = function()
+      if handlers.park then
+        handlers.park(review:current_fragment())
+      end
+    end,
+    unpark = function()
+      if handlers.unpark then
+        handlers.unpark(review:current_fragment())
+      end
+    end,
+    preview = function()
+      if handlers.preview then
+        handlers.preview()
+      end
     end,
     focus_message = function()
       review:focus_message()

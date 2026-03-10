@@ -36,21 +36,50 @@ local function clone_value(value)
   return out
 end
 
-local function split_lines(value)
-  if type(value) == "table" then
-    return value
-  end
-
-  local text = tostring(value or "")
-  if text == "" then
-    return { "" }
-  end
-
-  return vim.split(text, "\n", { plain = true })
-end
-
 local function contains_line(entry, line)
   return entry.line_start and entry.line_end and line >= entry.line_start and line <= entry.line_end
+end
+
+local function partition_fragments(fragments)
+  local active = {}
+  local parked = {}
+  for _, fragment in ipairs(fragments or {}) do
+    if fragment.parked then
+      parked[#parked + 1] = fragment
+    else
+      active[#active + 1] = fragment
+    end
+  end
+  return active, parked
+end
+
+local function add_fragment_block(lines, entries, fragment)
+  local start_line = #lines + 1
+  lines[#lines + 1] = string.format("- %s", packet.fragment_summary(fragment))
+  local preview = packet.fragment_preview(fragment)
+  if preview and preview ~= fragment.label then
+    lines[#lines + 1] = string.format("  %s", preview)
+  end
+  entries[#entries + 1] = {
+    fragment = clone_value(fragment),
+    line_start = start_line,
+    line_end = #lines,
+  }
+end
+
+local function add_section(lines, entries, title, fragments, empty_label)
+  lines[#lines + 1] = string.format("### %s", title)
+  if not fragments or #fragments == 0 then
+    lines[#lines + 1] = empty_label
+    return
+  end
+
+  for index, fragment in ipairs(fragments) do
+    add_fragment_block(lines, entries, fragment)
+    if index < #fragments then
+      lines[#lines + 1] = ""
+    end
+  end
 end
 
 local ListView = {}
@@ -104,6 +133,21 @@ function ListView:_bind_keymaps(bufnr)
       self.handlers.focus_message()
     end
   end, { buffer = bufnr, desc = "Focus packet template" })
+  map_if(keymaps.park, "n", function()
+    if self.handlers.park then
+      self.handlers.park()
+    end
+  end, { buffer = bufnr, desc = "Park the selected fragment" })
+  map_if(keymaps.unpark, "n", function()
+    if self.handlers.unpark then
+      self.handlers.unpark()
+    end
+  end, { buffer = bufnr, desc = "Unpark the selected fragment" })
+  map_if(keymaps.preview, "n", function()
+    if self.handlers.preview then
+      self.handlers.preview()
+    end
+  end, { buffer = bufnr, desc = "Preview the compiled packet" })
   surface_help.bind(map_if, self.opts, keymaps.help, "n", function()
     if self.handlers.open_help then
       self.handlers.open_help()
@@ -150,25 +194,11 @@ function ListView:update(thread_id, fragments)
 
   if not thread_id then
     lines = { "_No active thread._" }
-  elseif not fragments or #fragments == 0 then
-    lines = { "_Workbench is empty._" }
   else
-    for _, fragment in ipairs(fragments) do
-      local start_line = #lines + 1
-      lines[#lines + 1] = string.format("- %s", packet.fragment_summary(fragment))
-      local preview = packet.fragment_preview(fragment)
-      if preview and preview ~= fragment.label then
-        lines[#lines + 1] = string.format("  %s", preview)
-      end
-      entries[#entries + 1] = {
-        fragment = clone_value(fragment),
-        line_start = start_line,
-        line_end = #lines,
-      }
-      if #entries < #fragments then
-        lines[#lines + 1] = ""
-      end
-    end
+    local active, parked = partition_fragments(fragments)
+    add_section(lines, entries, string.format("Active (%d)", #active), active, "_No active fragments._")
+    lines[#lines + 1] = ""
+    add_section(lines, entries, string.format("Parked (%d)", #parked), parked, "_No parked fragments._")
   end
 
   self.fragments = entries
@@ -185,17 +215,13 @@ function ListView:current_fragment()
   end
 
   local line = vim.api.nvim_win_get_cursor(self.winid)[1]
-  local previous = nil
   for _, entry in ipairs(self.fragments or {}) do
     if contains_line(entry, line) then
       return clone_value(entry.fragment)
     end
-    if entry.line_end and entry.line_end < line then
-      previous = entry.fragment
-    end
   end
 
-  return clone_value(previous)
+  return nil
 end
 
 function ListView:inspect()

@@ -373,6 +373,9 @@ local function add_workbench_fragment(state, thread_id, fragment)
     next_fragment.handle = string.format("f%d", workbench.next_handle_seq)
     workbench.next_handle_seq = workbench.next_handle_seq + 1
   end
+  if next_fragment.parked == nil then
+    next_fragment.parked = false
+  end
 
   workbench.fragments_by_id[next_fragment.id] = next_fragment
   upsert_order(workbench.fragments_order, next_fragment.id)
@@ -388,6 +391,44 @@ local function remove_workbench_fragment(state, thread_id, fragment_id)
 
   workbench.fragments_by_id[fragment_id] = nil
   remove_order(workbench.fragments_order, fragment_id)
+  workbench.updated_at = now_iso()
+  return workbench
+end
+
+local function set_workbench_fragment_parked(state, thread_id, fragment_id, parked)
+  local workbench = ensure_workbench(state, thread_id)
+  if not workbench then
+    return nil
+  end
+
+  local fragment = workbench.fragments_by_id[fragment_id]
+  if not fragment then
+    return nil
+  end
+
+  fragment.parked = parked == true
+  workbench.updated_at = now_iso()
+  return workbench
+end
+
+local function clear_active_workbench_fragments(state, thread_id)
+  local workbench = ensure_workbench(state, thread_id)
+  if not workbench then
+    return nil
+  end
+
+  local next_order = {}
+  local next_by_id = {}
+  for _, fragment_id in ipairs(workbench.fragments_order or {}) do
+    local fragment = workbench.fragments_by_id[fragment_id]
+    if fragment and fragment.parked then
+      next_order[#next_order + 1] = fragment_id
+      next_by_id[fragment_id] = fragment
+    end
+  end
+
+  workbench.fragments_order = next_order
+  workbench.fragments_by_id = next_by_id
   workbench.updated_at = now_iso()
   return workbench
 end
@@ -572,6 +613,10 @@ local function reducer(state, event)
     add_workbench_fragment(next_state, event.thread_id, event.fragment)
   elseif event.type == "workbench_fragment_removed" then
     remove_workbench_fragment(next_state, event.thread_id, event.fragment_id)
+  elseif event.type == "workbench_fragment_parked" then
+    set_workbench_fragment_parked(next_state, event.thread_id, event.fragment_id, event.parked)
+  elseif event.type == "workbench_active_cleared" then
+    clear_active_workbench_fragments(next_state, event.thread_id)
   elseif event.type == "workbench_cleared" then
     clear_workbench(next_state, event.thread_id)
   elseif event.type == "workbench_message_updated" then

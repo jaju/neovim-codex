@@ -152,6 +152,111 @@ test("store tracks pending server requests and resolution", function()
   eq(selectors.get_active_request(state), nil)
 end)
 
+test("store can park fragments and consume only active ones", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({ type = "thread_activated", thread_id = "thr_workbench" })
+  store:dispatch({
+    type = "workbench_fragment_added",
+    thread_id = "thr_workbench",
+    fragment = { id = "frag_active", kind = "path_ref", label = "active", path = "/tmp/a", parked = false },
+  })
+  store:dispatch({
+    type = "workbench_fragment_added",
+    thread_id = "thr_workbench",
+    fragment = { id = "frag_parked", kind = "path_ref", label = "parked", path = "/tmp/b", parked = true },
+  })
+  store:dispatch({
+    type = "workbench_fragment_parked",
+    thread_id = "thr_workbench",
+    fragment_id = "frag_active",
+    parked = true,
+  })
+
+  local state = store:get_state()
+  local counts = selectors.workbench_fragment_counts(state, "thr_workbench")
+  eq(counts.total, 2)
+  eq(counts.active, 0)
+  eq(counts.parked, 2)
+
+  store:dispatch({
+    type = "workbench_fragment_parked",
+    thread_id = "thr_workbench",
+    fragment_id = "frag_active",
+    parked = false,
+  })
+  store:dispatch({ type = "workbench_active_cleared", thread_id = "thr_workbench" })
+
+  state = store:get_state()
+  local fragments = selectors.list_fragments(selectors.get_workbench(state, "thr_workbench"))
+  eq(#fragments, 1)
+  eq(fragments[1].id, "frag_parked")
+  eq(fragments[1].parked, true)
+end)
+
+test("packet compiler ignores parked fragments and preserves them in preview metadata", function()
+  local packet = require("neovim_codex.core.packet")
+
+  local fragments = {
+    {
+      id = "frag_code",
+      handle = "f1",
+      kind = "code_range",
+      label = "src/demo.ts:10-12",
+      path = "/tmp/src/demo.ts",
+      filetype = "ts",
+      range = { start_line = 10, end_line = 12 },
+      text = "const answer = 42;",
+      parked = false,
+    },
+    {
+      id = "frag_path",
+      handle = "f2",
+      kind = "path_ref",
+      label = "src/demo.ts",
+      path = "/tmp/src/demo.ts",
+      parked = true,
+    },
+  }
+
+  local input, analysis, err = packet.build_input_items("Please inspect [[f1]].", fragments)
+  eq(err, nil)
+  eq(input[1].type, "text")
+  assert(input[1].text:find("const answer = 42;", 1, true), "compiled packet should inline active fragments")
+  eq(#analysis.active_handles, 1)
+  eq(analysis.active_handles[1], "f1")
+  eq(#analysis.parked_handles, 1)
+  eq(analysis.parked_handles[1], "f2")
+end)
+
+test("packet compiler requires active fragments to be referenced but allows parked ones to remain unused", function()
+  local packet = require("neovim_codex.core.packet")
+
+  local fragments = {
+    { id = "frag_active", handle = "f1", kind = "path_ref", label = "src/a.ts", path = "/tmp/src/a.ts", parked = false },
+    { id = "frag_parked", handle = "f2", kind = "path_ref", label = "src/b.ts", path = "/tmp/src/b.ts", parked = true },
+  }
+
+  local _, _, err = packet.build_input_items("Use later.", fragments)
+  assert(err:find("Reference every active fragment", 1, true), "active fragments should still block send when unreferenced")
+
+  local preview_lines, analysis = packet.preview_lines("Use only [[f1]].", fragments)
+  eq(analysis.valid, true)
+  assert(table.concat(preview_lines, "\n"):find("Parked handles", 1, true), "preview should surface parked fragments without treating them as send blockers")
+end)
+
+test("packet compiler rejects references to parked fragments", function()
+  local packet = require("neovim_codex.core.packet")
+
+  local fragments = {
+    { id = "frag_parked", handle = "f2", kind = "path_ref", label = "src/b.ts", path = "/tmp/src/b.ts", parked = true },
+  }
+
+  local _, _, err = packet.build_input_items("Use [[f2]].", fragments)
+  assert(err:find("Unpark referenced fragment", 1, true), "parked fragments should require an explicit unpark before send")
+end)
+
 test("chat renderer flattens multiline block entries into buffer-safe lines", function()
   local render = require("neovim_codex.nvim.chat.render")
 

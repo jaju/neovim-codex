@@ -130,6 +130,9 @@ Workbench tray defaults:
 
 - `<CR>` inspect the selected fragment
 - `dd` remove the selected fragment
+- `p` park the selected active fragment
+- `u` unpark the selected parked fragment
+- `P` open packet preview
 - `D` clear the active thread workbench
 - `o` open compose review
 - `q` close the tray
@@ -138,8 +141,11 @@ Compose review defaults:
 
 - `<C-s>` send the current packet from normal or insert mode
 - `gS` send the current packet from normal mode
+- `P` preview the compiled packet
 - `<Tab>` focus the staged fragment list
 - `i` insert the selected fragment handle into the packet template
+- `p` park the selected active fragment from the fragment list
+- `u` unpark the selected parked fragment from the fragment list
 - `q` close compose review
 
 These mappings are configurable through `setup()` and can be disabled by setting

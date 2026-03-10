@@ -534,16 +534,10 @@ function Surface:show()
     return
   end
 
-  if self.layout and self.layout._ and self.layout._.mounted then
-    if self.container and self.container.show then
-      self.container:show()
-    end
-    self.layout:show()
-  else
-    self.layout:show()
-  end
+  self.layout:show()
 
   self.visible = true
+  self:_refresh_layout()
   self:_sync_windows()
 end
 

@@ -92,6 +92,17 @@ local function heading_label(fragment)
   return trim(label)
 end
 
+local function join_handles(handles)
+  if not handles or #handles == 0 then
+    return nil
+  end
+  local out = {}
+  for _, handle in ipairs(handles) do
+    out[#out + 1] = string.format("[[%s]]", handle)
+  end
+  return table.concat(out, ", ")
+end
+
 function M.fragment_handle(fragment)
   if type(fragment) ~= "table" then
     return nil
@@ -134,6 +145,10 @@ function M.fragment_preview(fragment)
   end
 
   if fragment.kind == "code_range" then
+    local text_preview = plain_snippet(fragment.text, 88)
+    if text_preview then
+      return text_preview
+    end
     return location_label(fragment) or display_path(fragment.path) or fragment.label or "selection"
   end
 
@@ -198,6 +213,7 @@ function M.fragment_detail_lines(fragment)
   if handle then
     lines[#lines + 1] = string.format("- Handle: `%s`", M.handle_token(handle))
   end
+  lines[#lines + 1] = string.format("- State: `%s`", fragment.parked and "parked" or "active")
   if fragment.thread_id then
     lines[#lines + 1] = string.format("- Thread: `%s`", fragment.thread_id)
   end
@@ -230,62 +246,139 @@ function M.fragment_detail_lines(fragment)
   return lines
 end
 
-function M.compile_packet(template_text, fragments)
+function M.analyze_packet(template_text, fragments)
   local template = tostring(template_text or "")
-  local by_handle = {}
+  local active_by_handle = {}
+  local parked_by_handle = {}
+  local active_handles = {}
+  local parked_handles = {}
   local referenced_handles = {}
   local referenced_seen = {}
   local used_counts = {}
   local missing_handles = {}
+  local parked_reference_handles = {}
   local unreferenced_handles = {}
 
   for _, fragment in ipairs(fragments or {}) do
     local handle = M.fragment_handle(fragment)
     if handle then
-      by_handle[handle] = fragment
+      if fragment.parked then
+        parked_by_handle[handle] = fragment
+        parked_handles[#parked_handles + 1] = handle
+      else
+        active_by_handle[handle] = fragment
+        active_handles[#active_handles + 1] = handle
+      end
     end
   end
 
   local compiled_text = template:gsub(HANDLE_PATTERN, function(handle)
-    local fragment = by_handle[handle]
-    if not fragment then
-      missing_handles[#missing_handles + 1] = handle
+    local fragment = active_by_handle[handle]
+    if fragment then
+      used_counts[handle] = (used_counts[handle] or 0) + 1
+      if not referenced_seen[handle] then
+        referenced_seen[handle] = true
+        referenced_handles[#referenced_handles + 1] = handle
+      end
+      return table.concat(render_fragment_expansion(fragment), "\n")
+    end
+
+    if parked_by_handle[handle] then
+      parked_reference_handles[#parked_reference_handles + 1] = handle
       return string.format("[[%s]]", handle)
     end
 
-    used_counts[handle] = (used_counts[handle] or 0) + 1
-    if not referenced_seen[handle] then
-      referenced_seen[handle] = true
-      referenced_handles[#referenced_handles + 1] = handle
-    end
-    return table.concat(render_fragment_expansion(fragment), "\n")
+    missing_handles[#missing_handles + 1] = handle
+    return string.format("[[%s]]", handle)
   end)
 
-  for _, fragment in ipairs(fragments or {}) do
-    local handle = M.fragment_handle(fragment)
-    if handle and not referenced_seen[handle] then
+  for _, handle in ipairs(active_handles) do
+    if not referenced_seen[handle] then
       unreferenced_handles[#unreferenced_handles + 1] = handle
     end
   end
 
-  if #missing_handles > 0 then
-    return nil, string.format("Unknown fragment handle%s: %s", #missing_handles == 1 and "" or "s", table.concat(missing_handles, ", "))
-  end
-
-  if fragments and #fragments > 0 and #unreferenced_handles > 0 then
-    return nil, string.format("Reference every staged fragment before sending: %s", table.concat(unreferenced_handles, ", "))
-  end
-
   return {
     compiled_text = compiled_text,
+    active_handles = active_handles,
+    parked_handles = parked_handles,
     referenced_handles = referenced_handles,
     missing_handles = missing_handles,
+    parked_reference_handles = parked_reference_handles,
     unreferenced_handles = unreferenced_handles,
-  }, nil
+    used_counts = used_counts,
+    valid = #missing_handles == 0 and #parked_reference_handles == 0 and #unreferenced_handles == 0,
+  }
+end
+
+local function validation_error(analysis)
+  if #analysis.missing_handles > 0 then
+    return string.format(
+      "Unknown fragment handle%s: %s",
+      #analysis.missing_handles == 1 and "" or "s",
+      table.concat(analysis.missing_handles, ", ")
+    )
+  end
+
+  if #analysis.parked_reference_handles > 0 then
+    return string.format(
+      "Unpark referenced fragment%s before sending: %s",
+      #analysis.parked_reference_handles == 1 and "" or "s",
+      table.concat(analysis.parked_reference_handles, ", ")
+    )
+  end
+
+  if #analysis.unreferenced_handles > 0 then
+    return string.format(
+      "Reference every active fragment before sending, or park the unused ones: %s",
+      table.concat(analysis.unreferenced_handles, ", ")
+    )
+  end
+
+  return nil
+end
+
+function M.preview_lines(template_text, fragments)
+  local analysis = M.analyze_packet(template_text, fragments)
+  local lines = {
+    "# Packet preview",
+    "",
+    string.format("- Active fragments: %d", #analysis.active_handles),
+    string.format("- Parked fragments: %d", #analysis.parked_handles),
+  }
+
+  local active_labels = join_handles(analysis.active_handles)
+  if active_labels then
+    lines[#lines + 1] = string.format("- Active handles: %s", active_labels)
+  end
+  local parked_labels = join_handles(analysis.parked_handles)
+  if parked_labels then
+    lines[#lines + 1] = string.format("- Parked handles: %s", parked_labels)
+  end
+
+  local error_message = validation_error(analysis)
+  if error_message then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "## Validation"
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = string.format("- %s", error_message)
+  end
+
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = "## Compiled packet"
+  lines[#lines + 1] = ""
+  if trim(analysis.compiled_text) == "" then
+    lines[#lines + 1] = "_Packet is empty._"
+  else
+    append_lines(lines, split_lines(analysis.compiled_text))
+  end
+
+  return lines, analysis, error_message
 end
 
 function M.build_input_items(template_text, fragments)
-  local compiled, err = M.compile_packet(template_text, fragments)
+  local analysis = M.analyze_packet(template_text, fragments)
+  local err = validation_error(analysis)
   if err then
     return nil, nil, err
   end
@@ -293,9 +386,9 @@ function M.build_input_items(template_text, fragments)
   return {
     {
       type = "text",
-      text = compiled.compiled_text,
+      text = analysis.compiled_text,
     },
-  }, compiled, nil
+  }, analysis, nil
 end
 
 return M

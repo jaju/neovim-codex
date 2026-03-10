@@ -211,8 +211,7 @@ Compose review defaults:
 - `i` - insert the selected fragment handle into the packet template
 - `q` - close compose review
 
-The workbench is thread-local and consumed on successful send by default.
-Only referenced fragment handles are compiled into the outbound packet. If staged fragments remain unreferenced, send fails cleanly so the packet stays explicit.
+The workbench is thread-local. Active fragments are consumed on successful send, while parked fragments remain staged for the same thread. Only referenced active fragment handles are compiled into the outbound packet. If active fragments remain unreferenced, send fails cleanly so the packet stays explicit. Packet preview shows the final compiled text before send.
 
 ## Suggested keymap grouping
 

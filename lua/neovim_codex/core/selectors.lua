@@ -15,6 +15,16 @@ local function request_key(request_id)
   return request_id and tostring(request_id) or nil
 end
 
+local function filter_fragments(fragments, parked)
+  local out = {}
+  for _, fragment in ipairs(fragments or {}) do
+    if (fragment.parked == true) == parked then
+      out[#out + 1] = fragment
+    end
+  end
+  return out
+end
+
 function M.list_threads(state)
   return copy_ordered(state.threads.order, state.threads.by_id)
 end
@@ -116,11 +126,25 @@ function M.get_active_workbench(state)
   return M.get_workbench(state, state.threads.active_id)
 end
 
-function M.list_fragments(workbench)
+function M.list_fragments(workbench, opts)
   if not workbench then
     return {}
   end
-  return copy_ordered(workbench.fragments_order, workbench.fragments_by_id)
+
+  local fragments = copy_ordered(workbench.fragments_order, workbench.fragments_by_id)
+  if not opts or opts.parked == nil then
+    return fragments
+  end
+
+  return filter_fragments(fragments, opts.parked == true)
+end
+
+function M.list_active_fragments(workbench)
+  return M.list_fragments(workbench, { parked = false })
+end
+
+function M.list_parked_fragments(workbench)
+  return M.list_fragments(workbench, { parked = true })
 end
 
 function M.get_fragment(workbench, fragment_id)
@@ -130,8 +154,31 @@ function M.get_fragment(workbench, fragment_id)
   return workbench.fragments_by_id[fragment_id]
 end
 
+function M.fragment_counts(workbench)
+  local fragments = M.list_fragments(workbench)
+  local active = 0
+  local parked = 0
+  for _, fragment in ipairs(fragments) do
+    if fragment.parked then
+      parked = parked + 1
+    else
+      active = active + 1
+    end
+  end
+
+  return {
+    total = #fragments,
+    active = active,
+    parked = parked,
+  }
+end
+
 function M.workbench_fragment_count(state, thread_id)
-  return #M.list_fragments(M.get_workbench(state, thread_id))
+  return M.fragment_counts(M.get_workbench(state, thread_id)).total
+end
+
+function M.workbench_fragment_counts(state, thread_id)
+  return M.fragment_counts(M.get_workbench(state, thread_id))
 end
 
 function M.workbench_message(workbench)

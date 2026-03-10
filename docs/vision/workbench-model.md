@@ -54,6 +54,7 @@ The tray should be:
 - thread-local
 - easy to show or hide
 - easy to remove fragments from
+- easy to park or unpark fragments in
 - layered through the same secondary-viewer stack as the other widgets
 
 The tray is a quick peek, not a second transcript.
@@ -97,9 +98,9 @@ That means:
 
 ## Consumption Rule
 
-Staged fragments should be consumed on send by default.
+Active fragments should be consumed on send by default.
 
-Pinned or reusable context can exist later, but the default should reduce stale carryover.
+Parked fragments remain available to the same thread for later use. Pinned or reusable context can exist later, but the default should still reduce stale active carryover.
 
 ## First Useful Slice
 

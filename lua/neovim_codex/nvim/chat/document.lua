@@ -388,7 +388,7 @@ local function thread_footer(state, thread, pending_requests)
   local status = thread.status and thread.status.type or "unknown"
   local active_turn = turns[#turns]
   local status_bits = { status }
-  local fragment_count = state and selectors.workbench_fragment_count(state, thread.id) or 0
+  local fragment_counts = state and selectors.workbench_fragment_counts(state, thread.id) or { total = 0, active = 0, parked = 0 }
   local short_id = thread_identity.short_id(thread.id)
   local title = thread_identity.title(thread, { max_length = 32 })
 
@@ -405,12 +405,18 @@ local function thread_footer(state, thread, pending_requests)
     status_bits[#status_bits + 1] = string.format("%d request%s pending", pending_requests, pending_requests == 1 and "" or "s")
   end
 
+  local workbench_summary = nil
+  if fragment_counts.parked > 0 then
+    workbench_summary = string.format("workbench %d active / %d parked", fragment_counts.active, fragment_counts.parked)
+  else
+    workbench_summary = string.format("workbench %d fragment%s", fragment_counts.total, fragment_counts.total == 1 and "" or "s")
+  end
+
   local footer = string.format(
-    "thread %s · %s · workbench %d fragment%s · %d turn%s · %s",
+    "thread %s · %s · %s · %d turn%s · %s",
     short_id,
     title,
-    fragment_count,
-    fragment_count == 1 and "" or "s",
+    workbench_summary,
     #turns,
     #turns == 1 and "" or "s",
     table.concat(status_bits, " · ")
@@ -420,7 +426,7 @@ local function thread_footer(state, thread, pending_requests)
     { text = string.format("thread %s", short_id), highlight = "NeovimCodexChatFooterMeta" },
     { text = " · ", highlight = "NeovimCodexChatFooterMeta" },
     { text = title, highlight = "NeovimCodexChatFooterThread" },
-    { text = string.format(" · workbench %d fragment%s · %d turn%s · %s", fragment_count, fragment_count == 1 and "" or "s", #turns, #turns == 1 and "" or "s", table.concat(status_bits, " · ")), highlight = "NeovimCodexChatFooterMeta" },
+    { text = string.format(" · %s · %d turn%s · %s", workbench_summary, #turns, #turns == 1 and "" or "s", table.concat(status_bits, " · ")), highlight = "NeovimCodexChatFooterMeta" },
   }
 
   return footer, segments
