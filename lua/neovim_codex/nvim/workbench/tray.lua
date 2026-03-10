@@ -159,6 +159,11 @@ function M.new(opts, handlers)
         handlers.compose()
       end
     end,
+    insert_handle = function()
+      if handlers.insert_handle then
+        handlers.insert_handle(tray:current_fragment())
+      end
+    end,
     park = function()
       if handlers.park then
         handlers.park(tray:current_fragment())

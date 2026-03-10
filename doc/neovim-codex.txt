@@ -130,9 +130,13 @@ Workbench tray defaults:
 
 - `<CR>` inspect the selected fragment
 - `dd` remove the selected fragment
+- `D` clear the active thread workbench
+- `o` open compose review
+- `i` open compose review and insert the selected fragment handle
 - `p` park the selected active fragment
 - `u` unpark the selected parked fragment
 - `P` open packet preview
+- `q` close the tray
 
 Packet preview shows:
 
@@ -140,9 +144,12 @@ Packet preview shows:
 - unreferenced active fragments that still need attention
 - parked fragments that will remain staged
 - the final compiled packet text
-- `D` clear the active thread workbench
-- `o` open compose review
-- `q` close the tray
+
+Compose review borders also show the live packet state:
+
+- referenced active fragments already placed in the packet
+- pending active fragments that still need placement or parking
+- parked fragments that remain outside the current packet
 
 Compose review defaults:
 

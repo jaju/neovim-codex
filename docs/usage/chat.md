@@ -201,6 +201,7 @@ Workbench tray defaults:
 - `dd` - remove the selected fragment
 - `D` - clear the active thread workbench
 - `o` - open compose review
+- `i` - open compose review and insert the selected fragment handle
 - `q` - close the tray
 
 Compose review defaults:
@@ -217,6 +218,12 @@ The workbench is thread-local. Active fragments are consumed on successful send,
 - unreferenced active fragments that still need attention
 - parked fragments that will remain staged
 - the final compiled text before send
+
+Compose review itself also shows the live packet state in its borders:
+
+- referenced active fragments already placed in the packet
+- pending active fragments that still need placement or parking
+- parked fragments that are staying out of this packet
 
 ## Suggested keymap grouping
 

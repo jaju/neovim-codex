@@ -70,6 +70,9 @@ local function ensure_modules()
     compose = function()
       M.open_review()
     end,
+    insert_handle = function(fragment)
+      M.open_review_for_fragment(fragment)
+    end,
     park = function(fragment)
       M.park_fragment(fragment and fragment.id)
     end,
@@ -328,6 +331,27 @@ function M.open_review(seed_message)
 
   viewer_stack.close("workbench-tray")
   viewer_stack.open(M._review_viewer_spec(thread_id, current_message, fragments))
+  return true, nil
+end
+
+function M.open_review_for_fragment(fragment)
+  if not fragment then
+    return nil, "No fragment is selected"
+  end
+
+  local ok, err = M.open_review()
+  if not ok then
+    return nil, err
+  end
+
+  if not state.review or not state.review.insert_handle then
+    return nil, "Compose review is unavailable"
+  end
+
+  if not state.review:insert_handle(fragment) then
+    return nil, "Failed to insert fragment handle"
+  end
+
   return true, nil
 end
 

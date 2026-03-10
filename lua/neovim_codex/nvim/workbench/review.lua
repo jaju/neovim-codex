@@ -1,6 +1,7 @@
 local Layout = require("nui.layout")
 local Popup = require("nui.popup")
 
+local packet = require("neovim_codex.core.packet")
 local list_mod = require("neovim_codex.nvim.workbench.list")
 local thread_identity = require("neovim_codex.nvim.thread_identity")
 
@@ -44,6 +45,15 @@ end
 
 local Review = {}
 Review.__index = Review
+
+local function summarize_packet_state(message, fragments)
+  local analysis = packet.analyze_packet(message or "", fragments or {})
+  return analysis, {
+    referenced = #analysis.referenced_handles,
+    pending = #analysis.unreferenced_handles,
+    parked = #analysis.parked_handles,
+  }
+end
 
 function Review:_ui_size()
   local ui = vim.api.nvim_list_uis()[1]
@@ -124,11 +134,37 @@ function Review:_bind_message_keymaps(bufnr)
   end, { buffer = bufnr, desc = "Codex compose review help" })
 end
 
+function Review:_set_titles(message, fragments)
+  if not self.container or not self.message_popup or not self.list_popup then
+    return
+  end
+
+  local analysis, counts = summarize_packet_state(message, fragments)
+  local thread_label = self.thread_id and thread_identity.short_id(self.thread_id) or "none"
+  local top = string.format(
+    " Compose review · thread %s · %d referenced · %d pending · %d parked ",
+    thread_label,
+    counts.referenced,
+    counts.pending,
+    counts.parked
+  )
+  self.container.border:set_text("top", top, "center")
+
+  local message_label = analysis.valid and " Packet template · ready " or " Packet template · needs attention "
+  self.message_popup.border:set_text("top", message_label, "left")
+  self.list_popup.border:set_text(
+    "top",
+    string.format(" Staged fragments · %d active · %d parked ", #analysis.active_handles, counts.parked),
+    "left"
+  )
+end
+
 function Review:_create_autocmds(bufnr)
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
     group = self.augroup,
     buffer = bufnr,
     callback = function()
+      self:_set_titles(self:read_message(), self.fragments)
       if self.handlers.message_changed then
         self.handlers.message_changed(self:read_message())
       end
@@ -303,7 +339,10 @@ function Review:focus_fragments()
 end
 
 function Review:insert_current_handle()
-  local fragment = self:current_fragment()
+  return self:insert_handle(self:current_fragment())
+end
+
+function Review:insert_handle(fragment)
   local token = packet.handle_token(fragment)
   if not token then
     return false
@@ -323,6 +362,7 @@ function Review:insert_current_handle()
   vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { next_line })
   vim.api.nvim_win_set_cursor(winid, { row, col + #token })
   self:focus_message()
+  self:_set_titles(self:read_message(), self.fragments)
   return true
 end
 
@@ -337,13 +377,13 @@ function Review:show(thread_id, message, fragments)
   self:_ensure_components()
   self.thread_id = thread_id
   self.fragments = fragments or {}
-  self.container.border:set_text("top", string.format(" Compose review · thread %s ", thread_id and thread_identity.short_id(thread_id) or "none"), "center")
   self.list:update(thread_id, self.fragments)
   self:set_message(message or "")
 
   self.layout:show()
 
   self.visible = true
+  self:_set_titles(message or "", self.fragments)
   self:_refresh_layout()
   self:_sync_windows()
   self:focus_message()
@@ -356,11 +396,11 @@ function Review:update(thread_id, message, fragments)
     return
   end
 
-  self.container.border:set_text("top", string.format(" Compose review · thread %s ", thread_id and thread_identity.short_id(thread_id) or "none"), "center")
   self.list:update(thread_id, self.fragments)
   if message ~= nil and message ~= self:read_message() then
     self:set_message(message)
   end
+  self:_set_titles(self:read_message(), self.fragments)
   self:_sync_windows()
 end
 
