@@ -57,6 +57,11 @@ vim.api.nvim_create_user_command("CodexThreadFork", function(command)
   require("neovim_codex").fork_thread(args == "" and {} or { thread_id = args })
 end, { nargs = "?" })
 
+vim.api.nvim_create_user_command("CodexThreadArchive", function(command)
+  local args = vim.trim(command.args or "")
+  require("neovim_codex").archive_thread(args == "" and {} or { thread_id = args })
+end, { nargs = "?" })
+
 vim.api.nvim_create_user_command("CodexThreadSettings", function(command)
   local args = vim.trim(command.args or "")
   require("neovim_codex").configure_thread(args == "" and {} or { thread_id = args })

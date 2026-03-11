@@ -399,6 +399,20 @@ function M:thread_loaded_list(params, on_result)
   end)
 end
 
+function M:thread_archive(params, on_result)
+  return self:_request("thread/archive", params, function(err, result, message)
+    if not err then
+      self.store:dispatch({
+        type = "thread_archived",
+        thread_id = params.threadId,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
 function M:thread_fork(params, on_result)
   return self:_request("thread/fork", params, function(err, result, message)
     if not err and result.thread then

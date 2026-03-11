@@ -87,6 +87,7 @@ local defaults = {
       read_thread = false,
       thread_rename = false,
       thread_fork = false,
+      thread_archive = false,
       thread_settings = false,
       interrupt = false,
       shortcuts = false,
@@ -184,6 +185,9 @@ local function apply_global_keymaps()
   map_if(keymaps.thread_fork, global_modes, function()
     require("neovim_codex").fork_thread()
   end, "Fork the active Codex thread")
+  map_if(keymaps.thread_archive, global_modes, function()
+    require("neovim_codex").archive_thread()
+  end, "Archive a Codex thread")
   map_if(keymaps.thread_settings, global_modes, function()
     require("neovim_codex").configure_thread()
   end, "Configure the active Codex thread")
@@ -392,6 +396,22 @@ local function input_sync(opts)
   return value
 end
 
+local function select_async(items, opts, on_choice)
+  vim.ui.select(items, opts or {}, function(item)
+    vim.schedule(function()
+      on_choice(item)
+    end)
+  end)
+end
+
+local function input_async(opts, on_input)
+  vim.ui.input(opts or {}, function(input)
+    vim.schedule(function()
+      on_input(input)
+    end)
+  end)
+end
+
 local function compact_text(text, limit)
   if text == nil or text == vim.NIL then
     return nil
@@ -505,6 +525,55 @@ local function query_runtime_catalogs(rt, opts)
   return models, modes, mode_err
 end
 
+local function query_runtime_catalogs_async(rt, opts, on_done)
+  opts = opts or {}
+  local finished = false
+  local timeout_ms = opts.timeout_ms or 4000
+  local models = nil
+  local modes = config.experimental_api == false and {} or nil
+  local mode_err = nil
+
+  local function finish(models_value, modes_value, err_value, mode_warning)
+    if finished then
+      return
+    end
+    finished = true
+    vim.schedule(function()
+      on_done(models_value, modes_value, err_value, mode_warning)
+    end)
+  end
+
+  vim.defer_fn(function()
+    finish(nil, nil, "timed out waiting for thread runtime options", nil)
+  end, timeout_ms)
+
+  local function maybe_finish()
+    if models ~= nil and modes ~= nil then
+      finish(models, modes, nil, mode_err)
+    end
+  end
+
+  rt.client:model_list({ includeHidden = opts.include_hidden or false }, function(err, result)
+    if err then
+      finish(nil, nil, err, nil)
+      return
+    end
+    models = result and result.data or {}
+    maybe_finish()
+  end)
+
+  if config.experimental_api == false then
+    maybe_finish()
+    return
+  end
+
+  rt.client:collaboration_mode_list({}, function(err, result)
+    mode_err = err
+    modes = result and result.data or {}
+    maybe_finish()
+  end)
+end
+
 local function supported_effort_choices(model)
   local choices = { { label = "Default", value = nil } }
   for _, option in ipairs((model and model.supportedReasoningEfforts) or {}) do
@@ -534,6 +603,204 @@ local function select_effort_for_model(model, seed_effort)
     return nil, "cancelled"
   end
   return selection.value, nil
+end
+
+local function select_effort_for_model_async(model, seed_effort, on_done)
+  local choices = supported_effort_choices(model)
+  if #choices <= 1 then
+    on_done(choices[1] and choices[1].value or nil, nil)
+    return
+  end
+
+  select_async(choices, {
+    prompt = "Codex reasoning effort",
+    format_item = function(item)
+      if seed_effort == item.value then
+        return item.label .. "  (current)"
+      end
+      return item.label
+    end,
+  }, function(selection)
+    if not selection then
+      on_done(nil, "cancelled")
+      return
+    end
+    on_done(selection.value, nil)
+  end)
+end
+
+local function pick_thread_runtime_async(rt, opts, on_done)
+  opts = opts or {}
+  local seed = vim.deepcopy(opts.seed or {})
+  local settings = {
+    name = seed.name,
+    ephemeral = seed.ephemeral == true,
+    model = seed.model,
+    effort = seed.effort,
+    collaborationModeMask = seed.collaborationModeMask,
+    modelCatalog = {},
+    modeCatalog = {},
+    modeError = nil,
+  }
+
+  local function finish(result, err)
+    if err == "cancelled" then
+      on_done(nil, err)
+      return
+    end
+    if err then
+      notify(err, vim.log.levels.ERROR, opts.notify)
+      on_done(nil, err)
+      return
+    end
+    on_done(result, nil)
+  end
+
+  local function choose_effort(model_info)
+    local selected_effort = settings.effort
+    if selected_effort == nil and settings.collaborationModeMask then
+      selected_effort = settings.collaborationModeMask.reasoning_effort
+    end
+
+    select_effort_for_model_async(model_info, selected_effort, function(effort, effort_err)
+      if effort_err then
+        finish(nil, effort_err)
+        return
+      end
+      settings.effort = effort
+      finish(settings, nil)
+    end)
+  end
+
+  local function choose_model(models)
+    local model_lookup = {}
+    local model_choices = { { label = "Default model", value = nil } }
+    for _, model in ipairs(models or {}) do
+      model_lookup[model.model] = model
+      if model.hidden ~= true then
+        model_choices[#model_choices + 1] = {
+          label = string.format("%s — %s", model.displayName or model.model, compact_text(model.description, 72) or ""),
+          value = model.model,
+          model_info = model,
+        }
+      end
+    end
+
+    local selected_model = settings.model or (settings.collaborationModeMask and (settings.collaborationModeMask.model or settings.collaborationModeMask.model_id or settings.collaborationModeMask.modelId))
+    select_async(model_choices, {
+      prompt = "Codex model",
+      format_item = function(item)
+        if item.value == selected_model then
+          return item.label .. "  (current)"
+        end
+        return item.label
+      end,
+    }, function(model_selection)
+      if not model_selection then
+        finish(nil, "cancelled")
+        return
+      end
+      settings.model = model_selection.value
+      choose_effort(model_selection.model_info or model_lookup[settings.model])
+    end)
+  end
+
+  local function choose_mode(models, modes, mode_err)
+    settings.modelCatalog = models
+    settings.modeCatalog = type(modes) == "table" and modes or {}
+    settings.modeError = mode_err
+
+    local mode_choices = { { label = "No collaboration mode override", value = nil } }
+    if type(modes) == "table" then
+      for _, mask in ipairs(modes) do
+        local reasoning = mask.reasoning_effort == nil and "default" or tostring(mask.reasoning_effort)
+        local label = string.format("%s — mode=%s, model=%s, effort=%s", mask.name, tostring(mask.mode), tostring(mask.model), reasoning)
+        mode_choices[#mode_choices + 1] = { label = label, value = mask }
+      end
+    end
+
+    if #mode_choices <= 1 then
+      choose_model(models)
+      return
+    end
+
+    local selected_mode_mask = settings.collaborationModeMask
+    select_async(mode_choices, {
+      prompt = "Codex collaboration mode",
+      format_item = function(item)
+        local current = selected_mode_mask and item.value and item.value.name == selected_mode_mask.name
+        if selected_mode_mask == nil and item.value == nil then
+          current = true
+        end
+        if current then
+          return item.label .. "  (current)"
+        end
+        return item.label
+      end,
+    }, function(mode_selection)
+      if not mode_selection then
+        finish(nil, "cancelled")
+        return
+      end
+      settings.collaborationModeMask = mode_selection.value
+      choose_model(models)
+    end)
+  end
+
+  local function load_catalogs()
+    notify("Loading Codex runtime options...", vim.log.levels.INFO, opts.notify)
+    query_runtime_catalogs_async(rt, opts, function(models, modes, catalogs_err, mode_err)
+      if catalogs_err then
+        finish(nil, catalogs_err)
+        return
+      end
+      choose_mode(models or {}, modes or {}, mode_err)
+    end)
+  end
+
+  local function choose_ephemeral()
+    if opts.include_ephemeral == false then
+      load_catalogs()
+      return
+    end
+
+    select_async({
+      { label = "Persistent", value = false },
+      { label = "Ephemeral", value = true },
+    }, {
+      prompt = opts.ephemeral_prompt or "Codex thread lifetime",
+      format_item = function(item)
+        if item.value == settings.ephemeral then
+          return item.label .. "  (current)"
+        end
+        return item.label
+      end,
+    }, function(ephemeral_choice)
+      if not ephemeral_choice then
+        finish(nil, "cancelled")
+        return
+      end
+      settings.ephemeral = ephemeral_choice.value == true
+      load_catalogs()
+    end)
+  end
+
+  if opts.include_name == false then
+    choose_ephemeral()
+    return
+  end
+
+  input_async({
+    prompt = opts.name_prompt or "Codex thread name (optional): ",
+    default = seed.name or "",
+  }, function(thread_name)
+    if thread_name == nil then
+      finish(nil, "cancelled")
+      return
+    end
+    settings.name = vim.trim(thread_name or "")
+    choose_ephemeral()
+  end)
 end
 
 local function pick_thread_runtime(rt, opts)
@@ -863,21 +1130,27 @@ local function format_thread_label(thread, active_id, state, loaded_threads)
   return string.format("%s %s%s  [%s]%s  %s", marker, loaded, short_thread_id(thread.id), status, pending_text, thread_title(thread))
 end
 
-local function merge_current_thread(threads, active_thread)
-  if not active_thread then
-    return threads
+local function merge_known_threads(threads, state, opts)
+  local merged = {}
+  local seen = {}
+  for _, thread in ipairs(threads or {}) do
+    merged[#merged + 1] = thread
+    seen[thread.id] = true
   end
 
-  for _, thread in ipairs(threads) do
-    if thread.id == active_thread.id then
-      return threads
+  local expected_archived = opts.archived ~= nil and opts.archived or config.thread_list.archived
+  local expected_cwd = opts.cwd or (config.thread_list.cwd_only and current_cwd() or nil)
+  for _, thread in ipairs(selectors.list_threads(state)) do
+    if not seen[thread.id] and thread.closed ~= true then
+      local archived_ok = expected_archived == true and thread.archived == true or expected_archived ~= true and thread.archived ~= true
+      local cwd_ok = expected_cwd == nil or thread.cwd == nil or thread.cwd == expected_cwd
+      if archived_ok and cwd_ok then
+        merged[#merged + 1] = thread
+        seen[thread.id] = true
+      end
     end
   end
 
-  local merged = { active_thread }
-  for _, thread in ipairs(threads) do
-    merged[#merged + 1] = thread
-  end
   return merged
 end
 
@@ -1174,7 +1447,7 @@ function M.pick_thread(opts)
     loaded_threads = {}
   end
 
-  local threads = merge_current_thread(result.data or {}, selectors.get_active_thread(state))
+  local threads = merge_known_threads(result.data or {}, state, opts)
   if #threads == 0 then
     notify("No matching Codex threads found", vim.log.levels.INFO, opts.notify)
     return nil, "no threads found"
@@ -1193,6 +1466,10 @@ function M.pick_thread(opts)
 
     if opts.action == "read" then
       M.open_thread_report({ thread_id = choice.id, notify = opts.notify })
+      return
+    end
+    if opts.action == "archive" then
+      M.archive_thread({ thread_id = choice.id, notify = opts.notify })
       return
     end
 
@@ -1222,18 +1499,30 @@ function M.create_thread_with_settings(opts)
     return nil, err
   end
 
-  local settings, settings_err = pick_thread_runtime(rt, { include_name = true, include_ephemeral = true, seed = opts.seed, timeout_ms = opts.timeout_ms })
-  if settings_err then
-    return nil, settings_err
-  end
+  pick_thread_runtime_async(rt, {
+    include_name = true,
+    include_ephemeral = true,
+    seed = opts.seed,
+    timeout_ms = opts.timeout_ms,
+    notify = opts.notify,
+  }, function(settings, settings_err)
+    if settings_err then
+      if settings_err ~= "cancelled" then
+        notify(settings_err, vim.log.levels.ERROR, opts.notify)
+      end
+      return
+    end
 
-  return M.new_thread(vim.tbl_extend("force", opts, {
-    name = settings.name,
-    ephemeral = settings.ephemeral,
-    model = settings.model,
-    effort = settings.effort,
-    collaboration_mode_mask = settings.collaborationModeMask,
-  }))
+    M.new_thread(vim.tbl_extend("force", opts, {
+      name = settings.name,
+      ephemeral = settings.ephemeral,
+      model = settings.model,
+      effort = settings.effort,
+      collaboration_mode_mask = settings.collaborationModeMask,
+    }))
+  end)
+
+  return { pending = true }, nil
 end
 
 function M.configure_thread(opts)
@@ -1252,21 +1541,32 @@ function M.configure_thread(opts)
 
   local seed = clone_runtime_settings(thread)
   seed.ephemeral = thread.ephemeral == true or seed.ephemeral == true
-  local settings, settings_err = pick_thread_runtime(rt, { include_name = false, include_ephemeral = false, seed = seed, timeout_ms = opts.timeout_ms })
-  if settings_err then
-    return nil, settings_err
-  end
+  pick_thread_runtime_async(rt, {
+    include_name = false,
+    include_ephemeral = false,
+    seed = seed,
+    timeout_ms = opts.timeout_ms,
+    notify = opts.notify,
+  }, function(settings, settings_err)
+    if settings_err then
+      if settings_err ~= "cancelled" then
+        notify(settings_err, vim.log.levels.ERROR, opts.notify)
+      end
+      return
+    end
 
-  update_thread_runtime(thread.id, {
-    model = settings.model,
-    effort = settings.effort,
-    summary = seed.summary,
-    collaborationModeMask = settings.collaborationModeMask,
-    ephemeral = seed.ephemeral,
-  })
+    update_thread_runtime(thread.id, {
+      model = settings.model,
+      effort = settings.effort,
+      summary = seed.summary,
+      collaborationModeMask = settings.collaborationModeMask,
+      ephemeral = seed.ephemeral,
+    })
 
-  notify(string.format("Updated thread settings · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
-  return settings, nil
+    notify(string.format("Updated thread settings · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
+  end)
+
+  return { threadId = thread.id }, nil
 end
 
 function M.fork_thread(opts)
@@ -1297,65 +1597,77 @@ function M.fork_thread(opts)
   for index, turn in ipairs(turns) do
     turn_choices[#turn_choices + 1] = { index = index, turn = turn }
   end
-  local selected = select_sync(turn_choices, {
+  select_async(turn_choices, {
     prompt = "Fork from turn",
     format_item = function(item)
       return turn_preview(item.turn, item.index)
     end,
-  })
-  if not selected then
-    return nil, "cancelled"
-  end
-
-  local seed = clone_runtime_settings(source_thread)
-  seed.name = thread_title(source_thread)
-  seed.ephemeral = source_thread.ephemeral == true or seed.ephemeral == true
-  local settings, settings_err = pick_thread_runtime(rt, { include_name = true, include_ephemeral = true, seed = seed, timeout_ms = opts.timeout_ms })
-  if settings_err then
-    return nil, settings_err
-  end
-
-  local fork_result, fork_err = request_with_wait(function(done)
-    rt.client:thread_fork(build_thread_fork_params({
-      thread_id = source_thread.id,
-      cwd = opts.cwd,
-      model = settings.model,
-      approval_policy = opts.approval_policy,
-      sandbox = opts.sandbox,
-      ephemeral = settings.ephemeral,
-    }), done)
-  end, wait_opts(opts))
-  if fork_err then
-    notify(fork_err, vim.log.levels.ERROR, opts.notify)
-    return nil, fork_err
-  end
-
-  local dropped_turns = #turns - selected.index
-  if dropped_turns > 0 then
-    local rollback_result, rollback_err = request_with_wait(function(done)
-      rt.client:thread_rollback({ threadId = fork_result.thread.id, numTurns = dropped_turns }, done)
-    end, wait_opts(opts))
-    if rollback_err then
-      notify(rollback_err, vim.log.levels.ERROR, opts.notify)
-      return nil, rollback_err
+  }, function(selected)
+    if not selected then
+      return
     end
-    fork_result = rollback_result or fork_result
-  end
 
-  update_thread_runtime(fork_result.thread.id, {
-    model = settings.model,
-    effort = settings.effort,
-    summary = seed.summary,
-    collaborationModeMask = settings.collaborationModeMask,
-    ephemeral = settings.ephemeral,
-  })
-  if settings.name and settings.name ~= "" then
-    submit_thread_rename(rt, fork_result.thread, settings.name, { wait = true, notify = false, timeout_ms = opts.timeout_ms })
-  end
+    local seed = clone_runtime_settings(source_thread)
+    seed.name = thread_title(source_thread)
+    seed.ephemeral = source_thread.ephemeral == true or seed.ephemeral == true
+    pick_thread_runtime_async(rt, {
+      include_name = true,
+      include_ephemeral = true,
+      seed = seed,
+      timeout_ms = opts.timeout_ms,
+      notify = opts.notify,
+    }, function(settings, settings_err)
+      if settings_err then
+        if settings_err ~= "cancelled" then
+          notify(settings_err, vim.log.levels.ERROR, opts.notify)
+        end
+        return
+      end
 
-  reveal_chat(rt)
-  notify(string.format("Forked thread %s from %s", short_thread_id(fork_result.thread.id), short_thread_id(source_thread.id)), vim.log.levels.INFO, opts.notify)
-  return fork_result, nil
+      local fork_result, fork_err = request_with_wait(function(done)
+        rt.client:thread_fork(build_thread_fork_params({
+          thread_id = source_thread.id,
+          cwd = opts.cwd,
+          model = settings.model,
+          approval_policy = opts.approval_policy,
+          sandbox = opts.sandbox,
+          ephemeral = settings.ephemeral,
+        }), done)
+      end, wait_opts(opts))
+      if fork_err then
+        notify(fork_err, vim.log.levels.ERROR, opts.notify)
+        return
+      end
+
+      local dropped_turns = #turns - selected.index
+      if dropped_turns > 0 then
+        local rollback_result, rollback_err = request_with_wait(function(done)
+          rt.client:thread_rollback({ threadId = fork_result.thread.id, numTurns = dropped_turns }, done)
+        end, wait_opts(opts))
+        if rollback_err then
+          notify(rollback_err, vim.log.levels.ERROR, opts.notify)
+          return
+        end
+        fork_result = rollback_result or fork_result
+      end
+
+      update_thread_runtime(fork_result.thread.id, {
+        model = settings.model,
+        effort = settings.effort,
+        summary = seed.summary,
+        collaborationModeMask = settings.collaborationModeMask,
+        ephemeral = settings.ephemeral,
+      })
+      if settings.name and settings.name ~= "" then
+        submit_thread_rename(rt, fork_result.thread, settings.name, { wait = true, notify = false, timeout_ms = opts.timeout_ms })
+      end
+
+      reveal_chat(rt)
+      notify(string.format("Forked thread %s from %s", short_thread_id(fork_result.thread.id), short_thread_id(source_thread.id)), vim.log.levels.INFO, opts.notify)
+    end)
+  end)
+
+  return { threadId = source_thread.id }, nil
 end
 
 local function submit_thread_rename(rt, thread, name, opts)
@@ -1432,6 +1744,36 @@ function M.rename_thread(opts)
   end
 
   return submit_thread_rename(rt, thread, name, opts)
+end
+
+function M.archive_thread(opts)
+  opts = opts or {}
+  local rt, err = ensure_ready(opts.timeout_ms)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+
+  local snapshot = rt.client:get_state()
+  local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+  if not thread then
+    return M.pick_thread({ action = "archive", notify = opts.notify, timeout_ms = opts.timeout_ms })
+  end
+
+  local _, request_err = request_with_wait(function(done)
+    rt.client:thread_archive({ threadId = thread.id }, done)
+  end, wait_opts(opts))
+  if request_err then
+    notify(request_err, vim.log.levels.ERROR, opts.notify)
+    return nil, request_err
+  end
+
+  if snapshot.threads.active_id == thread.id then
+    rt.store:dispatch({ type = "thread_activated", thread_id = nil })
+  end
+
+  notify(string.format("Archived thread %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
+  return { threadId = thread.id }, nil
 end
 
 function M.open_shortcuts(opts)

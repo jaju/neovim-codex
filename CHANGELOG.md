@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Thread-create, thread-settings, and thread-fork setup no longer block the UI behind synchronous `vim.ui.input` / `vim.ui.select` waits; runtime configuration now advances asynchronously.
+- Thread pickers now merge locally known threads into the visible list so freshly created empty threads remain reachable within the current session.
 - Guarded chat tool-error rendering against `vim.NIL` payloads so `mcpToolCall` items no longer crash the transcript or details views.
 - Thread rename no longer blocks behind a synchronous prompt path before it sends the protocol request.
 - Request viewers now open in normal mode so direct decision shortcuts like `a`, `s`, `d`, and `c` work without an extra `<Esc>`.
@@ -24,6 +26,7 @@ All notable changes to this project will be documented in this file.
 - Sending with staged fragments now requires every fragment to be referenced explicitly before packet compilation succeeds.
 
 ### Added
+- `:CodexThreadNewConfig`, `:CodexThreadSettings`, `:CodexThreadFork`, and `:CodexThreadArchive` as first-class thread/session controls.
 - `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
 - `:CodexThreadRename` and `:CodexShortcuts`, plus `keymaps.global_modes`, for faster thread control and configurable cross-mode shortcut access.
 - A dedicated stacked text-answer popup for free-form `requestUserInput` answers, reusing `<C-s>` as the submit key.

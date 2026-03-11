@@ -33,6 +33,9 @@ COMMANDS                                               *neovim-codex-commands*
 :CodexThreadNew
     Start a fresh thread and make it active.
 
+:CodexThreadNewConfig
+    Start a fresh thread through the runtime settings flow.
+
 :CodexThreads
     Pick and resume a stored thread.
 
@@ -41,6 +44,15 @@ COMMANDS                                               *neovim-codex-commands*
 
 :CodexThreadRename [name]
     Rename the active thread, or prompt for a new name.
+
+:CodexThreadFork [thread-id]
+    Fork from a chosen turn in the active thread, or the supplied thread id.
+
+:CodexThreadArchive [thread-id]
+    Archive the active thread, or pick one to archive.
+
+:CodexThreadSettings [thread-id]
+    Edit sticky model, effort, and collaboration mode for a thread.
 
 :CodexInspect
     Open a details viewer for the selected transcript block.

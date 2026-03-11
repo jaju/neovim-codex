@@ -72,10 +72,14 @@ Default request viewer mappings:
 ## Thread commands
 
 - `:CodexThreadNew` - start a fresh thread explicitly
+- `:CodexThreadNewConfig` - start a thread through the runtime settings flow
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a thread without resuming it
 - `:CodexThreadRename [name]` - rename the active thread
   - when no name is supplied, the prompt is collected asynchronously so the UI does not freeze first
+- `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
+- `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
+- `:CodexThreadSettings [thread-id]` - edit sticky model, effort, and collaboration mode for a thread
 - `:CodexInterrupt` - interrupt the current turn
 
 ## Default overlay mappings
@@ -163,7 +167,7 @@ The overlay also exposes highlight groups for transcript headings, so colorschem
 
 ## Known behavior
 
-- a brand-new empty thread may not appear in `thread/list` yet
+- a fresh thread that has not accumulated turns can still be missing from the persisted `thread/list` view after a restart, depending on backend persistence behavior; within the current NeoVim session the picker merges locally known threads so they remain reachable
 - a brand-new empty thread may not be resumable yet because the rollout is not materialized
 - reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports
 - raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript stays terse and uses `:CodexInspect` for verbose detail

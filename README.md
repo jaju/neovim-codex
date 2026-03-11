@@ -114,9 +114,13 @@ Then:
 Useful thread commands:
 
 - `:CodexThreadNew` - create and activate a fresh thread
+- `:CodexThreadNewConfig` - create a thread with runtime settings like model, effort, mode, name, and ephemeral state
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
+- `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
+- `:CodexThreadArchive [thread-id]` - archive the active thread, or pick/archive another thread
+- `:CodexThreadSettings [thread-id]` - change sticky runtime settings for the active thread
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexRequest` - reopen the active approval or question request if one is pending
 - `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
@@ -140,9 +144,13 @@ Workbench and compose commands:
 - `:CodexChat` - toggle the Codex overlay
 - `:CodexSend` - send the current composer contents, or open compose review if the workbench is non-empty
 - `:CodexThreadNew` - create a new thread and activate it
+- `:CodexThreadNewConfig` - create a new thread through the runtime configuration flow
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
 - `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
+- `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
+- `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
+- `:CodexThreadSettings [thread-id]` - adjust sticky model, effort, and mode for a thread
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
 - `:CodexRequest` - reopen the active pending Codex request
