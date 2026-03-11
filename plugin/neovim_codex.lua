@@ -30,6 +30,10 @@ vim.api.nvim_create_user_command("CodexThreadNew", function()
   require("neovim_codex").new_thread()
 end, {})
 
+vim.api.nvim_create_user_command("CodexThreadNewConfig", function()
+  require("neovim_codex").create_thread_with_settings()
+end, {})
+
 vim.api.nvim_create_user_command("CodexThreads", function()
   require("neovim_codex").pick_thread({ action = "resume" })
 end, {})
@@ -46,6 +50,16 @@ end, { nargs = "?" })
 vim.api.nvim_create_user_command("CodexThreadRename", function(command)
   local args = vim.trim(command.args or "")
   require("neovim_codex").rename_thread(args == "" and {} or { name = args })
+end, { nargs = "?" })
+
+vim.api.nvim_create_user_command("CodexThreadFork", function(command)
+  local args = vim.trim(command.args or "")
+  require("neovim_codex").fork_thread(args == "" and {} or { thread_id = args })
+end, { nargs = "?" })
+
+vim.api.nvim_create_user_command("CodexThreadSettings", function(command)
+  local args = vim.trim(command.args or "")
+  require("neovim_codex").configure_thread(args == "" and {} or { thread_id = args })
 end, { nargs = "?" })
 
 vim.api.nvim_create_user_command("CodexInterrupt", function()

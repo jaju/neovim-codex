@@ -391,6 +391,38 @@ function M:thread_name_set(params, on_result)
   end)
 end
 
+function M:thread_loaded_list(params, on_result)
+  return self:_request("thread/loaded/list", params or {}, function(err, result, message)
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_fork(params, on_result)
+  return self:_request("thread/fork", params, function(err, result, message)
+    if not err and result.thread then
+      self.store:dispatch({
+        type = "thread_received",
+        thread = result.thread,
+        replace_turns = true,
+        activate = true,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_unsubscribe(params, on_result)
+  return self:_request("thread/unsubscribe", params, function(err, result, message)
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
 function M:thread_read(params, on_result)
   return self:_request("thread/read", params, function(err, result, message)
     if not err and result.thread then
@@ -416,6 +448,38 @@ function M:thread_list(params, on_result)
         next_cursor = result.nextCursor,
       })
     end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_rollback(params, on_result)
+  return self:_request("thread/rollback", params, function(err, result, message)
+    if not err and result.thread then
+      self.store:dispatch({
+        type = "thread_received",
+        thread = result.thread,
+        replace_turns = true,
+        activate = true,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:model_list(params, on_result)
+  return self:_request("model/list", params or {}, function(err, result, message)
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:collaboration_mode_list(params, on_result)
+  return self:_request("collaborationMode/list", params or {}, function(err, result, message)
     if on_result then
       on_result(err, result, message)
     end

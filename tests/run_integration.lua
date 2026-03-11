@@ -287,6 +287,12 @@ local request_manager = require("neovim_codex.nvim.server_requests").new(codex.g
 request_manager:attach(request_store)
 
 request_store:dispatch({
+  type = "thread_received",
+  thread = { id = "thr_req", status = { type = "idle" }, turns = {} },
+  replace_turns = true,
+  activate = true,
+})
+request_store:dispatch({
   type = "server_request_received",
   request = {
     method = "item/commandExecution/requestApproval",
@@ -308,7 +314,7 @@ vim.wait(1000, function()
 end, 20)
 local active_request = selectors.get_active_request(request_store:get_state())
 assert(active_request and active_request.method == "item/commandExecution/requestApproval", "command approval request should become active")
-local reopened_request, reopen_err = request_manager:open_current()
+local reopened_request, reopen_err = request_manager:open_current({ thread_id = "thr_req" })
 assert(reopen_err == nil, reopen_err or "request viewer should reopen from the active request")
 assert(reopened_request and reopened_request.request_id == "req_command", "request viewer should reopen the active command request")
 local request_viewers = require("neovim_codex.nvim.viewer_stack").inspect()

@@ -724,7 +724,8 @@ function M:_open_text_input(question)
 end
 
 function M:sync(store_state)
-  local request = selectors.get_active_request(store_state)
+  local active_thread = selectors.get_active_thread(store_state)
+  local request = selectors.get_active_request_for_thread(store_state, active_thread and active_thread.id or nil)
   self.current = clone_value(request)
 
   if not request then
@@ -741,11 +742,14 @@ function M:sync(store_state)
   viewer_stack.open(self:_request_spec(request))
 end
 
-function M:open_current()
+function M:open_current(opts)
+  opts = opts or {}
   if not self.store then
     return nil, "request manager is not attached"
   end
-  local request = selectors.get_active_request(self.store:get_state())
+  local state = self.store:get_state()
+  local thread_id = opts.thread_id or (selectors.get_active_thread(state) and selectors.get_active_thread(state).id)
+  local request = selectors.get_active_request_for_thread(state, thread_id)
   if not request then
     return nil, "no pending Codex request"
   end

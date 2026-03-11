@@ -110,8 +110,40 @@ function M.get_active_request(state)
   return M.get_pending_request(state, state.server_requests.active_id)
 end
 
+function M.list_pending_requests_for_thread(state, thread_id)
+  if not thread_id then
+    return {}
+  end
+
+  local out = {}
+  for _, request in ipairs(M.list_pending_requests(state)) do
+    if request.thread_id == thread_id then
+      out[#out + 1] = request
+    end
+  end
+  return out
+end
+
+function M.get_active_request_for_thread(state, thread_id)
+  if not thread_id then
+    return nil
+  end
+
+  local active = M.get_active_request(state)
+  if active and active.thread_id == thread_id then
+    return active
+  end
+
+  local requests = M.list_pending_requests_for_thread(state, thread_id)
+  return requests[#requests]
+end
+
 function M.pending_request_count(state)
   return #(state.server_requests.order or {})
+end
+
+function M.pending_request_count_for_thread(state, thread_id)
+  return #M.list_pending_requests_for_thread(state, thread_id)
 end
 
 function M.get_workbench(state, thread_id)

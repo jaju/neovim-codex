@@ -96,6 +96,13 @@ local function ensure_thread(state, thread_id)
     agentRole = nil,
     gitInfo = nil,
     name = nil,
+    runtime = {
+      model = nil,
+      effort = nil,
+      summary = nil,
+      collaborationMode = nil,
+      ephemeral = nil,
+    },
     archived = false,
     closed = false,
     turns_order = {},
@@ -206,6 +213,12 @@ local function merge_turn(thread, turn, opts)
   end
 
   return current
+end
+
+local function set_thread_runtime(state, thread_id, runtime)
+  local thread = ensure_thread(state, thread_id)
+  thread.runtime = clone(runtime or {})
+  return thread
 end
 
 local function merge_thread(state, thread_data, opts)
@@ -524,6 +537,8 @@ local function reducer(state, event)
     ensure_thread(next_state, event.thread_id).archived = false
   elseif event.type == "thread_closed" then
     ensure_thread(next_state, event.thread_id).closed = true
+  elseif event.type == "thread_runtime_updated" then
+    set_thread_runtime(next_state, event.thread_id, event.runtime)
   elseif event.type == "turn_received" then
     local thread = ensure_thread(next_state, event.thread_id)
     merge_turn(thread, event.turn, { replace_items = event.replace_items })
