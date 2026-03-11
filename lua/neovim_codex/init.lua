@@ -1212,9 +1212,8 @@ function M.configure_thread(opts)
   end
 
   local seed = clone_runtime_settings(thread)
-  seed.name = thread.name or thread.preview or ""
   seed.ephemeral = thread.ephemeral == true or seed.ephemeral == true
-  local settings, settings_err = pick_thread_runtime(rt, { include_name = true, include_ephemeral = false, seed = seed, timeout_ms = opts.timeout_ms })
+  local settings, settings_err = pick_thread_runtime(rt, { include_name = false, include_ephemeral = false, seed = seed, timeout_ms = opts.timeout_ms })
   if settings_err then
     return nil, settings_err
   end
@@ -1226,10 +1225,6 @@ function M.configure_thread(opts)
     collaborationModeMask = settings.collaborationModeMask,
     ephemeral = seed.ephemeral,
   })
-
-  if settings.name ~= nil and settings.name ~= thread.name then
-    submit_thread_rename(rt, thread, settings.name, { wait = true, notify = opts.notify, timeout_ms = opts.timeout_ms })
-  end
 
   notify(string.format("Updated thread settings · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
   return settings, nil
