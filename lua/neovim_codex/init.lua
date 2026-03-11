@@ -411,12 +411,13 @@ local function clone_runtime_settings(thread)
   return vim.deepcopy(runtime_settings)
 end
 
-local function build_collaboration_mode(mask)
+local function build_collaboration_mode(mask, opts)
   if type(mask) ~= "table" then
     return nil
   end
+  opts = opts or {}
   local mode = mask.mode
-  local model = mask.model or mask.model_id or mask.modelId
+  local model = opts.model or mask.model or mask.model_id or mask.modelId
   if not mode or not model or model == vim.NIL then
     return nil
   end
@@ -425,7 +426,7 @@ local function build_collaboration_mode(mask)
     mode = mode,
     settings = {
       model = model,
-      reasoning_effort = mask.reasoning_effort,
+      reasoning_effort = opts.effort ~= nil and opts.effort or mask.reasoning_effort,
       developer_instructions = vim.NIL,
     },
   }
@@ -468,6 +469,40 @@ local function query_loaded_threads(rt, opts)
     loaded[thread_id] = true
   end
   return loaded, nil
+end
+
+local function query_runtime_catalogs(rt, opts)
+  opts = opts or {}
+  local timeout_ms = opts.timeout_ms or 4000
+  local models = nil
+  local modes = nil
+  local model_err = nil
+  local mode_err = nil
+
+  rt.client:model_list({ includeHidden = opts.include_hidden or false }, function(err, result)
+    model_err = err
+    models = result and result.data or {}
+  end)
+
+  if config.experimental_api == false then
+    modes = {}
+  else
+    rt.client:collaboration_mode_list({}, function(err, result)
+      mode_err = err
+      modes = result and result.data or {}
+    end)
+  end
+
+  local ok = vim.wait(timeout_ms, function()
+    return models ~= nil and modes ~= nil
+  end, 20)
+  if not ok then
+    return nil, nil, "timed out waiting for thread runtime options"
+  end
+  if model_err then
+    return nil, nil, model_err
+  end
+  return models, modes, mode_err
 end
 
 local function supported_effort_choices(model)
@@ -533,7 +568,12 @@ local function pick_thread_runtime(rt, opts)
     ephemeral = ephemeral_choice.value == true
   end
 
-  local modes, mode_err = query_collaboration_modes(rt, opts)
+  notify("Loading Codex runtime options...", vim.log.levels.INFO, opts.notify)
+  local models, modes, catalogs_err = query_runtime_catalogs(rt, opts)
+  if catalogs_err then
+    return nil, catalogs_err
+  end
+
   local mode_choices = { { label = "No collaboration mode override", value = nil } }
   if type(modes) == "table" then
     for _, mask in ipairs(modes) do
@@ -564,14 +604,9 @@ local function pick_thread_runtime(rt, opts)
     selected_mode_mask = mode_selection.value
   end
 
-  local models, model_err = query_model_catalog(rt, opts)
-  if model_err then
-    return nil, model_err
-  end
-
   local model_lookup = {}
   local model_choices = { { label = "Default model", value = nil } }
-  for _, model in ipairs(models) do
+  for _, model in ipairs(models or {}) do
     model_lookup[model.model] = model
     if model.hidden ~= true then
       model_choices[#model_choices + 1] = {
@@ -582,31 +617,32 @@ local function pick_thread_runtime(rt, opts)
     end
   end
 
-  local selected_model = seed.model
+  local selected_model = seed.model or (selected_mode_mask and (selected_mode_mask.model or selected_mode_mask.model_id or selected_mode_mask.modelId))
   local selected_effort = seed.effort
-  if not selected_mode_mask then
-    local model_selection = select_sync(model_choices, {
-      prompt = "Codex model",
-      format_item = function(item)
-        if item.value == selected_model then
-          return item.label .. "  (current)"
-        end
-        return item.label
-      end,
-    })
-    if not model_selection then
-      return nil, "cancelled"
-    end
-    selected_model = model_selection.value
-    local selected_model_info = model_selection.model_info or model_lookup[selected_model]
-    selected_effort, model_err = select_effort_for_model(selected_model_info, selected_effort)
-    if model_err then
-      return nil, model_err
-    end
-  else
-    selected_model = seed.model
-    selected_effort = seed.effort
+  if selected_effort == nil and selected_mode_mask then
+    selected_effort = selected_mode_mask.reasoning_effort
   end
+
+  local model_selection = select_sync(model_choices, {
+    prompt = "Codex model",
+    format_item = function(item)
+      if item.value == selected_model then
+        return item.label .. "  (current)"
+      end
+      return item.label
+    end,
+  })
+  if not model_selection then
+    return nil, "cancelled"
+  end
+  selected_model = model_selection.value
+  local selected_model_info = model_selection.model_info or model_lookup[selected_model]
+  local effort_err
+  selected_effort, effort_err = select_effort_for_model(selected_model_info, selected_effort)
+  if effort_err then
+    return nil, effort_err
+  end
+  local mode_err = nil
 
   return {
     name = opts.include_name ~= false and vim.trim(thread_name or "") or seed.name,
@@ -770,7 +806,10 @@ local function build_turn_start_params(thread_id, text, opts)
     params.sandboxPolicy = opts.sandbox_policy
   end
 
-  local collaboration_mode = opts.collaboration_mode or build_collaboration_mode(runtime_settings.collaborationModeMask)
+  local collaboration_mode = opts.collaboration_mode or build_collaboration_mode(runtime_settings.collaborationModeMask, {
+    model = opts.model or runtime_settings.model,
+    effort = opts.effort or runtime_settings.effort,
+  })
   if collaboration_mode then
     params.collaborationMode = collaboration_mode
   else
