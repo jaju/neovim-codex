@@ -397,17 +397,21 @@ local function input_sync(opts)
 end
 
 local function select_async(items, opts, on_choice)
-  vim.ui.select(items, opts or {}, function(item)
-    vim.schedule(function()
-      on_choice(item)
+  vim.schedule(function()
+    vim.ui.select(items, opts or {}, function(item)
+      vim.schedule(function()
+        on_choice(item)
+      end)
     end)
   end)
 end
 
 local function input_async(opts, on_input)
-  vim.ui.input(opts or {}, function(input)
-    vim.schedule(function()
-      on_input(input)
+  vim.schedule(function()
+    vim.ui.input(opts or {}, function(input)
+      vim.schedule(function()
+        on_input(input)
+      end)
     end)
   end)
 end
@@ -450,6 +454,52 @@ local function build_collaboration_mode(mask, opts)
       developer_instructions = vim.NIL,
     },
   }
+end
+
+local function effective_runtime_model(settings)
+  if type(settings) ~= "table" then
+    return nil
+  end
+  if settings.model ~= nil then
+    return settings.model
+  end
+  local mask = settings.collaborationModeMask
+  if type(mask) ~= "table" then
+    return nil
+  end
+  return mask.model or mask.model_id or mask.modelId
+end
+
+local function effective_runtime_effort(settings)
+  if type(settings) ~= "table" then
+    return nil
+  end
+  if settings.effort ~= nil then
+    return settings.effort
+  end
+  local mask = settings.collaborationModeMask
+  if type(mask) ~= "table" then
+    return nil
+  end
+  return mask.reasoning_effort
+end
+
+local function normalize_runtime_settings(settings)
+  local normalized = type(settings) == "table" and vim.deepcopy(settings) or {}
+  local mask = normalized.collaborationModeMask
+  if type(mask) == "table" then
+    mask = vim.deepcopy(mask)
+    local model = effective_runtime_model(normalized)
+    local effort = effective_runtime_effort(normalized)
+    if model ~= nil then
+      mask.model = model
+    end
+    mask.reasoning_effort = effort
+    normalized.collaborationModeMask = mask
+  end
+  normalized.model = effective_runtime_model(normalized)
+  normalized.effort = effective_runtime_effort(normalized)
+  return normalized
 end
 
 local function query_model_catalog(rt, opts)
@@ -631,17 +681,12 @@ end
 
 local function pick_thread_runtime_async(rt, opts, on_done)
   opts = opts or {}
-  local seed = vim.deepcopy(opts.seed or {})
-  local settings = {
-    name = seed.name,
-    ephemeral = seed.ephemeral == true,
-    model = seed.model,
-    effort = seed.effort,
-    collaborationModeMask = seed.collaborationModeMask,
-    modelCatalog = {},
-    modeCatalog = {},
-    modeError = nil,
-  }
+  local settings = normalize_runtime_settings(vim.deepcopy(opts.seed or {}))
+  settings.name = settings.name
+  settings.ephemeral = settings.ephemeral == true
+  settings.modelCatalog = {}
+  settings.modeCatalog = {}
+  settings.modeError = nil
 
   local function finish(result, err)
     if err == "cancelled" then
@@ -653,117 +698,41 @@ local function pick_thread_runtime_async(rt, opts, on_done)
       on_done(nil, err)
       return
     end
-    on_done(result, nil)
+    on_done(normalize_runtime_settings(result), nil)
   end
 
-  local function choose_effort(model_info)
-    local selected_effort = settings.effort
-    if selected_effort == nil and settings.collaborationModeMask then
-      selected_effort = settings.collaborationModeMask.reasoning_effort
+  local function current_mode_label()
+    local mask = settings.collaborationModeMask
+    if type(mask) ~= "table" then
+      return "None"
     end
-
-    select_effort_for_model_async(model_info, selected_effort, function(effort, effort_err)
-      if effort_err then
-        finish(nil, effort_err)
-        return
-      end
-      settings.effort = effort
-      finish(settings, nil)
-    end)
+    return mask.name or tostring(mask.mode)
   end
 
-  local function choose_model(models)
-    local model_lookup = {}
-    local model_choices = { { label = "Default model", value = nil } }
-    for _, model in ipairs(models or {}) do
-      model_lookup[model.model] = model
-      if model.hidden ~= true then
-        model_choices[#model_choices + 1] = {
-          label = string.format("%s — %s", model.displayName or model.model, compact_text(model.description, 72) or ""),
-          value = model.model,
-          model_info = model,
-        }
-      end
-    end
+  local function current_model_label()
+    return effective_runtime_model(settings) or "Default"
+  end
 
-    local selected_model = settings.model or (settings.collaborationModeMask and (settings.collaborationModeMask.model or settings.collaborationModeMask.model_id or settings.collaborationModeMask.modelId))
-    select_async(model_choices, {
-      prompt = "Codex model",
-      format_item = function(item)
-        if item.value == selected_model then
-          return item.label .. "  (current)"
-        end
-        return item.label
-      end,
-    }, function(model_selection)
-      if not model_selection then
+  local function current_effort_label()
+    local effort = effective_runtime_effort(settings)
+    return effort == nil and "Default" or tostring(effort)
+  end
+
+  local function choose_name(next_step)
+    input_async({
+      prompt = opts.name_prompt or "Codex thread name (optional): ",
+      default = settings.name or "",
+    }, function(thread_name)
+      if thread_name == nil then
         finish(nil, "cancelled")
         return
       end
-      settings.model = model_selection.value
-      choose_effort(model_selection.model_info or model_lookup[settings.model])
+      settings.name = vim.trim(thread_name or "")
+      next_step()
     end)
   end
 
-  local function choose_mode(models, modes, mode_err)
-    settings.modelCatalog = models
-    settings.modeCatalog = type(modes) == "table" and modes or {}
-    settings.modeError = mode_err
-
-    local mode_choices = { { label = "No collaboration mode override", value = nil } }
-    if type(modes) == "table" then
-      for _, mask in ipairs(modes) do
-        local reasoning = mask.reasoning_effort == nil and "default" or tostring(mask.reasoning_effort)
-        local label = string.format("%s — mode=%s, model=%s, effort=%s", mask.name, tostring(mask.mode), tostring(mask.model), reasoning)
-        mode_choices[#mode_choices + 1] = { label = label, value = mask }
-      end
-    end
-
-    if #mode_choices <= 1 then
-      choose_model(models)
-      return
-    end
-
-    local selected_mode_mask = settings.collaborationModeMask
-    select_async(mode_choices, {
-      prompt = "Codex collaboration mode",
-      format_item = function(item)
-        local current = selected_mode_mask and item.value and item.value.name == selected_mode_mask.name
-        if selected_mode_mask == nil and item.value == nil then
-          current = true
-        end
-        if current then
-          return item.label .. "  (current)"
-        end
-        return item.label
-      end,
-    }, function(mode_selection)
-      if not mode_selection then
-        finish(nil, "cancelled")
-        return
-      end
-      settings.collaborationModeMask = mode_selection.value
-      choose_model(models)
-    end)
-  end
-
-  local function load_catalogs()
-    notify("Loading Codex runtime options...", vim.log.levels.INFO, opts.notify)
-    query_runtime_catalogs_async(rt, opts, function(models, modes, catalogs_err, mode_err)
-      if catalogs_err then
-        finish(nil, catalogs_err)
-        return
-      end
-      choose_mode(models or {}, modes or {}, mode_err)
-    end)
-  end
-
-  local function choose_ephemeral()
-    if opts.include_ephemeral == false then
-      load_catalogs()
-      return
-    end
-
+  local function choose_ephemeral(next_step)
     select_async({
       { label = "Persistent", value = false },
       { label = "Ephemeral", value = true },
@@ -781,25 +750,162 @@ local function pick_thread_runtime_async(rt, opts, on_done)
         return
       end
       settings.ephemeral = ephemeral_choice.value == true
-      load_catalogs()
+      next_step()
     end)
   end
 
-  if opts.include_name == false then
-    choose_ephemeral()
-    return
+  local function choose_mode(next_step)
+    local modes = settings.modeCatalog or {}
+    local mode_choices = { { label = "No collaboration mode override", value = nil } }
+    for _, mask in ipairs(modes) do
+      local reasoning = mask.reasoning_effort == nil and "default" or tostring(mask.reasoning_effort)
+      mode_choices[#mode_choices + 1] = {
+        label = string.format("%s — mode=%s, model=%s, effort=%s", mask.name, tostring(mask.mode), tostring(mask.model), reasoning),
+        value = mask,
+      }
+    end
+
+    select_async(mode_choices, {
+      prompt = "Codex collaboration mode",
+      format_item = function(item)
+        local current = settings.collaborationModeMask and item.value and item.value.name == settings.collaborationModeMask.name
+        if settings.collaborationModeMask == nil and item.value == nil then
+          current = true
+        end
+        if current then
+          return item.label .. "  (current)"
+        end
+        return item.label
+      end,
+    }, function(mode_selection)
+      if not mode_selection then
+        finish(nil, "cancelled")
+        return
+      end
+      settings.collaborationModeMask = mode_selection.value and vim.deepcopy(mode_selection.value) or nil
+      settings = normalize_runtime_settings(settings)
+      next_step()
+    end)
   end
 
-  input_async({
-    prompt = opts.name_prompt or "Codex thread name (optional): ",
-    default = seed.name or "",
-  }, function(thread_name)
-    if thread_name == nil then
-      finish(nil, "cancelled")
+  local function choose_model(next_step)
+    local model_lookup = {}
+    local model_choices = { { label = "Default model", value = nil } }
+    for _, model in ipairs(settings.modelCatalog or {}) do
+      model_lookup[model.model] = model
+      if model.hidden ~= true then
+        model_choices[#model_choices + 1] = {
+          label = string.format("%s — %s", model.displayName or model.model, compact_text(model.description, 72) or ""),
+          value = model.model,
+          model_info = model,
+        }
+      end
+    end
+
+    local selected_model = effective_runtime_model(settings)
+    select_async(model_choices, {
+      prompt = "Codex model",
+      format_item = function(item)
+        if item.value == selected_model then
+          return item.label .. "  (current)"
+        end
+        return item.label
+      end,
+    }, function(model_selection)
+      if not model_selection then
+        finish(nil, "cancelled")
+        return
+      end
+      settings.model = model_selection.value
+      settings = normalize_runtime_settings(settings)
+      next_step(model_selection.model_info or model_lookup[settings.model])
+    end)
+  end
+
+  local function choose_effort(next_step)
+    local current_model = effective_runtime_model(settings)
+    local model_info = nil
+    for _, item in ipairs(settings.modelCatalog or {}) do
+      if item.model == current_model then
+        model_info = item
+        break
+      end
+    end
+    local selected_effort = effective_runtime_effort(settings)
+    select_effort_for_model_async(model_info, selected_effort, function(effort, effort_err)
+      if effort_err then
+        finish(nil, effort_err)
+        return
+      end
+      settings.effort = effort
+      settings = normalize_runtime_settings(settings)
+      next_step()
+    end)
+  end
+
+  local function show_menu()
+    local items = {}
+    if opts.include_name ~= false then
+      items[#items + 1] = { key = "name", label = string.format("Name: %s", settings.name ~= nil and settings.name ~= "" and settings.name or "(unnamed)") }
+    end
+    if opts.include_ephemeral ~= false then
+      items[#items + 1] = { key = "ephemeral", label = string.format("Lifetime: %s", settings.ephemeral and "Ephemeral" or "Persistent") }
+    end
+    items[#items + 1] = { key = "mode", label = string.format("Collaboration mode: %s", current_mode_label()) }
+    items[#items + 1] = { key = "model", label = string.format("Model: %s", current_model_label()) }
+    items[#items + 1] = { key = "effort", label = string.format("Effort: %s", current_effort_label()) }
+    items[#items + 1] = { key = "done", label = "Save settings" }
+    items[#items + 1] = { key = "cancel", label = "Cancel" }
+
+    select_async(items, {
+      prompt = "Codex thread settings",
+      format_item = function(item)
+        return item.label
+      end,
+    }, function(choice)
+      if not choice or choice.key == "cancel" then
+        finish(nil, "cancelled")
+        return
+      end
+      if choice.key == "done" then
+        finish(settings, nil)
+        return
+      end
+      if choice.key == "name" then
+        choose_name(show_menu)
+        return
+      end
+      if choice.key == "ephemeral" then
+        choose_ephemeral(show_menu)
+        return
+      end
+      if choice.key == "mode" then
+        choose_mode(show_menu)
+        return
+      end
+      if choice.key == "model" then
+        choose_model(function()
+          show_menu()
+        end)
+        return
+      end
+      if choice.key == "effort" then
+        choose_effort(show_menu)
+        return
+      end
+      show_menu()
+    end)
+  end
+
+  query_runtime_catalogs_async(rt, opts, function(models, modes, catalogs_err, mode_err)
+    if catalogs_err then
+      finish(nil, catalogs_err)
       return
     end
-    settings.name = vim.trim(thread_name or "")
-    choose_ephemeral()
+    settings.modelCatalog = models or {}
+    settings.modeCatalog = type(modes) == "table" and modes or {}
+    settings.modeError = mode_err
+    show_menu()
   end)
 end
 
@@ -1279,14 +1385,14 @@ local function update_thread_runtime(thread_id, runtime_settings)
   ensure_runtime().store:dispatch({
     type = "thread_runtime_updated",
     thread_id = thread_id,
-    runtime = runtime_settings or {},
+    runtime = normalize_runtime_settings(runtime_settings or {}),
   })
 end
 
 local function current_thread_runtime(thread_id)
   local state = ensure_runtime().client:get_state()
   local thread = selectors.get_thread(state, thread_id) or selectors.get_active_thread(state)
-  return clone_runtime_settings(thread)
+  return normalize_runtime_settings(clone_runtime_settings(thread))
 end
 
 function M.new_thread(opts)
