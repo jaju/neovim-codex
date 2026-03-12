@@ -290,3 +290,7 @@ Then write a short prompt in the composer and send it with `<C-s>`.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:
+
+
+Lua API:
+- `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })` stages a first-class `text_note` fragment without pretending the text came from a file.

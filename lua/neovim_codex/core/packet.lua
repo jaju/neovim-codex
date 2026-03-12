@@ -195,6 +195,11 @@ function M.fragment_preview(fragment)
     return summary
   end
 
+  if fragment.kind == "text_note" then
+    local prefix = fragment.category and string.format("%s · ", tostring(fragment.category)) or ""
+    return prefix .. (plain_snippet(fragment.text or fragment.label, 88) or heading_label(fragment))
+  end
+
   return plain_snippet(fragment.text or fragment.label, 88) or heading_label(fragment)
 end
 
@@ -244,6 +249,21 @@ local function render_fragment_expansion(fragment)
     return lines
   end
 
+  if fragment.kind == "text_note" then
+    local label = heading_label(fragment)
+    if present(fragment.source) and present(fragment.category) then
+      lines[#lines + 1] = string.format("Context note `%s` from `%s` (%s):", label, tostring(fragment.source), tostring(fragment.category))
+    elseif present(fragment.source) then
+      lines[#lines + 1] = string.format("Context note `%s` from `%s`:", label, tostring(fragment.source))
+    else
+      lines[#lines + 1] = string.format("Context note `%s`:", label)
+    end
+    lines[#lines + 1] = string.format("```%s", fragment.filetype or "text")
+    append_lines(lines, split_lines(fragment.text or ""))
+    lines[#lines + 1] = "```"
+    return lines
+  end
+
   append_lines(lines, split_lines(fragment.text or fragment.label or ""))
   return lines
 end
@@ -277,6 +297,12 @@ function M.fragment_detail_lines(fragment)
   end
   if fragment.kind == "diagnostic" and fragment.severity then
     lines[#lines + 1] = string.format("- Severity: `%s`", fragment.severity)
+  end
+  if fragment.kind == "text_note" and fragment.source then
+    lines[#lines + 1] = string.format("- Source: `%s`", fragment.source)
+  end
+  if fragment.kind == "text_note" and fragment.category then
+    lines[#lines + 1] = string.format("- Category: `%s`", fragment.category)
   end
 
   local body_lines = render_fragment_expansion(fragment)

@@ -274,6 +274,15 @@ local function ensure_thread(opts)
   return result.thread.id, nil
 end
 
+local function resolve_thread_id(opts)
+  opts = opts or {}
+  if opts.thread_id then
+    return opts.thread_id, nil
+  end
+  return ensure_thread(opts)
+end
+
+
 local function add_fragment_for_thread(thread_id, fragment, opts)
   state.store:dispatch({
     type = "workbench_fragment_added",
@@ -371,7 +380,7 @@ function M.add_path(opts)
     return nil, err
   end
 
-  local thread_id, err = ensure_thread({ notify = false, open_chat = false })
+  local thread_id, err = resolve_thread_id(vim.tbl_extend("force", { notify = false, open_chat = false }, opts))
   if err then
     return nil, err
   end
@@ -412,7 +421,7 @@ function M.add_selection(opts)
     return nil, "Visual selection is empty"
   end
 
-  local thread_id, err = ensure_thread({ notify = false, open_chat = false })
+  local thread_id, err = resolve_thread_id(vim.tbl_extend("force", { notify = false, open_chat = false }, opts))
   if err then
     return nil, err
   end
@@ -439,7 +448,7 @@ function M.add_diagnostic(opts)
     return nil, err
   end
 
-  local thread_id, err = ensure_thread({ notify = false, open_chat = false })
+  local thread_id, err = resolve_thread_id(vim.tbl_extend("force", { notify = false, open_chat = false }, opts))
   if err then
     return nil, err
   end
@@ -460,6 +469,41 @@ function M.add_diagnostic(opts)
     source = diagnostic.source or "diagnostic",
     severity = severity,
     code = code,
+  }
+
+  return add_fragment_for_thread(thread_id, fragment, opts)
+end
+
+function M.add_text_fragment(opts)
+  opts = opts or {}
+  local text_value = opts.text
+  if text_value == nil then
+    return nil, "text is required"
+  end
+
+  local rendered = tostring(text_value)
+  if vim.trim(rendered) == "" then
+    return nil, "text is empty"
+  end
+
+  local thread_id, err = resolve_thread_id(vim.tbl_extend("force", { notify = false, open_chat = false }, opts))
+  if err then
+    return nil, err
+  end
+
+  local label = vim.trim(tostring(opts.label or ""))
+  if label == "" then
+    label = "Context note"
+  end
+
+  local fragment = {
+    id = now_id("note"),
+    kind = "text_note",
+    label = label,
+    text = rendered,
+    filetype = opts.filetype,
+    source = opts.source or "manual",
+    category = opts.category or "note",
   }
 
   return add_fragment_for_thread(thread_id, fragment, opts)

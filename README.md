@@ -374,3 +374,7 @@ The older `ui.chat.width`, `ui.chat.prompt_height`, `ui.chat.wrap`, and `keymaps
 1. add thread history UI with server-backed fork and rollback
 2. add explicit prompt composition from buffer, LSP, and tree-sitter context
 3. add dynamic tools and the first TypeScript adapter daemon
+
+
+Lua API:
+- `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })` stages a first-class `text_note` fragment without pretending the text came from a file.

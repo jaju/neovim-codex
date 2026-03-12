@@ -2018,6 +2018,17 @@ function M.capture_current_diagnostic(opts)
   return result, nil
 end
 
+function M.capture_text_fragment(opts)
+  opts = opts or {}
+  local result, err = workbench.add_text_fragment(opts)
+  if err then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+  return result, nil
+end
+
+
 function M.open_events()
   local rt = ensure_runtime()
   presentation.open_events(rt.store)

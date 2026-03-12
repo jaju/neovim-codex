@@ -30,6 +30,7 @@ assert(vim.fn.exists(":CodexCompose") == 2, "CodexCompose command should exist")
 assert(vim.fn.exists(":CodexCapturePath") == 2, "CodexCapturePath command should exist")
 assert(vim.fn.exists(":CodexCaptureSelection") == 2, "CodexCaptureSelection command should exist")
 assert(vim.fn.exists(":CodexCaptureDiagnostic") == 2, "CodexCaptureDiagnostic command should exist")
+assert(type(codex.capture_text_fragment) == "function", "capture_text_fragment API should exist")
 assert(vim.fn.exists(":CodexShortcuts") == 2, "CodexShortcuts command should exist")
 assert(vim.fn.exists(":CodexCaptureBlock") == 0, "CodexCaptureBlock command should not exist")
 assert(type(require("neovim_codex.health").check) == "function", "health module should expose check()")
@@ -234,26 +235,41 @@ vim.diagnostic.set(diagnostic_ns, 0, {
   },
 })
 vim.api.nvim_win_set_cursor(0, { 1, 1 })
-local diagnostic_fragment, diagnostic_err = codex.capture_current_diagnostic({ notify = false })
-assert(diagnostic_err == nil, diagnostic_err or "diagnostic capture should succeed")
-assert(diagnostic_fragment.kind == "diagnostic", "diagnostic capture should stage a diagnostic fragment")
-assert(diagnostic_fragment.handle == "f3", "third captured fragment should get the third stable handle")
+local note_fragment, note_err = codex.capture_text_fragment({
+  label = "Latest test run",
+  text = "FAIL auth middleware\n1 failing test",
+  filetype = "markdown",
+  source = "neotest",
+  category = "runtime",
+  notify = false,
+})
+assert(note_err == nil, note_err or "text fragment capture should succeed")
+assert(note_fragment.kind == "text_note", "text fragment capture should stage a text_note fragment")
+assert(type(note_fragment.handle) == "string" and note_fragment.handle:match("^f%d+$"), "text fragment should get a stable workbench handle")
 
 local before_review_count = #codex.get_workbench_state().workbench.fragments_order
-local review_result, review_err = codex.open_compose_review({ seed_message = "Preserve this review draft with [[f1]], [[f2]], and [[f3]]." })
+local review_result, review_err = codex.open_compose_review({ seed_message = "Preserve this review draft with [[f1]], [[f2]], [[f3]], and [[f4]]." })
 assert(review_err == nil, review_err or "compose review should open when requested")
 assert(review_result ~= nil, "compose review should return state when opened")
 local review_state = codex.get_workbench_state().review
 assert(review_state.visible == true, "compose review should open when requested")
 assert(review_state.thread_id == codex.get_state().threads.active_id, "compose review should show the active thread")
 assert(#review_state.fragments == before_review_count, "compose review should show the staged fragments")
-assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft with [[f1]], [[f2]], and [[f3]].", "compose review should seed the initial packet template")
+assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft with [[f1]], [[f2]], [[f3]], and [[f4]].", "compose review should seed the initial packet template")
 local review_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
 assert(review_viewers.top and review_viewers.top.key == "compose-review", "compose review should open through the stacked viewer layer")
 assert(review_state.fragments[1].handle == "f1", "compose review should display the staged fragment handles")
+local saw_text_note = false
+for _, fragment in ipairs(review_state.fragments or {}) do
+  if fragment.kind == "text_note" then
+    saw_text_note = true
+    break
+  end
+end
+assert(saw_text_note, "compose review should display text note fragments")
 
 codex.open_compose_review({ seed_message = "Do not overwrite this." })
-assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft with [[f1]], [[f2]], and [[f3]].", "compose review should not overwrite an existing packet template")
+assert(codex.get_workbench_state().workbench.draft_message == "Preserve this review draft with [[f1]], [[f2]], [[f3]], and [[f4]].", "compose review should not overwrite an existing packet template")
 
 require("neovim_codex.nvim.presentation").close_viewers()
 local review_closed = codex.get_workbench_state().review

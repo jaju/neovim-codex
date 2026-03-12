@@ -260,3 +260,7 @@ This keeps the mental grouping simple:
 - `s` / selection
 
 The transcript stays a reading and inspection surface. Workbench capture is deliberately code-first for now.
+
+
+Lua API:
+- `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })` stages a first-class `text_note` fragment without pretending the text came from a file.

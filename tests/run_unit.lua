@@ -527,7 +527,7 @@ end)
 
 test("packet compiler expands referenced fragment handles inline", function()
   local packet = require("neovim_codex.core.packet")
-  local input, compiled, err = packet.build_input_items("Review [[f1]] before changing [[f2]].", {
+  local input, compiled, err = packet.build_input_items("Review [[f1]], [[f2]], and [[f3]].", {
     {
       id = "frag_path",
       handle = "f1",
@@ -545,6 +545,16 @@ test("packet compiler expands referenced fragment handles inline", function()
       range = { start_line = 10, end_line = 14 },
       text = "const value = 1;",
     },
+    {
+      id = "frag_note",
+      handle = "f3",
+      kind = "text_note",
+      label = "Latest test run",
+      text = "FAIL auth middleware\n1 failing test",
+      filetype = "markdown",
+      source = "neotest",
+      category = "runtime",
+    },
   })
 
   eq(err, nil)
@@ -555,6 +565,8 @@ test("packet compiler expands referenced fragment handles inline", function()
   assert(input[1].text:find("Path reference: `/tmp/demo/README.md`.", 1, true), "packet should inline referenced path fragments")
   assert(input[1].text:find("Code snapshot from `/tmp/demo/src/app.ts:10-14`:", 1, true), "packet should inline referenced code fragments")
   assert(input[1].text:find("```typescript", 1, true), "packet should preserve code fences for code fragments")
+  assert(input[1].text:find("Context note `Latest test run` from `neotest` %(runtime%):", 1) ~= nil, "packet should inline referenced text note fragments")
+  assert(input[1].text:find("```markdown", 1, true), "packet should preserve fences for text note fragments")
 end)
 
 test("packet compiler rejects unreferenced staged fragments", function()
