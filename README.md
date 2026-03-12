@@ -42,6 +42,26 @@ This repository now implements the first usable in-editor Codex conversation loo
 
 It does **not** yet implement dynamic tools or language-specific adapter daemons, but it now includes a usable app-server-native thread/session loop and the first serious packet-backed context workflow inside NeoVim.
 
+## Screenshots
+
+### Main chat overlay
+
+![Main chat overlay](docs/assets/screenshots/chat-overlay-main.png)
+
+App-server-native chat inside NeoVim, with a centered transcript/composer overlay and visible thread/workbench state in the footer.
+
+### Workbench and compose review
+
+![Workbench and compose review](docs/assets/screenshots/workbench-compose-review.png)
+
+Stage fragments from the code world, park the ones you do not want yet, place `[[fN]]` handles where they matter, and preview the compiled packet before sending.
+
+### Thread and session controls
+
+![Thread and session controls](docs/assets/screenshots/thread-session-controls.png)
+
+Switch threads, fork from earlier turns, and steer sticky runtime settings like model, effort, and collaboration mode without leaving the editor.
+
 ## Requirements
 
 - NeoVim `0.11+`

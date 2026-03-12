@@ -18,3 +18,9 @@ Recommended widths:
 - focused modal/picker captures: 1400-1800 px wide
 
 Prefer PNG, 2x scale, and a clean terminal theme with readable contrast.
+
+Current captured set:
+
+- all four screenshots currently share the same size: `3510x2194`
+- that ratio is already good for the README and release docs
+- no resizing is needed unless you want smaller derived web assets later
