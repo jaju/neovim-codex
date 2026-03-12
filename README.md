@@ -2,45 +2,25 @@
 
 A NeoVim-hosted client for `codex app-server`.
 
-This is not Codex running inside a floating terminal. `neovim-codex` speaks the app-server protocol directly and keeps its own thread, turn, request, workbench, and packet state inside NeoVim.
+This is not Codex inside a floating terminal. `neovim-codex` speaks the app-server protocol directly and keeps thread, turn, request, workbench, and packet state inside NeoVim.
 
-Why that matters:
+## What You Get
 
-- thread/session state stays visible and controllable inside the editor
-- approvals and `requestUserInput` flows reopen safely instead of disappearing into terminal scrollback
-- thread-scoped runtime knobs like model, effort, and collaboration mode are editor-native controls
-- the workbench and compose review build packetized follow-up context instead of forcing copy/paste into one large prompt
+- a centered markdown-native chat overlay with transcript and multiline composer
+- thread-aware approvals and `requestUserInput` flows that reopen safely
+- thread/session controls for create, switch, fork, archive, rename, model, effort, and collaboration mode
+- a workbench and compose review flow for packet-backed follow-up context
+- a pure Lua client/state core instead of a terminal wrapper
 
-This repository is built in layers:
+Today, the plugin already supports the usable core loop:
 
-- pure Lua communication core with no `vim` dependency
-- pure Lua state store and reducer
-- semantic chat-document projection between raw app-server state and UI rendering
-- NeoVim host bridge for process management and UI wiring
-- incremental delivery, with every milestone remaining usable
+- start and talk to `codex app-server`
+- create, resume, read, fork, rename, archive, and tune threads
+- inspect activity without drowning the main transcript in raw command noise
+- stage code, diagnostics, and runtime notes into a workbench
+- preview and send compiled packets with explicit `[[fN]]` fragment handles
 
-## Current Status
-
-This repository now implements the first usable in-editor Codex conversation loop with a markdown-native overlay:
-
-- starts `codex app-server`
-- performs the `initialize` / `initialized` handshake
-- tracks connection, thread, turn, and item state in pure Lua
-- opens a centered overlay inside NeoVim with:
-  - a markdown transcript buffer
-  - a multiline markdown composer buffer
-- supports `thread/start`, `thread/list`, `thread/read`, and `thread/resume`
-- supports `turn/start` and the app-server item delta notifications currently folded back into transcript state (`agentMessage`, `plan`, `reasoning`, `commandExecution`)
-- projects known app-server `ThreadItem` variants into conversation, activity, and details surfaces instead of rendering raw command noise inline
-- keeps the main transcript outline useful by deriving turn headings from the request text and moving verbose execution detail behind an inspector popup
-- exposes health and smoke checks through `:checkhealth neovim_codex` and `:CodexSmoke`
-- handles blocking server-request flows for command approvals, file-change approvals, and tool `requestUserInput` through a dedicated stacked request surface
-- keeps approvals and questions thread-scoped so switching threads does not lose the active inbox state
-- supports parked vs active workbench fragments, packet preview, and handle-based packet compilation
-- supports thread creation, fork, archive, and sticky runtime settings for model, effort, and collaboration mode
-- exposes a first-class Lua API for arbitrary runtime notes through `capture_text_fragment(...)`
-
-It does **not** yet implement dynamic tools or language-specific adapter daemons, but it now includes a usable app-server-native thread/session loop and the first serious packet-backed context workflow inside NeoVim.
+It does **not** yet implement dynamic tools or language-specific adapter daemons, but the app-server-native chat/session/workbench loop is already in place.
 
 ## Screenshots
 
