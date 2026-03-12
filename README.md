@@ -2,6 +2,15 @@
 
 A NeoVim-hosted client for `codex app-server`.
 
+This is not Codex running inside a floating terminal. `neovim-codex` speaks the app-server protocol directly and keeps its own thread, turn, request, workbench, and packet state inside NeoVim.
+
+Why that matters:
+
+- thread/session state stays visible and controllable inside the editor
+- approvals and `requestUserInput` flows reopen safely instead of disappearing into terminal scrollback
+- thread-scoped runtime knobs like model, effort, and collaboration mode are editor-native controls
+- the workbench and compose review build packetized follow-up context instead of forcing copy/paste into one large prompt
+
 This repository is built in layers:
 
 - pure Lua communication core with no `vim` dependency
@@ -26,8 +35,12 @@ This repository now implements the first usable in-editor Codex conversation loo
 - keeps the main transcript outline useful by deriving turn headings from the request text and moving verbose execution detail behind an inspector popup
 - exposes health and smoke checks through `:checkhealth neovim_codex` and `:CodexSmoke`
 - handles blocking server-request flows for command approvals, file-change approvals, and tool `requestUserInput` through a dedicated stacked request surface
+- keeps approvals and questions thread-scoped so switching threads does not lose the active inbox state
+- supports parked vs active workbench fragments, packet preview, and handle-based packet compilation
+- supports thread creation, fork, archive, and sticky runtime settings for model, effort, and collaboration mode
+- exposes a first-class Lua API for arbitrary runtime notes through `capture_text_fragment(...)`
 
-It does **not** yet implement rewind/fork UI or dynamic tools, but it now includes the first thread-local semantic-composition loop through a workbench tray and compose review overlay.
+It does **not** yet implement dynamic tools or language-specific adapter daemons, but it now includes a usable app-server-native thread/session loop and the first serious packet-backed context workflow inside NeoVim.
 
 ## Requirements
 
@@ -120,7 +133,7 @@ Useful thread commands:
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick/archive another thread
-- `:CodexThreadSettings [thread-id]` - change sticky runtime settings for the active thread
+- `:CodexThreadSettings [thread-id]` - open the editable thread settings sheet for model, effort, and collaboration mode
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexRequest` - reopen the active approval or question request if one is pending
 - `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
@@ -132,6 +145,7 @@ Workbench and compose commands:
 - `:CodexCapturePath` - stage the current file as a `path_ref` fragment
 - `:CodexCaptureSelection` - stage the current visual selection as a `code_range` fragment
 - `:CodexCaptureDiagnostic` - stage the current diagnostic under cursor as a `diagnostic` fragment
+- Lua API: `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })` stages a first-class `text_note` fragment for runtime context, tool output, logs, or notes
 - workbench capture is code-world first in this slice; chat text can still be copied manually when needed
 
 ## Commands
@@ -150,7 +164,7 @@ Workbench and compose commands:
 - `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
-- `:CodexThreadSettings [thread-id]` - adjust sticky model, effort, and mode for a thread
+- `:CodexThreadSettings [thread-id]` - adjust sticky model, effort, and collaboration mode for a thread
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
 - `:CodexRequest` - reopen the active pending Codex request
@@ -240,7 +254,7 @@ Examples:
 - failed or unknown commands stay compact in the transcript but open into a details inspector on demand
 - typed item families such as file changes, tool calls, review mode, and context compaction each map to their own UI surface with their raw protocol preserved
 
-The raw wire payload for each rendered item is preserved in transcript block metadata for future plucking, filtering, export, or enrichment flows. Secondary viewers like `:CodexInspect`, `:CodexEvents`, and reports now share a popup stack so the latest focused viewer can be closed back to the previous one with `q` or `<Esc>`.
+The raw wire payload for each rendered item is preserved in transcript block metadata for future plucking, filtering, export, or enrichment flows. Secondary viewers like `:CodexInspect`, `:CodexEvents`, reports, the workbench tray, and packet preview now share a popup stack so the latest focused viewer can be closed back to the previous one with `q` or `<Esc>`.
 
 For the design contract, see [`docs/architecture/protocol-first.md`](docs/architecture/protocol-first.md).
 
