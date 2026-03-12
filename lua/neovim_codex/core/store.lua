@@ -103,6 +103,7 @@ local function ensure_thread(state, thread_id)
       collaborationMode = nil,
       ephemeral = nil,
     },
+    tokenUsage = nil,
     archived = false,
     closed = false,
     turns_order = {},
@@ -548,6 +549,12 @@ local function reducer(state, event)
   elseif event.type == "turn_plan_updated" then
     local thread = ensure_thread(next_state, event.thread_id)
     ensure_turn(thread, event.turn_id).plan = clone(event.plan)
+  elseif event.type == "thread_token_usage_updated" then
+    local thread = ensure_thread(next_state, event.thread_id)
+    thread.tokenUsage = {
+      turnId = event.turn_id,
+      tokenUsage = clone(event.token_usage),
+    }
   elseif event.type == "item_received" then
     local thread = ensure_thread(next_state, event.thread_id)
     local turn = ensure_turn(thread, event.turn_id)

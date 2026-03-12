@@ -41,6 +41,9 @@ Watched files:
 - `ReasoningTextDeltaNotification.ts`
 - `CommandExecutionOutputDeltaNotification.ts`
 - `FileChangeOutputDeltaNotification.ts`
+- `ThreadTokenUsageUpdatedNotification.ts`
+- `ThreadTokenUsage.ts`
+- `TokenUsageBreakdown.ts`
 - `ThreadItem.ts`
 - `CommandAction.ts`
 
@@ -48,6 +51,7 @@ Why:
 
 - these types define the canonical turn stream and the item families we project into transcript, activity, details, and footer surfaces
 - `collabAgentToolCall.model` and `collabAgentToolCall.reasoningEffort` are now part of our surfaced multi-agent observability
+- streamed `thread/tokenUsage/updated` notifications drive the lightweight token summary in the chat footer
 - changes here can silently break the protocol-first rendering rule
 
 ## 3. Blocking Server Requests

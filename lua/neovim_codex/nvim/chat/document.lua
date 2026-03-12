@@ -367,6 +367,38 @@ local function list_thread_turns(thread)
   return {}
 end
 
+local function format_token_count(value)
+  local count = tonumber(value) or 0
+  if count >= 1000000 then
+    return string.format("%.1fm", count / 1000000)
+  end
+  if count >= 1000 then
+    return string.format("%.1fk", count / 1000)
+  end
+  return tostring(math.floor(count))
+end
+
+local function token_usage_summary(token_usage_state)
+  if type(token_usage_state) ~= "table" or type(token_usage_state.tokenUsage) ~= "table" then
+    return nil
+  end
+
+  local usage = token_usage_state.tokenUsage
+  local total = usage.total or {}
+  local last = usage.last or {}
+  local parts = {
+    string.format("tokens %s last", format_token_count(last.totalTokens or 0)),
+    string.format("%s total", format_token_count(total.totalTokens or 0)),
+  }
+
+  if tonumber(usage.modelContextWindow) and usage.modelContextWindow > 0 and tonumber(total.totalTokens) then
+    local used = (total.totalTokens / usage.modelContextWindow) * 100
+    parts[#parts + 1] = string.format("%.0f%% ctx", used)
+  end
+
+  return table.concat(parts, " / ")
+end
+
 local function list_turn_items(turn)
   if type(turn) ~= "table" then
     return {}
@@ -389,6 +421,7 @@ local function thread_footer(state, thread, pending_requests)
   local active_turn = turns[#turns]
   local status_bits = { status }
   local fragment_counts = state and selectors.workbench_fragment_counts(state, thread.id) or { total = 0, active = 0, parked = 0 }
+  local token_usage = state and selectors.get_thread_token_usage(state, thread.id) or nil
   local short_id = thread_identity.short_id(thread.id)
   local title = thread_identity.title(thread, { max_length = 32 })
 
@@ -411,22 +444,27 @@ local function thread_footer(state, thread, pending_requests)
   else
     workbench_summary = string.format("workbench %d fragment%s", fragment_counts.total, fragment_counts.total == 1 and "" or "s")
   end
+  local token_summary = token_usage_summary(token_usage)
+
+  local trailing_parts = { workbench_summary }
+  if token_summary then
+    trailing_parts[#trailing_parts + 1] = token_summary
+  end
+  trailing_parts[#trailing_parts + 1] = string.format("%d turn%s", #turns, #turns == 1 and "" or "s")
+  trailing_parts[#trailing_parts + 1] = table.concat(status_bits, " · ")
 
   local footer = string.format(
-    "thread %s · %s · %s · %d turn%s · %s",
+    "thread %s · %s · %s",
     short_id,
     title,
-    workbench_summary,
-    #turns,
-    #turns == 1 and "" or "s",
-    table.concat(status_bits, " · ")
+    table.concat(trailing_parts, " · ")
   )
 
   local segments = {
     { text = string.format("thread %s", short_id), highlight = "NeovimCodexChatFooterMeta" },
     { text = " · ", highlight = "NeovimCodexChatFooterMeta" },
     { text = title, highlight = "NeovimCodexChatFooterThread" },
-    { text = string.format(" · %s · %d turn%s · %s", workbench_summary, #turns, #turns == 1 and "" or "s", table.concat(status_bits, " · ")), highlight = "NeovimCodexChatFooterMeta" },
+    { text = string.format(" · %s", table.concat(trailing_parts, " · ")), highlight = "NeovimCodexChatFooterMeta" },
   }
 
   return footer, segments

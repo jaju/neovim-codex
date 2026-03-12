@@ -33,7 +33,10 @@
     "v2/FileChangeRequestApprovalResponse.ts",
     "v2/ToolRequestUserInputParams.ts",
     "v2/ToolRequestUserInputResponse.ts",
-    "v2/ServerRequestResolvedNotification.ts"
+    "v2/ServerRequestResolvedNotification.ts",
+    "v2/ThreadTokenUsageUpdatedNotification.ts",
+    "v2/ThreadTokenUsage.ts",
+    "v2/TokenUsageBreakdown.ts"
   ],
   "experimental": [
     "v2/DynamicToolSpec.ts",

@@ -139,6 +139,13 @@ function M:_handle_notification(message)
       turn = params.turn,
       replace_items = false,
     })
+  elseif message.method == "thread/tokenUsage/updated" then
+    self.store:dispatch({
+      type = "thread_token_usage_updated",
+      thread_id = params.threadId,
+      turn_id = params.turnId,
+      token_usage = params.tokenUsage,
+    })
   elseif message.method == "turn/diff/updated" then
     self.store:dispatch({
       type = "turn_diff_updated",

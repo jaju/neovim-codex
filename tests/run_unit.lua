@@ -110,6 +110,44 @@ test("store accumulates streamed plan, reasoning, and command output deltas", fu
 end)
 
 
+test("store tracks streamed thread token usage for footer summaries", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_usage",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+
+  store:dispatch({
+    type = "thread_token_usage_updated",
+    thread_id = "thr_usage",
+    turn_id = "turn_usage",
+    token_usage = {
+      total = { totalTokens = 8400, inputTokens = 5000, cachedInputTokens = 2000, outputTokens = 1400, reasoningOutputTokens = 200 },
+      last = { totalTokens = 1200, inputTokens = 900, cachedInputTokens = 0, outputTokens = 300, reasoningOutputTokens = 50 },
+      modelContextWindow = 200000,
+    },
+  })
+
+  local token_usage = selectors.get_thread_token_usage(store:get_state(), "thr_usage")
+  eq(token_usage.turnId, "turn_usage")
+  eq(token_usage.tokenUsage.total.totalTokens, 8400)
+  eq(token_usage.tokenUsage.last.totalTokens, 1200)
+end)
+
 test("store tracks pending server requests and resolution", function()
   local selectors = require("neovim_codex.core.selectors")
   local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })

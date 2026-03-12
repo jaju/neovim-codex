@@ -40,6 +40,14 @@ function M.get_active_thread(state)
   return M.get_thread(state, state.threads.active_id)
 end
 
+function M.get_thread_token_usage(state, thread_id)
+  local thread = M.get_thread(state, thread_id)
+  if not thread then
+    return nil
+  end
+  return thread.tokenUsage
+end
+
 function M.list_turns(thread)
   if not thread then
     return {}
