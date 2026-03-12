@@ -57,6 +57,12 @@ Use these when hacking on the plugin itself.
 
 - `development/workflow.md` - local test commands and the dogfood loop inside NeoVim
 
+## Marketing
+
+Use these when preparing screenshots or release-facing presentation material.
+
+- `marketing/screenshots.md` - canonical screenshot names, placement, and capture guidance
+
 ## Usage
 
 Use these to install and exercise the plugin.
