@@ -250,6 +250,16 @@ function M.render_block(block)
     if present(protocol.server) then
       lines[#lines + 1] = string.format("- Server: `%s`", protocol.server)
     end
+    if present(protocol.model) then
+      lines[#lines + 1] = string.format("- Model: `%s`", protocol.model)
+    end
+    if present(protocol.reasoningEffort) then
+      lines[#lines + 1] = string.format("- Reasoning effort: `%s`", protocol.reasoningEffort)
+    end
+    local receiver_ids = type(protocol.receiverThreadIds) == "table" and protocol.receiverThreadIds or {}
+    if #receiver_ids > 0 then
+      lines[#lines + 1] = string.format("- Target threads: `%s`", table.concat(receiver_ids, "`, `"))
+    end
     if present(protocol.durationMs) then
       lines[#lines + 1] = string.format("- Duration: %s", duration_label(protocol.durationMs))
     end
@@ -264,6 +274,9 @@ function M.render_block(block)
     end
     if protocol.result then
       append_section(lines, "## Result", json_lines(protocol.result))
+    end
+    if type(protocol.agentsStates) == "table" and next(protocol.agentsStates) ~= nil then
+      append_section(lines, "## Agent states", json_lines(protocol.agentsStates))
     end
     if type(protocol.error) == "table" and present(protocol.error.message) then
       append_section(lines, "## Error", { protocol.error.message })

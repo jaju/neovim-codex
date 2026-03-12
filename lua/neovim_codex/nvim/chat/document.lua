@@ -673,9 +673,22 @@ local function summarize_collab_tool_call(item)
     return nil
   end
 
-  local lines = {
-    string.format("- Collaboration %s · `%s`", status, value_or(item.tool, "tool")),
+  local parts = {
+    string.format("Collaboration %s", status),
+    compact_inline_code(value_or(item.tool, "tool")),
   }
+  if present(item.model) then
+    parts[#parts + 1] = string.format("model %s", compact_inline_code(item.model) or item.model)
+  end
+  if present(item.reasoningEffort) then
+    parts[#parts + 1] = string.format("effort %s", compact_inline_code(item.reasoningEffort) or item.reasoningEffort)
+  end
+  local receiver_count = type(item.receiverThreadIds) == "table" and #item.receiverThreadIds or 0
+  if receiver_count > 0 then
+    parts[#parts + 1] = string.format("%d target%s", receiver_count, receiver_count == 1 and "" or "s")
+  end
+
+  local lines = { "- " .. join_parts(parts, " · ") }
   if present(item.prompt) then
     lines[#lines + 1] = "  - " .. value_or(plain_snippet(item.prompt, 96), "prompt available")
   end

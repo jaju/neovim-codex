@@ -370,6 +370,9 @@ local function render_command_request(request, keymaps)
   if present(request.params.additionalPermissions) then
     append_section(lines, "## Additional permissions", json_fence(request.params.additionalPermissions))
   end
+  if present(request.params.skillMetadata) then
+    append_section(lines, "## Skill metadata", json_fence(request.params.skillMetadata))
+  end
   if present(request.params.proposedExecpolicyAmendment) then
     append_section(lines, "## Proposed exec policy amendment", json_fence(request.params.proposedExecpolicyAmendment))
   end
