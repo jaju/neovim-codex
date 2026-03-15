@@ -1,5 +1,7 @@
 local selectors = require("neovim_codex.core.selectors")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
+local request_input = require("neovim_codex.nvim.server_requests.input")
+local request_render = require("neovim_codex.nvim.server_requests.render")
 
 local M = {}
 M.__index = M
@@ -239,224 +241,12 @@ local function prompt_buffer_text(bufnr, start_line)
   return table.concat(lines, "\n")
 end
 
-local function ask_question(manager, question)
-  local options = question.options
-  if type(options) == "table" and #options > 0 then
-    local choices = {}
-    for _, option in ipairs(options) do
-      choices[#choices + 1] = {
-        label = option.label,
-        description = option.description,
-        value = option.label,
-        is_other = false,
-      }
-    end
-    if question.isOther then
-      choices[#choices + 1] = {
-        label = "Other",
-        description = "Enter a custom answer.",
-        value = nil,
-        is_other = true,
-      }
-    end
-
-    local selection = select_sync(choices, {
-      prompt = string.format("%s: %s", value_or(question.header, "Question"), value_or(question.question, "")),
-      format_item = function(item)
-        if item.description and item.description ~= "" then
-          return string.format("%s — %s", item.label, item.description)
-        end
-        return item.label
-      end,
-    })
-    if not selection then
-      return nil, "cancelled"
-    end
-    if selection.is_other then
-      local text
-      if question.isSecret then
-        text = vim.fn.inputsecret(value_or(question.question, "Answer: "))
-      else
-        local response, err = manager:_open_text_input(question)
-        if err then
-          return nil, err
-        end
-        text = response
-      end
-      if text == nil then
-        return nil, "cancelled"
-      end
-      return { tostring(text) }, nil
-    end
-    return { tostring(selection.value) }, nil
-  end
-
-  local text
-  if question.isSecret then
-    text = vim.fn.inputsecret(value_or(question.question, "Answer: "))
-  else
-    local response, err = manager:_open_text_input(question)
-    if err then
-      return nil, err
-    end
-    text = response
-  end
-  if text == nil then
-    return nil, "cancelled"
-  end
-  return { tostring(text) }, nil
-end
-
-local function request_action_line(request, keymaps)
-  keymaps = keymaps or {}
-  local pieces = {}
-
-  local function add(lhs, label)
-    if lhs == false or lhs == nil then
-      return
-    end
-    pieces[#pieces + 1] = string.format("[%s] %s", lhs, label)
-  end
-
-  if request.method == "item/tool/requestUserInput" then
-    add(keymaps.respond or "<CR>", "Answer")
-  else
-    local decisions = request.method == "item/commandExecution/requestApproval" and command_decisions(request) or file_change_decisions()
-    if choice_for_shortcut("a", decisions) then
-      add(keymaps.accept or "a", "Approve once")
-    end
-    if choice_for_shortcut("s", decisions) then
-      add(keymaps.accept_for_session or "s", "Approve session")
-    end
-    if choice_for_shortcut("d", decisions) then
-      add(keymaps.decline or "d", "Decline")
-    end
-    if choice_for_shortcut("c", decisions) then
-      add(keymaps.cancel or "c", "Cancel")
-    end
-    add(keymaps.respond or "<CR>", "Choose")
-  end
-
-  add(keymaps.help or "g?", "Shortcuts")
-  add("q", "Hide")
-  return string.format("> Actions: %s", table.concat(pieces, " · "))
-end
-
-local function render_command_request(request, keymaps)
-  local lines = { "# Command approval", "", request_action_line(request, keymaps), "" }
-  lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
-  lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
-  lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
-  if present(request.params.reason) then
-    lines[#lines + 1] = string.format("- Reason: %s", request.params.reason)
-  end
-  if present(request.params.cwd) then
-    lines[#lines + 1] = string.format("- Working directory: `%s`", display_path(request.params.cwd) or request.params.cwd)
-  end
-  if present(request.params.networkApprovalContext) then
-    append_section(lines, "## Network approval context", json_fence(request.params.networkApprovalContext))
-  end
-  local command_actions = array_items(request.params.commandActions)
-  if #command_actions > 0 then
-    local action_lines = {}
-    for _, action in ipairs(command_actions) do
-      action_lines[#action_lines + 1] = action_summary(action)
-    end
-    append_section(lines, "## Parsed actions", action_lines)
-  end
-  if present(request.params.command) then
-    append_section(lines, "## Command", fence(request.params.command, "sh"))
-  end
-  if present(request.params.additionalPermissions) then
-    append_section(lines, "## Additional permissions", json_fence(request.params.additionalPermissions))
-  end
-  if present(request.params.skillMetadata) then
-    append_section(lines, "## Skill metadata", json_fence(request.params.skillMetadata))
-  end
-  if present(request.params.proposedExecpolicyAmendment) then
-    append_section(lines, "## Proposed exec policy amendment", json_fence(request.params.proposedExecpolicyAmendment))
-  end
-  if present(request.params.proposedNetworkPolicyAmendments) then
-    append_section(lines, "## Proposed network policy amendments", json_fence(request.params.proposedNetworkPolicyAmendments))
-  end
-  local decision_lines = {}
-  for _, decision in ipairs(command_decisions(request)) do
-    decision_lines[#decision_lines + 1] = string.format("- %s", decision_label(decision))
-  end
-  append_section(lines, "## Available decisions", decision_lines)
-  return { title = "Command Approval", lines = lines }
-end
-
-local function render_file_change_request(request, keymaps)
-  local lines = { "# File change approval", "", request_action_line(request, keymaps), "" }
-  lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
-  lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
-  lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
-  if present(request.params.reason) then
-    lines[#lines + 1] = string.format("- Reason: %s", request.params.reason)
-  end
-  if present(request.params.grantRoot) then
-    lines[#lines + 1] = string.format("- Grant root: `%s`", display_path(request.params.grantRoot) or request.params.grantRoot)
-  end
-  append_section(lines, "## Available decisions", {
-    "- Approve once",
-    "- Approve for session",
-    "- Decline",
-    "- Cancel",
-  })
-  return { title = "File Change Approval", lines = lines }
-end
-
-local function render_tool_request(request, keymaps)
-  local lines = { "# Tool question", "", request_action_line(request, keymaps), "" }
-  lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
-  lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
-  lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
-
-  for index, question in ipairs(array_items(request.params.questions)) do
-    local header = value_or(question.header, string.format("Question %d", index))
-    local question_lines = {
-      string.format("- Prompt: %s", value_or(question.question, "-")),
-      string.format("- Accepts custom answer: %s", question.isOther and "yes" or "no"),
-      string.format("- Secret input: %s", question.isSecret and "yes" or "no"),
-    }
-    for _, option in ipairs(array_items(question.options)) do
-      question_lines[#question_lines + 1] = string.format("- Option: %s — %s", option.label, value_or(option.description, ""))
-    end
-    append_section(lines, string.format("## %s", header), question_lines)
-  end
-
-  return { title = "Tool Input Request", lines = lines }
-end
-
-local function render_request(request, keymaps)
-  if not request then
-    return { title = "Pending Request", lines = { "# Pending request", "", "No request is active." } }
-  end
-  if request.method == "item/commandExecution/requestApproval" then
-    return render_command_request(request, keymaps)
-  end
-  if request.method == "item/fileChange/requestApproval" then
-    return render_file_change_request(request, keymaps)
-  end
-  if request.method == "item/tool/requestUserInput" then
-    return render_tool_request(request, keymaps)
-  end
-  return {
-    title = value_or(request.method, "Pending Request"),
-    lines = {
-      "# Pending request",
-      "",
-      string.format("- Method: `%s`", value_or(request.method, "unknown")),
-      string.format("- Request id: `%s`", value_or(request.request_id, "-")),
-    },
-  }
-end
-
 function M.new(opts, handlers)
-  return setmetatable({
-    opts = opts or {},
-    handlers = handlers or {},
+  opts = opts or {}
+  handlers = handlers or {}
+  local instance = setmetatable({
+    opts = opts,
+    handlers = handlers,
     store = nil,
     unsubscribe = nil,
     dismissed = {},
@@ -464,6 +254,14 @@ function M.new(opts, handlers)
     input_bufnr = nil,
     input_session = nil,
   }, M)
+  instance.input = request_input.new(opts, {
+    notify = handlers.notify,
+    state_target = instance,
+    open_shortcuts = function(surface)
+      require("neovim_codex").open_shortcuts({ surface = surface })
+    end,
+  })
+  return instance
 end
 
 function M:attach(store)
@@ -498,7 +296,7 @@ end
 
 function M:_request_spec(request)
   local keymaps = self:_request_keymaps()
-  local rendered = render_request(request, keymaps)
+  local rendered = request_render.render_request(request, keymaps)
   local mappings = {}
 
   if keymaps.respond ~= false then
@@ -560,19 +358,19 @@ function M:_request_spec(request)
         d = keymaps.decline,
         c = keymaps.cancel,
       })[lhs]
-      if configured ~= false and choice_for_shortcut(lhs, decisions) then
+      if configured ~= false and request_render.choice_for_shortcut(lhs, decisions) then
         mappings[#mappings + 1] = {
           mode = "n",
           lhs = configured or lhs,
           rhs = function()
-            self:respond_with_decision(request, choice_for_shortcut(lhs, decisions))
+            self:respond_with_decision(request, request_render.choice_for_shortcut(lhs, decisions))
           end,
           desc = string.format("Respond to Codex request with %s", lhs),
         }
       end
     end
   elseif request.method == "item/fileChange/requestApproval" then
-    local decisions = file_change_decisions()
+    local decisions = request_render.file_change_decisions()
     local shortcut_map = {
       a = "accept",
       s = "acceptForSession",
@@ -619,7 +417,7 @@ function M:_request_spec(request)
   }
 end
 
-function M:_ensure_input_buffer()
+function M:sync(store_state)
   if self.input_bufnr and vim.api.nvim_buf_is_valid(self.input_bufnr) then
     return self.input_bufnr
   end
@@ -800,7 +598,7 @@ function M:respond_current()
   if request.method == "item/tool/requestUserInput" then
     local answers = {}
     for _, question in ipairs(array_items(request.params.questions)) do
-      local response, err = ask_question(self, question)
+      local response, err = self.input:ask_question(question)
       if err then
         if self.handlers.notify then
           self.handlers.notify("Cancelled tool input collection", vim.log.levels.INFO)
@@ -824,11 +622,11 @@ function M:respond_current()
     return true, nil
   end
 
-  local decisions = request.method == "item/commandExecution/requestApproval" and command_decisions(request) or file_change_decisions()
+  local decisions = request.method == "item/commandExecution/requestApproval" and request_render.command_decisions(request) or request_render.file_change_decisions()
   local choices = {}
   for _, decision in ipairs(decisions) do
     choices[#choices + 1] = {
-      label = decision_label(decision),
+      label = request_render.decision_label(decision),
       value = clone_value(decision),
     }
   end
@@ -850,10 +648,11 @@ function M:respond_current()
 end
 
 function M:inspect()
+  local input_state = self.input and self.input:inspect() or {}
   return {
     current = clone_value(self.current),
     dismissed = clone_value(self.dismissed),
-    input_active = self.input_session ~= nil,
+    input_active = input_state.input_active == true,
   }
 end
 

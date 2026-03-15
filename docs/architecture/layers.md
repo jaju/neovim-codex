@@ -17,14 +17,28 @@
 13. `lua/neovim_codex/nvim/workbench/tray.lua`
 14. `lua/neovim_codex/nvim/workbench/review.lua`
 15. `lua/neovim_codex/nvim/workbench.lua`
-16. `lua/neovim_codex/nvim/chat/surface.lua`
-17. `lua/neovim_codex/nvim/thread_renderer.lua`
-18. `lua/neovim_codex/nvim/presentation.lua`
-19. `lua/neovim_codex/nvim/chat.lua`
-20. `lua/neovim_codex/init.lua`
-21. `plugin/neovim_codex.lua`
+16. `lua/neovim_codex/nvim/server_requests/render.lua`
+17. `lua/neovim_codex/nvim/server_requests/input.lua`
+18. `lua/neovim_codex/nvim/server_requests.lua`
+19. `lua/neovim_codex/nvim/thread_runtime.lua`
+20. `lua/neovim_codex/nvim/thread_params.lua`
+21. `lua/neovim_codex/nvim/thread_runtime_picker.lua`
+22. `lua/neovim_codex/nvim/chat/surface.lua`
+23. `lua/neovim_codex/nvim/thread_renderer.lua`
+24. `lua/neovim_codex/nvim/presentation.lua`
+25. `lua/neovim_codex/nvim/chat.lua`
+26. `lua/neovim_codex/init.lua`
+27. `plugin/neovim_codex.lua`
 
-The core layers must remain free of `vim` dependencies.
+The core layers must remain free of `vim` dependencies. Thread runtime selection and request-input UI now live in the NeoVim layer on purpose, even when they are partly data-shaping helpers.
+
+## Refactor Seams
+
+The next UI-heavy features should build on these explicit orchestration seams instead of re-expanding the top-level files.
+
+- `nvim/thread_runtime.lua`, `nvim/thread_params.lua`, and `nvim/thread_runtime_picker.lua` own thread runtime normalization, request-time catalog lookup, and thread/turn param construction. `init.lua` should orchestrate commands, not own those details directly.
+- `nvim/server_requests/render.lua` owns request presentation text and decision labels.
+- `nvim/server_requests/input.lua` owns free-form request answer capture. `nvim/server_requests.lua` should stay the inbox/request orchestrator.
 
 ## Semantic Seams
 
