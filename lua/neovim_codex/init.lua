@@ -503,7 +503,10 @@ local function chat_actions()
   }
 end
 
-local function reveal_chat(rt)
+local function reveal_chat(rt, mode)
+  if mode then
+    return chat.open_with_mode(rt.store, config, chat_actions(), mode)
+  end
   return chat.open(rt.store, config, chat_actions())
 end
 
@@ -644,6 +647,22 @@ function M.chat()
     M.start()
   end
   return toggle_chat(rt)
+end
+
+function M.open_chat_rail()
+  local rt = ensure_runtime()
+  if not chat.is_visible() and not rt.client:status().initialized then
+    M.start()
+  end
+  return reveal_chat(rt, "rail")
+end
+
+function M.open_chat_reader()
+  local rt = ensure_runtime()
+  if not chat.is_visible() and not rt.client:status().initialized then
+    M.start()
+  end
+  return reveal_chat(rt, "reader")
 end
 
 function M.inspect_current_block(opts)

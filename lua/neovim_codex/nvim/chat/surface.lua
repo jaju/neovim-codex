@@ -40,6 +40,10 @@ local function buffer_is_codex_owned(bufnr)
   return valid_buffer(bufnr) and vim.b[bufnr].neovim_codex == true
 end
 
+local function window_is_chat_shell(winid)
+  return valid_window(winid) and vim.w[winid].neovim_codex_chat_shell == true
+end
+
 local function window_is_auxiliary(winid)
   if not valid_window(winid) then
     return false
@@ -399,6 +403,9 @@ function Surface:_set_footer(text, segments)
 end
 
 function Surface:_is_overlay_window(winid)
+  if window_is_chat_shell(winid) then
+    return true
+  end
   if not valid_window(winid) then
     return false
   end
@@ -425,15 +432,35 @@ function Surface:_handle_focus_change()
   self:hide()
 end
 
+function Surface:_close_owned_windows()
+  for _, winid in ipairs(vim.api.nvim_list_wins()) do
+    if window_is_chat_shell(winid) then
+      pcall(vim.api.nvim_win_close, winid, true)
+    end
+  end
+end
+
 function Surface:_sync_windows()
+  if valid_window(self.container and self.container.winid) then
+    vim.w[self.container.winid].neovim_codex_chat_shell = true
+    vim.w[self.container.winid].neovim_codex_chat_role = "container"
+  end
+
   if valid_window(self.transcript_popup and self.transcript_popup.winid) then
     local transcript_opts = self.opts.ui.chat.transcript or {}
+    vim.w[self.transcript_popup.winid].neovim_codex_chat_shell = true
+    vim.w[self.transcript_popup.winid].neovim_codex_chat_role = "transcript"
     vim.wo[self.transcript_popup.winid].number = false
     vim.wo[self.transcript_popup.winid].relativenumber = false
     vim.wo[self.transcript_popup.winid].signcolumn = "no"
     vim.wo[self.transcript_popup.winid].foldcolumn = "0"
     vim.wo[self.transcript_popup.winid].wrap = transcript_opts.wrap ~= false
     vim.wo[self.transcript_popup.winid].linebreak = transcript_opts.wrap ~= false
+  end
+
+  if valid_window(self.composer_popup and self.composer_popup.winid) then
+    vim.w[self.composer_popup.winid].neovim_codex_chat_shell = true
+    vim.w[self.composer_popup.winid].neovim_codex_chat_role = "composer"
   end
 
   self.composer:set_window(self.composer_popup and self.composer_popup.winid)
@@ -548,6 +575,7 @@ function Surface:hide()
       pcall(vim.api.nvim_win_close, winid, true)
     end
   end
+  self:_close_owned_windows()
 
   self.visible = false
   self.layout = nil

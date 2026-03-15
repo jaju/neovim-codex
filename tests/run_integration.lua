@@ -13,6 +13,16 @@ local function termcodes(value)
   return vim.api.nvim_replace_termcodes(value, true, false, true)
 end
 
+local function count_chat_shell_windows()
+  local count = 0
+  for _, winid in ipairs(vim.api.nvim_list_wins()) do
+    if vim.w[winid].neovim_codex_chat_shell == true then
+      count = count + 1
+    end
+  end
+  return count
+end
+
 local codex = require("neovim_codex")
 codex.setup({})
 
@@ -100,6 +110,18 @@ assert(hidden_chat_state.composer_win == nil or not vim.api.nvim_win_is_valid(hi
 codex.chat()
 assert(codex.get_chat_state().visible == true, "chat command should toggle the overlay open again")
 assert(codex.get_chat_state().mode == "rail", "chat toggle should reopen in rail mode")
+assert(count_chat_shell_windows() == 3, "chat reopen should leave exactly one mounted shell")
+
+vim.cmd("CodexChatReader")
+assert(codex.get_chat_state().mode == "reader", "reader command should switch the shell into reader mode")
+assert(count_chat_shell_windows() == 3, "reader mode should leave exactly one mounted shell")
+vim.api.nvim_set_current_win(codex.get_chat_state().composer_win)
+vim.api.nvim_feedkeys(termcodes("gR"), "xt", false)
+vim.wait(1000, function()
+  return codex.get_chat_state().mode == "rail"
+end, 20)
+assert(codex.get_chat_state().mode == "rail", "gR should switch the shell back to rail mode")
+assert(count_chat_shell_windows() == 3, "toggling back to rail should not leave stale shell windows behind")
 
 local shortcuts_surface, shortcut_lines = codex.open_shortcuts({ surface = "composer" })
 assert(shortcuts_surface == "composer", "shortcut sheet should target the requested surface")
