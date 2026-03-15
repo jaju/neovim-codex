@@ -151,6 +151,7 @@ local defaults = {
 
 local runtime = nil
 local ensure_runtime
+local submit_thread_rename
 local config = vim.deepcopy(defaults)
 
 local function notify(message, level, enabled)
@@ -1051,7 +1052,7 @@ function M.fork_thread(opts)
   return { threadId = source_thread.id }, nil
 end
 
-local function submit_thread_rename(rt, thread, name, opts)
+submit_thread_rename = function(rt, thread, name, opts)
   local normalized_name = vim.trim(tostring(name))
 
   if opts.wait == true then
