@@ -130,6 +130,7 @@ assert(shortcuts_body:find("## This surface", 1, true), "shortcut sheet should s
 assert(shortcuts_body:find("## Global fast", 1, true), "shortcut sheet should show the fast global lane")
 assert(shortcuts_body:find("## Global workflow", 1, true), "shortcut sheet should show the workflow global lane")
 assert(shortcuts_body:find("g? / <F1>", 1, true), "shortcut sheet should explain the local help entrypoints")
+assert(shortcuts_body:find("Edit the active thread settings", 1, true), "shortcut sheet should expose the local thread settings path")
 require("neovim_codex.nvim.presentation").close_viewers()
 
 vim.cmd("startinsert")

@@ -58,6 +58,11 @@ function Composer:_bind_keymaps(bufnr)
       self.handlers.open_request()
     end
   end, { buffer = bufnr, desc = "Open Codex inbox" })
+  map_if(keymaps.settings, { "n", "i" }, function()
+    if self.handlers.open_thread_settings then
+      self.handlers.open_thread_settings()
+    end
+  end, { buffer = bufnr, desc = "Open Codex thread settings" })
   map_if(keymaps.toggle_reader, { "n", "i" }, function()
     if self.handlers.toggle_reader then
       self.handlers.toggle_reader()

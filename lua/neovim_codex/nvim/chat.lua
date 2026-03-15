@@ -101,6 +101,9 @@ local function ensure_surface()
     open_request = function()
       require("neovim_codex").open_request()
     end,
+    open_thread_settings = function()
+      require("neovim_codex").configure_thread()
+    end,
     toggle_reader = function()
       M.toggle_reader()
     end,
@@ -127,6 +130,9 @@ local function ensure_surface()
     end,
     open_request = function()
       require("neovim_codex").open_request()
+    end,
+    open_thread_settings = function()
+      require("neovim_codex").configure_thread()
     end,
     toggle_reader = function()
       M.toggle_reader()

@@ -123,6 +123,7 @@ local defaults = {
       help = "g?",
       request = "gr",
       toggle_reader = "gR",
+      settings = "gs",
     },
     composer = {
       send = "<C-s>",
@@ -132,6 +133,7 @@ local defaults = {
       help = "g?",
       request = "gr",
       toggle_reader = "gR",
+      settings = "gs",
     },
     request = {
       respond = "<CR>",
