@@ -565,9 +565,14 @@ function Surface:toggle()
 end
 
 function Surface:set_mode(mode)
-  self.shell_mode = chat_layout.normalize_mode(mode, self.opts)
+  local next_mode = chat_layout.normalize_mode(mode, self.opts)
+  if next_mode == self.shell_mode then
+    return
+  end
+
+  self.shell_mode = next_mode
   if self.visible then
-    self:_refresh_layout()
+    self:hide()
   end
 end
 
