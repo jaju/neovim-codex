@@ -170,10 +170,15 @@ local function show_overlay(mode)
   if not ensure_surface() then
     return false
   end
+  local reuse_render = state.surface and state.surface:is_visible() and state.last_render ~= nil
   state.mode = require("neovim_codex.nvim.chat.layout").normalize_mode(mode or state.mode, state.opts)
   state.surface:set_mode(state.mode)
   state.surface:show()
-  render()
+  if reuse_render and state.last_render then
+    state.surface:update(state.last_render)
+  else
+    render()
+  end
   state.composer:focus()
   return true
 end

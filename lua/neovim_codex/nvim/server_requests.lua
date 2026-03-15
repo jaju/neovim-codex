@@ -250,6 +250,7 @@ function M.new(opts, handlers)
     store = nil,
     unsubscribe = nil,
     dismissed = {},
+    render_cache = {},
     current = nil,
     input_bufnr = nil,
     input_session = nil,
@@ -294,9 +295,26 @@ function M:_request_keymaps()
   return (((self.opts or {}).keymaps or {}).request) or {}
 end
 
+function M:_rendered_request(request, keymaps)
+  local key = request and request.key
+  if not key then
+    return request_render.render_request(request, keymaps)
+  end
+
+  self.render_cache = self.render_cache or {}
+  local cached = self.render_cache[key]
+  if cached then
+    return cached
+  end
+
+  local rendered = request_render.render_request(request, keymaps)
+  self.render_cache[key] = rendered
+  return rendered
+end
+
 function M:_request_spec(request)
   local keymaps = self:_request_keymaps()
-  local rendered = request_render.render_request(request, keymaps)
+  local rendered = self:_rendered_request(request, keymaps)
   local mappings = {}
 
   if keymaps.respond ~= false then
@@ -533,6 +551,7 @@ function M:sync(store_state)
     viewer_stack.close("server-request")
     viewer_stack.close("server-request-input")
     self.dismissed = {}
+    self.render_cache = {}
     return
   end
 
