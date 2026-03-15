@@ -600,8 +600,7 @@ function Surface:set_mode(mode)
 
   self.shell_mode = next_mode
   if self.visible then
-    self:_refresh_layout()
-    vim.cmd("redraw")
+    self:hide()
   end
 end
 
