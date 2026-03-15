@@ -28,19 +28,6 @@ local HEADER_HIGHLIGHTS = {
   unknown = "NeovimCodexChatNoticeHeading",
 }
 
-local BLOCK_HIGHLIGHTS = {
-  assistant_note = "NeovimCodexChatReasoningBlock",
-  reasoning = "NeovimCodexChatReasoningBlock",
-  activity = "NeovimCodexChatActivityBlock",
-  command_detail = "NeovimCodexChatCommandBlock",
-  file_change = "NeovimCodexChatFileChangeBlock",
-  tool = "NeovimCodexChatToolBlock",
-  review = "NeovimCodexChatReviewBlock",
-  notice = "NeovimCodexChatNoticeBlock",
-  metadata = "NeovimCodexChatNoticeBlock",
-  unknown = "NeovimCodexChatNoticeBlock",
-}
-
 local function valid_buffer(bufnr)
   return bufnr and vim.api.nvim_buf_is_valid(bufnr)
 end
@@ -90,64 +77,6 @@ local function define_default_highlight(name, target)
   vim.api.nvim_set_hl(0, name, {
     default = true,
     link = target,
-  })
-end
-
-local function read_highlight(name)
-  local ok, highlight = pcall(vim.api.nvim_get_hl, 0, { name = name, link = false })
-  if not ok then
-    return {}
-  end
-  return highlight or {}
-end
-
-local function color_to_rgb(value)
-  if type(value) ~= "number" then
-    return nil
-  end
-  return {
-    math.floor(value / 0x10000) % 0x100,
-    math.floor(value / 0x100) % 0x100,
-    value % 0x100,
-  }
-end
-
-local function rgb_to_color(rgb)
-  return string.format("#%02x%02x%02x", rgb[1], rgb[2], rgb[3])
-end
-
-local function blend_colors(base, accent, alpha)
-  local base_rgb = color_to_rgb(base)
-  local accent_rgb = color_to_rgb(accent)
-  if not base_rgb or not accent_rgb then
-    return nil
-  end
-
-  local out = {}
-  for index = 1, 3 do
-    out[index] = math.floor((base_rgb[index] * (1 - alpha)) + (accent_rgb[index] * alpha) + 0.5)
-  end
-  return rgb_to_color(out)
-end
-
-local function define_block_highlight(name, accent_group)
-  local normal_float = read_highlight("NormalFloat")
-  local normal = read_highlight("Normal")
-  local accent = read_highlight(accent_group)
-  local base_bg = normal_float.bg or normal.bg
-  local accent_fg = accent.fg or read_highlight("Comment").fg
-  local blended = blend_colors(base_bg, accent_fg, 0.10)
-  if blended then
-    vim.api.nvim_set_hl(0, name, {
-      default = true,
-      bg = blended,
-    })
-    return
-  end
-
-  vim.api.nvim_set_hl(0, name, {
-    default = true,
-    link = "NormalFloat",
   })
 end
 
@@ -243,13 +172,6 @@ function Surface:_ensure_highlights()
   define_default_highlight("NeovimCodexChatNoticeHeading", "Comment")
   define_default_highlight("NeovimCodexChatFooterMeta", "Comment")
   define_default_highlight("NeovimCodexChatFooterThread", "Identifier")
-  define_block_highlight("NeovimCodexChatReasoningBlock", "NeovimCodexChatReasoningHeading")
-  define_block_highlight("NeovimCodexChatActivityBlock", "NeovimCodexChatActivityHeading")
-  define_block_highlight("NeovimCodexChatCommandBlock", "NeovimCodexChatCommandHeading")
-  define_block_highlight("NeovimCodexChatFileChangeBlock", "NeovimCodexChatFileChangeHeading")
-  define_block_highlight("NeovimCodexChatToolBlock", "NeovimCodexChatToolHeading")
-  define_block_highlight("NeovimCodexChatReviewBlock", "NeovimCodexChatReviewHeading")
-  define_block_highlight("NeovimCodexChatNoticeBlock", "NeovimCodexChatNoticeHeading")
 end
 
 function Surface:_overlay_config()
@@ -565,15 +487,7 @@ function Surface:_render_blocks(blocks)
   vim.api.nvim_buf_clear_namespace(self.transcript_bufnr, namespace, 0, -1)
 
   for _, block in ipairs(self.block_ranges) do
-    local block_highlight = BLOCK_HIGHLIGHTS[block.surface] or BLOCK_HIGHLIGHTS[block.kind]
-    if block_highlight and block.line_start and block.line_end and block.line_end >= block.line_start then
-      for line = block.line_start, block.line_end do
-        vim.api.nvim_buf_set_extmark(self.transcript_bufnr, namespace, line - 1, 0, {
-          line_hl_group = block_highlight,
-          priority = 5,
-        })
-      end
-    elseif block.line_start and block.line_end and block.line_end >= block.line_start then
+    if block.line_start and block.line_end and block.line_end >= block.line_start then
       vim.api.nvim_buf_set_extmark(self.transcript_bufnr, namespace, block.line_start - 1, 0, {
         end_row = block.line_end,
         hl_mode = "combine",
