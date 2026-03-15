@@ -3,6 +3,7 @@ local Popup = require("nui.popup")
 local Line = require("nui.line")
 local Text = require("nui.text")
 local readonly_surface = require("neovim_codex.nvim.readonly_surface")
+local chat_layout = require("neovim_codex.nvim.chat.layout")
 
 local M = {}
 
@@ -66,22 +67,6 @@ local function map_if(lhs, mode, rhs, opts)
     nowait = true,
     desc = opts.desc,
   })
-end
-
-local function resolve_dimension(value, total, minimum)
-  if type(value) == "number" then
-    if value > 0 and value < 1 then
-      return math.max(minimum, math.floor(total * value))
-    end
-    return math.max(minimum, math.floor(value))
-  end
-
-  if type(value) == "string" and value:sub(-1) == "%" then
-    local percentage = tonumber(value:sub(1, -2)) or 0
-    return math.max(minimum, math.floor(total * (percentage / 100)))
-  end
-
-  return math.max(minimum, total)
 end
 
 local function define_default_highlight(name, target)
@@ -185,30 +170,12 @@ function Surface:_ensure_highlights()
   define_default_highlight("NeovimCodexChatFooterThread", "Identifier")
 end
 
-function Surface:_ui_size()
-  local ui = vim.api.nvim_list_uis()[1]
-  local width = ui and ui.width or vim.o.columns
-  local height = ui and ui.height or vim.o.lines
-  return width, height
+function Surface:_overlay_config()
+  return chat_layout.overlay_config(self.opts, self.shell_mode)
 end
 
-function Surface:_overlay_config()
-  local chat_opts = self.opts.ui.chat
-  local layout_opts = chat_opts.layout or {}
-  local ui_width, ui_height = self:_ui_size()
-  local width = resolve_dimension(layout_opts.width or 0.88, ui_width, 60)
-  local height = resolve_dimension(layout_opts.height or 0.84, ui_height, 16)
-
-  return {
-    position = {
-      row = math.max(1, math.floor((ui_height - height) / 2)),
-      col = math.max(1, math.floor((ui_width - width) / 2)),
-    },
-    size = {
-      width = width,
-      height = height,
-    },
-  }
+function Surface:_shell_title()
+  return chat_layout.shell_title(self.shell_mode, self.last_render)
 end
 
 function Surface:_composer_total_height(total_height)
@@ -265,6 +232,16 @@ function Surface:_bind_transcript_keymaps(bufnr)
   map_if(keymaps.switch_pane, { "n", "i" }, function()
     self:focus_next_pane()
   end, { buffer = bufnr, desc = "Switch Codex chat pane" })
+  map_if(keymaps.request, "n", function()
+    if self.handlers.open_request then
+      self.handlers.open_request()
+    end
+  end, { buffer = bufnr, desc = "Open Codex inbox" })
+  map_if(keymaps.toggle_reader, "n", function()
+    if self.handlers.toggle_reader then
+      self.handlers.toggle_reader()
+    end
+  end, { buffer = bufnr, desc = "Toggle Codex reader width" })
   map_if(keymaps.inspect, "n", function()
     self.handlers.inspect_current_block()
   end, { buffer = bufnr, desc = "Inspect current Codex block" })
@@ -324,7 +301,7 @@ function Surface:_ensure_components()
     border = {
       style = (chat_opts.layout or {}).border or "rounded",
       text = {
-        top = " Codex ",
+        top = self:_shell_title(),
         top_align = "center",
         bottom = "",
         bottom_align = "left",
@@ -351,7 +328,7 @@ function Surface:_ensure_components()
     border = {
       style = "single",
       text = {
-        top = string.format(" Compose · %s send · %s ", ((self.opts.keymaps.composer or {}).send or "<C-s>"), surface_help.label(self.opts, ((self.opts.keymaps.composer or {}).help or "g?"))),
+        top = chat_layout.composer_title(self.opts, self.shell_mode),
         top_align = "left",
       },
     },
@@ -388,6 +365,12 @@ function Surface:_refresh_layout()
   end
 
   local overlay = self:_overlay_config()
+  if self.container then
+    self.container.border:set_text("top", self:_shell_title(), "center")
+  end
+  if self.composer_popup then
+    self.composer_popup.border:set_text("top", chat_layout.composer_title(self.opts, self.shell_mode), "left")
+  end
   self.layout:update({
     relative = "editor",
     position = overlay.position,
@@ -400,6 +383,8 @@ function Surface:_set_footer(text, segments)
   if not self.container then
     return
   end
+
+  self.container.border:set_text("top", self:_shell_title(), "center")
 
   if type(segments) == "table" and #segments > 0 then
     local line = Line()
@@ -579,6 +564,17 @@ function Surface:toggle()
   end
 end
 
+function Surface:set_mode(mode)
+  self.shell_mode = chat_layout.normalize_mode(mode, self.opts)
+  if self.visible then
+    self:_refresh_layout()
+  end
+end
+
+function Surface:mode()
+  return self.shell_mode
+end
+
 function Surface:is_visible()
   return self.visible
 end
@@ -716,6 +712,7 @@ function Surface:inspect()
     turn_lines = clone_value(self.last_render and self.last_render.turn_lines or {}),
     current_block = self:current_block(),
     update_count = self.update_count or 0,
+    mode = self.shell_mode,
   }
 end
 
@@ -735,6 +732,7 @@ function M.new(opts, handlers)
     last_signature = nil,
     last_line_count = 1,
     augroup = vim.api.nvim_create_augroup("NeovimCodexChatSurface", { clear = false }),
+    shell_mode = chat_layout.normalize_mode(nil, opts),
   }, Surface)
 
   surface:_ensure_highlights()

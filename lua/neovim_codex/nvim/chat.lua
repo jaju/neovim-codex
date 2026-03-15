@@ -14,6 +14,7 @@ local state = {
   projector = nil,
   last_document = nil,
   last_render = nil,
+  mode = nil,
 }
 
 local function notify(message, level)
@@ -34,6 +35,10 @@ end
 
 local function open_help()
   require("neovim_codex").open_shortcuts()
+end
+
+local function preferred_mode()
+  return require("neovim_codex.nvim.chat.layout").normalize_mode(state.mode, state.opts)
 end
 
 local function ensure_modules()
@@ -93,6 +98,12 @@ local function ensure_surface()
         state.surface:focus_transcript()
       end
     end,
+    open_request = function()
+      require("neovim_codex").open_request()
+    end,
+    toggle_reader = function()
+      M.toggle_reader()
+    end,
     open_help = open_help,
     on_height_changed = function(height)
       if state.surface then
@@ -113,6 +124,12 @@ local function ensure_surface()
     end,
     inspect_current_block = function()
       M.inspect_current_block()
+    end,
+    open_request = function()
+      require("neovim_codex").open_request()
+    end,
+    toggle_reader = function()
+      M.toggle_reader()
     end,
     open_help = open_help,
   })
@@ -149,10 +166,12 @@ local function attach(store)
   end)
 end
 
-local function show_overlay()
+local function show_overlay(mode)
   if not ensure_surface() then
     return false
   end
+  state.mode = require("neovim_codex.nvim.chat.layout").normalize_mode(mode or state.mode, state.opts)
+  state.surface:set_mode(state.mode)
   state.surface:show()
   render()
   state.composer:focus()
@@ -162,8 +181,17 @@ end
 function M.open(store, opts, actions)
   state.opts = opts
   state.actions = actions or {}
+  state.mode = preferred_mode()
   attach(store)
-  return show_overlay()
+  return show_overlay(state.mode)
+end
+
+function M.open_with_mode(store, opts, actions, mode)
+  state.opts = opts
+  state.actions = actions or {}
+  state.mode = require("neovim_codex.nvim.chat.layout").normalize_mode(mode, opts)
+  attach(store)
+  return show_overlay(state.mode)
 end
 
 function M.toggle(store, opts, actions)
@@ -174,12 +202,13 @@ function M.toggle(store, opts, actions)
     return false
   end
 
-  if state.surface:is_visible() then
+  local target_mode = preferred_mode()
+  if state.surface:is_visible() and state.surface:mode() == target_mode then
     M.close()
     return true
   end
 
-  return show_overlay()
+  return show_overlay(target_mode)
 end
 
 function M.read_draft()
@@ -248,6 +277,15 @@ function M.inspect_current_block()
   return block, nil
 end
 
+function M.toggle_reader()
+  if not ensure_surface() then
+    return false
+  end
+  local next_mode = state.surface:mode() == "reader" and "rail" or "reader"
+  state.mode = next_mode
+  return show_overlay(next_mode)
+end
+
 function M.focus_composer()
   if not ensure_surface() then
     return false
@@ -273,6 +311,7 @@ function M.inspect()
   local surface_state = state.surface and state.surface:inspect() or {}
   surface_state.document = clone_value(state.last_document)
   surface_state.render = clone_value(state.last_render)
+  surface_state.mode = state.surface and state.surface:mode() or preferred_mode()
   surface_state.details = state.details and state.details:inspect() or {}
   surface_state.viewers = presentation.inspect_viewers()
   return surface_state

@@ -6,7 +6,7 @@ This is not Codex inside a floating terminal. `neovim-codex` speaks the app-serv
 
 ## What You Get
 
-- a centered markdown-native chat overlay with transcript and multiline composer
+- a rail-first markdown-native chat shell with a widened reader mode
 - thread-aware approvals and `requestUserInput` flows that reopen safely
 - thread/session controls for create, switch, fork, archive, rename, model, effort, and collaboration mode
 - a workbench and compose review flow for packet-backed follow-up context
@@ -28,7 +28,7 @@ It does **not** yet implement dynamic tools or language-specific adapter daemons
 
 ![Main chat overlay](docs/assets/screenshots/chat-overlay-main.png)
 
-App-server-native chat inside NeoVim, with a centered transcript/composer overlay and visible thread/workbench state in the footer.
+App-server-native chat inside NeoVim, with a rail-first shell, explicit inbox state, and visible thread/workbench status.
 
 ### Workbench and compose review
 
@@ -155,7 +155,9 @@ Workbench and compose commands:
 - `:CodexStatus` - print current connection state and active thread id
 - `:CodexEvents` - open the protocol event log in the stacked viewer layer
 - `:CodexSmoke` - run the current smoke checks and open a report buffer
-- `:CodexChat` - toggle the Codex overlay
+- `:CodexChat` - toggle the default Codex shell mode
+- `:CodexChatRail` - open the narrow side-rail shell explicitly
+- `:CodexChatReader` - open the widened reader explicitly
 - `:CodexSend` - send the current composer contents, or open compose review if the workbench is non-empty
 - `:CodexThreadNew` - create a new thread and activate it
 - `:CodexThreadNewConfig` - create a new thread through the runtime configuration flow
@@ -183,6 +185,8 @@ Global mappings are disabled by default, but when you set them they can be appli
 Transcript buffer defaults:
 
 - `q` - hide the overlay
+- `gr` - reopen the active thread inbox
+- `gR` - toggle between rail and reader widths
 - `i` - focus the composer
 - insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode in the read-only transcript
 - `<C-w>w` - switch between transcript and composer without leaving the overlay
@@ -197,6 +201,8 @@ Composer buffer defaults:
 - `gS` - send the current draft from normal mode
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
+- `gr` - reopen the active thread inbox
+- `gR` - toggle between rail and reader widths
 - `g?` or `<F1>` in normal mode - open the Codex shortcut sheet for the current surface
 - `<CR>` - insert a newline
 

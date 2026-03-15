@@ -12,6 +12,7 @@ local thread_identity = require("neovim_codex.nvim.thread_identity")
 local thread_params = require("neovim_codex.nvim.thread_params")
 local thread_runtime = require("neovim_codex.nvim.thread_runtime")
 local thread_runtime_picker = require("neovim_codex.nvim.thread_runtime_picker")
+local chat_layout = require("neovim_codex.nvim.chat.layout")
 
 local M = {}
 
@@ -37,9 +38,20 @@ local defaults = {
   ui = {
     chat = {
       layout = {
+        mode = "rail",
         width = 0.88,
         height = 0.84,
         border = "rounded",
+        rail = {
+          width = 0.42,
+          height = 0.96,
+          margin_top = 1,
+          margin_right = 1,
+        },
+        reader = {
+          width = 0.82,
+          height = 0.88,
+        },
       },
       transcript = {
         wrap = true,
@@ -109,6 +121,8 @@ local defaults = {
       next_turn = "]]",
       prev_turn = "[[",
       help = "g?",
+      request = "gr",
+      toggle_reader = "gR",
     },
     composer = {
       send = "<C-s>",
@@ -116,6 +130,8 @@ local defaults = {
       switch_pane = "<C-w>w",
       close = "q",
       help = "g?",
+      request = "gr",
+      toggle_reader = "gR",
     },
     request = {
       respond = "<CR>",

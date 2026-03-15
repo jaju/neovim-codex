@@ -53,6 +53,16 @@ function Composer:_bind_keymaps(bufnr)
       self.handlers.focus_transcript()
     end
   end, { buffer = bufnr, desc = "Switch Codex chat pane" })
+  map_if(keymaps.request, { "n", "i" }, function()
+    if self.handlers.open_request then
+      self.handlers.open_request()
+    end
+  end, { buffer = bufnr, desc = "Open Codex inbox" })
+  map_if(keymaps.toggle_reader, { "n", "i" }, function()
+    if self.handlers.toggle_reader then
+      self.handlers.toggle_reader()
+    end
+  end, { buffer = bufnr, desc = "Toggle Codex reader width" })
   map_if(keymaps.close, "n", function()
     self.handlers.hide()
   end, { buffer = bufnr, desc = "Hide Codex overlay" })

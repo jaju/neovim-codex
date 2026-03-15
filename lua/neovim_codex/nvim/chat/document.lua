@@ -886,6 +886,7 @@ local function project_thread(thread, opts)
     thread_id = thread.id,
     footer = footer,
     footer_segments = footer_segments,
+    pending_requests = pending_requests,
     blocks = {},
   }
 

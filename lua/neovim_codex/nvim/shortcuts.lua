@@ -60,7 +60,7 @@ end
 local function fast_entries(config)
   local global = (config.keymaps or {}).global or {}
   local entries = {}
-  add_mapping(entries, global.chat, "Toggle the chat overlay")
+  add_mapping(entries, global.chat, "Toggle the Codex shell")
   return entries
 end
 
@@ -90,6 +90,8 @@ local function surface_entries(config, surface)
     add_mapping(entries, keymaps.inspect, "Inspect the current transcript block")
     add_mapping(entries, keymaps.focus_composer, "Focus the composer")
     add_mapping(entries, keymaps.switch_pane, "Switch between transcript and composer")
+    add_mapping(entries, keymaps.request, "Reopen the active thread inbox")
+    add_mapping(entries, keymaps.toggle_reader, "Toggle between rail and reader widths")
     add_mapping(entries, keymaps.prev_turn, "Jump to the previous turn")
     add_mapping(entries, keymaps.next_turn, "Jump to the next turn")
     add_mapping(entries, keymaps.close, "Hide the chat overlay")
@@ -99,6 +101,8 @@ local function surface_entries(config, surface)
     add_mapping(entries, keymaps.send, "Send the message, or open compose review when fragments are staged")
     add_mapping(entries, keymaps.send_normal, "Send from normal mode")
     add_mapping(entries, keymaps.switch_pane, "Switch between composer and transcript")
+    add_mapping(entries, keymaps.request, "Reopen the active thread inbox")
+    add_mapping(entries, keymaps.toggle_reader, "Toggle between rail and reader widths")
     add_mapping(entries, keymaps.close, "Hide the chat overlay")
     add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
   elseif surface == "request" then

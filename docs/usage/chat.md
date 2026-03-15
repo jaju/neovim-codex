@@ -8,7 +8,18 @@ This is the day-to-day user flow for the current plugin slice.
 :CodexChat
 ```
 
-This toggles a centered overlay with:
+This toggles the default Codex shell mode, which is now a narrow right-side rail.
+
+Use these when you want an explicit mode:
+
+```vim
+:CodexChatRail
+:CodexChatReader
+```
+
+The rail keeps Codex available as an operational shell. The reader opens the same transcript/composer state in a wider centered view for comfortable reading.
+
+The shell contains:
 
 - a markdown transcript at the top
 - a multiline markdown composer at the bottom
@@ -87,6 +98,8 @@ Default request viewer mappings:
 Transcript buffer:
 
 - `q` - hide the overlay
+- `gr` - reopen the active thread inbox
+- `gR` - toggle between rail and reader widths
 - `i` - jump to the composer
 - insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
 - `<C-w>w` - switch to the composer without leaving the overlay
@@ -101,6 +114,8 @@ Composer buffer:
 - `gS` - send the current draft from normal mode
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
+- `gr` - reopen the active thread inbox
+- `gR` - toggle between rail and reader widths
 - `g?` or `<F1>` in normal mode - open the shortcut sheet for the current surface
 - `<CR>` - insert a newline
 

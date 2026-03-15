@@ -99,6 +99,7 @@ assert(hidden_chat_state.composer_win == nil or not vim.api.nvim_win_is_valid(hi
 
 codex.chat()
 assert(codex.get_chat_state().visible == true, "chat command should toggle the overlay open again")
+assert(codex.get_chat_state().mode == "rail", "chat toggle should reopen in rail mode")
 
 local shortcuts_surface, shortcut_lines = codex.open_shortcuts({ surface = "composer" })
 assert(shortcuts_surface == "composer", "shortcut sheet should target the requested surface")

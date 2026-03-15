@@ -71,6 +71,7 @@ function M.render(document)
     footer = document.footer,
     footer_segments = clone_value(document.footer_segments),
     thread_id = document.thread_id,
+    pending_requests = document.pending_requests or 0,
   }
 end
 
