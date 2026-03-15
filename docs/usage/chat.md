@@ -46,7 +46,7 @@ You should expect to see:
 
 - user messages and final assistant responses as the primary reading surface
 - plan blocks when Codex emits them
-- commentary rendered as inline working notes, not outline headings
+- commentary projected as markdown headings plus quoted working notes
 - compact activity summaries for successful read/list/search command items
 - terse failure summaries when a command or tool needs attention
 - file-change summaries and other typed status blocks when they matter
@@ -143,7 +143,7 @@ Set any mapping to `false` to disable it.
 
 ## Markdown personalization
 
-The transcript and composer are plain markdown buffers. The plugin marks them with:
+The transcript and composer are plain markdown buffers. Foldable secondary sections are projected as markdown headings with attribute markers such as `### Command {.foldable}`, so your own markdown folding or rendering config can decide how to treat them. The plugin marks them with:
 
 - `b:neovim_codex = true`
 - `b:neovim_codex_role = "transcript" | "composer" | "details" | "events" | "workbench" | "compose_review_message" | "compose_review_fragments"`

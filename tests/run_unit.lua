@@ -310,7 +310,7 @@ test("chat renderer flattens multiline block entries into buffer-safe lines", fu
         kind = "assistant_message",
         surface = "message_assistant",
         lines = {
-          "### Response · Example",
+          "### Response",
           "First line\nSecond line",
           "",
           "```lua\nprint('hi')\n```",
@@ -320,7 +320,7 @@ test("chat renderer flattens multiline block entries into buffer-safe lines", fu
     },
   })
 
-  eq(result.lines[1], "### Response · Example")
+  eq(result.lines[1], "### Response")
   eq(result.lines[2], "First line")
   eq(result.lines[3], "Second line")
   eq(result.lines[4], "")
@@ -390,8 +390,8 @@ test("chat document renders assistant replies as markdown blocks", function()
   local result = render.render(doc)
   local body = table.concat(result.lines, "\n")
   assert(body:find("## Explain this change", 1, true), "render should derive a meaningful turn heading from the request")
-  assert(body:find("**Request**", 1, true), "render should include the request label")
-  assert(body:find("### Response · First line Second line", 1, true), "render should include a meaningful response heading")
+  assert(body:find("### Request", 1, true), "render should include the request heading")
+  assert(body:find("### Response", 1, true), "render should include a response heading")
   assert(body:find("First line", 1, true), "render should include assistant text")
   eq(result.blocks[3].surface, "message_assistant")
   eq(result.blocks[3].protocol.item_type, "agentMessage")
@@ -483,11 +483,65 @@ test("chat document uses structured command actions for compact activity summari
 
   local doc = document.project_active(store:get_state())
   eq(doc.blocks[2].kind, "activity_summary")
-  assert(doc.blocks[2].lines[1]:find("Loaded local instructions", 1, true), "context reads should collapse into a context activity")
+  eq(doc.blocks[2].lines[1], "### Command {.foldable}")
+  assert(doc.blocks[2].lines[3]:find("Loaded local instructions", 1, true), "context reads should collapse into a semantic command summary")
   eq(doc.blocks[3].kind, "activity_summary")
-  assert(doc.blocks[3].lines[1]:find("Searched", 1, true), "search commands should summarize from structured command actions")
+  eq(doc.blocks[3].lines[1], "### Command {.foldable}")
+  assert(doc.blocks[3].lines[3]:find("Searched", 1, true), "search commands should summarize from structured command actions")
   eq(doc.blocks[4].kind, "command_detail")
-  assert(doc.blocks[4].lines[1]:find("failed", 1, true), "failed commands should stay detailed")
+  eq(doc.blocks[4].lines[1], "### Command {.foldable}")
+  assert(doc.blocks[4].lines[2]:find("failed", 1, true), "failed commands should stay detailed")
+  assert(doc.blocks[4].lines[6] == "```text", "failed commands should expose fenced output previews")
+end)
+
+test("chat document renders foldable file changes with diff fences", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_diff",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+  store:dispatch({
+    type = "turn_received",
+    thread_id = "thr_diff",
+    turn = { id = "turn_diff", status = "completed", items = {}, error = nil },
+  })
+  store:dispatch({
+    type = "item_received",
+    thread_id = "thr_diff",
+    turn_id = "turn_diff",
+    item = {
+      type = "fileChange",
+      id = "item_diff",
+      status = "completed",
+      changes = {
+        {
+          path = "/tmp/demo/README.md",
+          kind = "update",
+          diff = "@@ -1 +1 @@\n-old\n+new",
+        },
+      },
+    },
+  })
+
+  local doc = document.project_active(store:get_state())
+  eq(doc.blocks[2].kind, "file_change_summary")
+  eq(doc.blocks[2].lines[1], "### File Changes {.foldable}")
+  eq(doc.blocks[2].lines[5], "```diff")
+  eq(doc.blocks[2].lines[6], "@@ -1 +1 @@")
 end)
 
 

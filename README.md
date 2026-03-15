@@ -279,7 +279,7 @@ The plugin tags its buffers with buffer variables so your own markdown autocomma
 - `b:neovim_codex_role = "transcript" | "composer" | "details" | "events"`
 - `b:neovim_codex_thread_id = <thread-id>`
 
-That means existing markdown treesitter, conceal, render-markdown, and ftplugin customization can apply naturally inside the overlay.
+That means existing markdown treesitter, conceal, render-markdown, and ftplugin customization can apply naturally inside the overlay. Foldable secondary sections are projected as markdown headings with attribute markers such as `### Command {.foldable}`, so your own markdown tooling can choose how to treat them.
 
 The overlay also exposes heading highlight groups you can override in your own config:
 

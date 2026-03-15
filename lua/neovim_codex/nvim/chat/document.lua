@@ -144,6 +144,47 @@ local function compact_output_preview(text)
   return plain_snippet(line, 96)
 end
 
+local function markdown_heading(level, title, opts)
+  local foldable = opts and opts.foldable == true and " {.foldable}" or ""
+  return string.format("%s %s%s", string.rep("#", math.max(1, level or 1)), title, foldable)
+end
+
+local function preview_lines(text, max_lines)
+  local lines = split_lines(text)
+  local limit = math.max(1, tonumber(max_lines) or 8)
+  if #lines <= limit then
+    return lines
+  end
+
+  local out = {}
+  for index = 1, limit do
+    out[#out + 1] = lines[index]
+  end
+  out[#out + 1] = "..."
+  return out
+end
+
+local function fenced_block(language, text, max_lines)
+  local body = type(text) == "table" and clone_value(text) or preview_lines(text, max_lines)
+  if #body == 0 then
+    return {}
+  end
+
+  local lines = { string.format("```%s", language or "") }
+  for _, line in ipairs(body) do
+    lines[#lines + 1] = tostring(line)
+  end
+  lines[#lines + 1] = "```"
+  return lines
+end
+
+local function extend_lines(lines, extra)
+  for _, line in ipairs(extra or {}) do
+    lines[#lines + 1] = line
+  end
+  return lines
+end
+
 local function join_parts(parts, separator)
   local values = {}
   for _, part in ipairs(parts or {}) do
@@ -476,7 +517,7 @@ local function summarize_user_message(item)
     kind = "user_message",
     surface = "message_user",
     collapsed_by_default = false,
-    lines = vim.list_extend({ "**Request**" }, content_lines),
+    lines = extend_lines({ markdown_heading(3, "Request") }, content_lines),
     protocol = protocol_payload(item),
   })
 end
@@ -484,18 +525,17 @@ end
 local function summarize_assistant_message(item)
   local text = present(item.text) and item.text ~= "" and item.text or "_Streaming response..._"
   local lines = split_lines(text)
-  local snippet = plain_snippet(text, 56) or "Response"
   local phase = value_or(item.phase, "")
 
   if phase == "commentary" then
-    local quoted = { "> Working note" }
+    local quoted = { markdown_heading(3, "Working Note", { foldable = true }), "" }
     for _, line in ipairs(lines) do
       quoted[#quoted + 1] = line == "" and ">" or "> " .. line
     end
     return new_block({
       kind = "assistant_message",
       surface = "assistant_note",
-      collapsed_by_default = false,
+      collapsed_by_default = true,
       lines = quoted,
       protocol = protocol_payload(item),
     })
@@ -505,41 +545,47 @@ local function summarize_assistant_message(item)
     kind = "assistant_message",
     surface = "message_assistant",
     collapsed_by_default = false,
-    lines = vim.list_extend({ string.format("### Response · %s", snippet) }, lines),
+    lines = extend_lines({ markdown_heading(3, "Response") }, lines),
     protocol = protocol_payload(item),
   })
 end
 
 local function summarize_plan(item)
   local text = present(item.text) and item.text ~= "" and item.text or "_Streaming plan..._"
-  local snippet = plain_snippet(text, 56) or "Plan"
   return new_block({
     kind = "plan",
     surface = "plan",
-    collapsed_by_default = false,
-    lines = vim.list_extend({ string.format("### Plan · %s", snippet) }, split_lines(text)),
+    collapsed_by_default = true,
+    lines = extend_lines({ markdown_heading(3, "Plan", { foldable = true }) }, split_lines(text)),
     protocol = protocol_payload(item),
   })
 end
 
 local function summarize_reasoning(item)
   if item.summary and #item.summary > 0 then
-    local snippet = plain_snippet(item.summary[1], 72) or "summary available"
+    local lines = { markdown_heading(3, "Reasoning Summary", { foldable = true }) }
+    for _, summary in ipairs(item.summary) do
+      lines[#lines + 1] = string.format("- %s", value_or(plain_snippet(summary, 160), "summary available"))
+    end
     return new_block({
       kind = "reasoning_summary",
       surface = "reasoning",
       collapsed_by_default = true,
-      lines = { string.format("- Reasoning summary available · %s", snippet) },
+      lines = lines,
       protocol = protocol_payload(item),
     })
   end
 
   if item.content and #item.content > 0 then
+    local lines = {
+      markdown_heading(3, "Reasoning", { foldable = true }),
+      "- Raw reasoning content is available.",
+    }
     return new_block({
       kind = "reasoning_summary",
       surface = "reasoning",
       collapsed_by_default = true,
-      lines = { "- Raw reasoning content available." },
+      lines = lines,
       protocol = protocol_payload(item),
     })
   end
@@ -562,11 +608,21 @@ local function summarize_successful_command(item, actions)
     parts[#parts + 1] = string.format("%d additional step%s", #actions.summaries - 1, #actions.summaries - 1 == 1 and "" or "s")
   end
 
+  local lines = {
+    markdown_heading(3, "Command", { foldable = true }),
+    string.format("- Status: `%s`", value_or(item.status, "completed")),
+    string.format("- Summary: %s", join_parts(parts, " · ")),
+  }
+  local duration = duration_label(item.durationMs)
+  if duration then
+    lines[#lines + 1] = string.format("- Duration: `%s`", duration)
+  end
+
   return new_block({
     kind = "activity_summary",
     surface = "activity",
     collapsed_by_default = true,
-    lines = { "- " .. join_parts(parts, " · ") },
+    lines = lines,
     protocol = protocol_payload(item),
   })
 end
@@ -574,23 +630,23 @@ end
 local function summarize_command_failure(item, actions)
   local status = value_or(item.status, "unknown")
   local label = compact_inline_code(trim_text(item.command, 56)) or "command"
-  local parts = {
-    string.format("Command %s", status),
-    label,
+  local lines = {
+    markdown_heading(3, "Command", { foldable = true }),
+    string.format("- Status: `%s`", status),
+    string.format("- Command: %s", label),
   }
 
   if present(item.exitCode) then
-    parts[#parts + 1] = string.format("exit %s", tostring(item.exitCode))
+    lines[#lines + 1] = string.format("- Exit code: `%s`", tostring(item.exitCode))
   end
 
-  local lines = { "- " .. join_parts(parts, " · ") }
   if #actions.summaries > 0 then
-    lines[#lines + 1] = "  - " .. actions.summaries[1]
+    lines[#lines + 1] = string.format("- Action: %s", actions.summaries[1])
   end
 
-  local output_preview = compact_output_preview(item.aggregatedOutput)
-  if output_preview then
-    lines[#lines + 1] = "  - " .. output_preview
+  if #fenced_block("text", item.aggregatedOutput, 8) > 0 then
+    lines[#lines + 1] = ""
+    extend_lines(lines, fenced_block("text", item.aggregatedOutput, 8))
   end
 
   return new_block({
@@ -630,8 +686,10 @@ end
 
 local function summarize_file_changes(item)
   local changes = item.changes or {}
-  local heading = string.format("### File changes · %d file%s", #changes, #changes == 1 and "" or "s")
-  local lines = { heading }
+  local lines = {
+    markdown_heading(3, "File Changes", { foldable = true }),
+    string.format("- Files: `%d`", #changes),
+  }
 
   if #changes == 0 then
     lines[#lines + 1] = "- No file details were reported."
@@ -640,6 +698,12 @@ local function summarize_file_changes(item)
       local path = display_path(change.path) or "unknown"
       local kind = describe_patch_kind(change.kind)
       lines[#lines + 1] = string.format("- `%s` · %s", path, kind)
+    end
+
+    local first_change = changes[1]
+    if first_change and present(first_change.diff) then
+      lines[#lines + 1] = ""
+      extend_lines(lines, fenced_block("diff", first_change.diff, 20))
     end
   end
 
@@ -672,11 +736,6 @@ local function summarize_tool_call(item)
   end
 
   local name = item.type == "dynamicToolCall" and value_or(item.tool, "tool") or string.format("%s/%s", value_or(item.server, "server"), value_or(item.tool, "tool"))
-  local parts = {
-    string.format("Tool %s", status),
-    compact_inline_code(name) or name,
-  }
-
   local preview = nil
   if item.type == "dynamicToolCall" and item.contentItems then
     for _, content_item in ipairs(item.contentItems) do
@@ -691,9 +750,13 @@ local function summarize_tool_call(item)
     preview = json_preview(item.result)
   end
 
-  local lines = { "- " .. join_parts(parts, " · ") }
+  local lines = {
+    markdown_heading(3, "Tool Call", { foldable = true }),
+    string.format("- Status: `%s`", status),
+    string.format("- Tool: %s", compact_inline_code(name) or name),
+  }
   if preview then
-    lines[#lines + 1] = "  - " .. preview
+    lines[#lines + 1] = string.format("- Preview: %s", preview)
   end
 
   return new_block({
@@ -711,24 +774,24 @@ local function summarize_collab_tool_call(item)
     return nil
   end
 
-  local parts = {
-    string.format("Collaboration %s", status),
-    compact_inline_code(value_or(item.tool, "tool")),
+  local receiver_count = type(item.receiverThreadIds) == "table" and #item.receiverThreadIds or 0
+
+  local lines = {
+    markdown_heading(3, "Collaboration", { foldable = true }),
+    string.format("- Status: `%s`", status),
+    string.format("- Tool: %s", compact_inline_code(value_or(item.tool, "tool"))),
   }
   if present(item.model) then
-    parts[#parts + 1] = string.format("model %s", compact_inline_code(item.model) or item.model)
+    lines[#lines + 1] = string.format("- Model: `%s`", item.model)
   end
   if present(item.reasoningEffort) then
-    parts[#parts + 1] = string.format("effort %s", compact_inline_code(item.reasoningEffort) or item.reasoningEffort)
+    lines[#lines + 1] = string.format("- Effort: `%s`", item.reasoningEffort)
   end
-  local receiver_count = type(item.receiverThreadIds) == "table" and #item.receiverThreadIds or 0
   if receiver_count > 0 then
-    parts[#parts + 1] = string.format("%d target%s", receiver_count, receiver_count == 1 and "" or "s")
+    lines[#lines + 1] = string.format("- Targets: `%d`", receiver_count)
   end
-
-  local lines = { "- " .. join_parts(parts, " · ") }
   if present(item.prompt) then
-    lines[#lines + 1] = "  - " .. value_or(plain_snippet(item.prompt, 96), "prompt available")
+    lines[#lines + 1] = string.format("- Prompt: %s", value_or(plain_snippet(item.prompt, 96), "prompt available"))
   end
 
   return new_block({
@@ -746,7 +809,10 @@ local function summarize_web_search(item)
     kind = "activity_summary",
     surface = "activity",
     collapsed_by_default = true,
-    lines = { string.format("- Web search · %s", query) },
+    lines = {
+      markdown_heading(3, "Web Search", { foldable = true }),
+      string.format("- Query: %s", query),
+    },
     protocol = protocol_payload(item),
   })
 end
@@ -757,7 +823,10 @@ local function summarize_image_item(item)
       kind = "status_notice",
       surface = "notice",
       collapsed_by_default = true,
-      lines = { string.format("- Viewed image %s", compact_inline_code(display_path(item.path) or "image") or "") },
+      lines = {
+        markdown_heading(3, "Image View", { foldable = true }),
+        string.format("- Path: %s", compact_inline_code(display_path(item.path) or "image") or ""),
+      },
       protocol = protocol_payload(item),
     })
   end
@@ -767,7 +836,10 @@ local function summarize_image_item(item)
     kind = "status_notice",
     surface = "notice",
     collapsed_by_default = true,
-    lines = { string.format("- Image generation · %s", result) },
+    lines = {
+      markdown_heading(3, "Image Generation", { foldable = true }),
+      string.format("- Result: %s", result),
+    },
     protocol = protocol_payload(item),
   })
 end
@@ -779,7 +851,9 @@ local function summarize_review_mode(item)
     surface = "review",
     collapsed_by_default = true,
     lines = {
-      string.format("- Review mode %s · `%s`", entered and "entered" or "exited", value_or(item.review, "unknown")),
+      markdown_heading(3, "Review Mode", { foldable = true }),
+      string.format("- State: `%s`", entered and "entered" or "exited"),
+      string.format("- Review: `%s`", value_or(item.review, "unknown")),
     },
     protocol = protocol_payload(item),
   })
@@ -790,7 +864,10 @@ local function summarize_context_compaction(item)
     kind = "status_notice",
     surface = "notice",
     collapsed_by_default = true,
-    lines = { "- Codex compacted the conversation history for this thread." },
+    lines = {
+      markdown_heading(3, "Context Compaction", { foldable = true }),
+      "- Codex compacted the conversation history for this thread.",
+    },
     protocol = protocol_payload(item),
   })
 end
@@ -801,6 +878,7 @@ local function summarize_unknown_item(item)
     surface = "notice",
     collapsed_by_default = true,
     lines = {
+      markdown_heading(3, "Protocol Notice", { foldable = true }),
       string.format("- Item `%s` is available in raw protocol logs.", value_or(item.type, "unknown")),
     },
     protocol = protocol_payload(item),

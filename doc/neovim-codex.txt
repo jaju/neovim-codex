@@ -112,7 +112,7 @@ surfaces instead of dumping shell output directly.
 Examples:
 
 - user messages and final responses stay primary
-- commentary becomes inline working notes instead of outline headings
+- commentary becomes markdown headings plus quoted working notes
 - successful read/list/search commands become compact activity summaries
 - failed or unknown commands stay terse in the transcript and open into a details popup
 - file changes, tool calls, review mode, and context compaction each get their
