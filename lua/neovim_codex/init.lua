@@ -6,15 +6,13 @@ local presentation = require("neovim_codex.nvim.presentation")
 local requests = require("neovim_codex.nvim.server_requests")
 local smoke = require("neovim_codex.nvim.smoke")
 local workbench = require("neovim_codex.nvim.workbench")
-local renderer = require("neovim_codex.nvim.thread_renderer")
 local transport_mod = require("neovim_codex.nvim.transport")
-local thread_identity = require("neovim_codex.nvim.thread_identity")
 local thread_params = require("neovim_codex.nvim.thread_params")
 local thread_runtime = require("neovim_codex.nvim.thread_runtime")
 local thread_runtime_picker = require("neovim_codex.nvim.thread_runtime_picker")
+local thread_api_mod = require("neovim_codex.nvim.thread_api")
 local chat_layout = require("neovim_codex.nvim.chat.layout")
 local request_wait = require("neovim_codex.nvim.request_wait")
-local ui_prompt = require("neovim_codex.nvim.ui_prompt")
 
 local M = {}
 
@@ -381,18 +379,11 @@ local function current_cwd()
   return vim.fn.getcwd()
 end
 
-local select_sync = ui_prompt.select_sync
-local input_sync = ui_prompt.input_sync
-local select_async = ui_prompt.select_async
-local input_async = ui_prompt.input_async
-
 local compact_text = thread_runtime.compact_text
 local clone_runtime_settings = thread_runtime.clone_settings
-local effective_runtime_model = thread_runtime.effective_model
-local effective_runtime_effort = thread_runtime.effective_effort
 local normalize_runtime_settings = thread_runtime.normalize
 
-local function runtime_picker(rt)
+local function make_runtime_picker(rt)
   return thread_runtime_picker.new({
     client = rt.client,
     request_with_wait = request_with_wait,
@@ -401,28 +392,6 @@ local function runtime_picker(rt)
     end,
     experimental_api = config.experimental_api,
   })
-end
-
-local function query_loaded_threads(rt, opts)
-  return runtime_picker(rt):query_loaded_threads(opts)
-end
-
-local function pick_thread_runtime_async(rt, opts, on_done)
-  return runtime_picker(rt):pick_async(opts, on_done)
-end
-
-local function turn_preview(turn, index)
-  local summary = nil
-  for _, item in ipairs(turn.items or {}) do
-    if item.type == "userMessage" or item.type == "agentMessage" then
-      summary = compact_text(item.text, 88)
-      if summary then
-        break
-      end
-    end
-  end
-  summary = summary or "(no message preview)"
-  return string.format("Turn %d · %s · %s", index, tostring(turn.status or "unknown"), summary)
 end
 
 local function build_thread_start_params(opts)
@@ -466,47 +435,6 @@ end
 
 local function toggle_chat(rt)
   return chat.toggle(rt.store, config, chat_actions())
-end
-
-local function short_thread_id(thread_id)
-  return thread_identity.short_id(thread_id)
-end
-
-local function thread_title(thread)
-  return thread_identity.title(thread)
-end
-
-local function format_thread_label(thread, active_id, state, loaded_threads)
-  local marker = thread.id == active_id and "●" or "○"
-  local status = thread.status and thread.status.type or "unknown"
-  local loaded = loaded_threads and loaded_threads[thread.id] and "⚡ " or ""
-  local pending = selectors.pending_request_count_for_thread(state, thread.id)
-  local pending_text = pending > 0 and string.format(" · inbox:%d", pending) or ""
-  return string.format("%s %s%s  [%s]%s  %s", marker, loaded, short_thread_id(thread.id), status, pending_text, thread_title(thread))
-end
-
-local function merge_known_threads(threads, state, opts)
-  local merged = {}
-  local seen = {}
-  for _, thread in ipairs(threads or {}) do
-    merged[#merged + 1] = thread
-    seen[thread.id] = true
-  end
-
-  local expected_archived = opts.archived ~= nil and opts.archived or config.thread_list.archived
-  local expected_cwd = opts.cwd or (config.thread_list.cwd_only and current_cwd() or nil)
-  for _, thread in ipairs(selectors.list_threads(state)) do
-    if not seen[thread.id] and thread.closed ~= true then
-      local archived_ok = expected_archived == true and thread.archived == true or expected_archived ~= true and thread.archived ~= true
-      local cwd_ok = expected_cwd == nil or thread.cwd == nil or thread.cwd == expected_cwd
-      if archived_ok and cwd_ok then
-        merged[#merged + 1] = thread
-        seen[thread.id] = true
-      end
-    end
-  end
-
-  return merged
 end
 
 local function normalize_legacy_config(opts)
@@ -643,629 +571,84 @@ function M.send()
   return chat.submit()
 end
 
-local function update_thread_runtime(thread_id, runtime_settings)
-  if not thread_id then
-    return
-  end
-  ensure_runtime().store:dispatch({
-    type = "thread_runtime_updated",
-    thread_id = thread_id,
-    runtime = normalize_runtime_settings(runtime_settings or {}),
-  })
-end
-
-local function current_thread_runtime(thread_id)
-  local state = ensure_runtime().client:get_state()
-  local thread = selectors.get_thread(state, thread_id) or selectors.get_active_thread(state)
-  return normalize_runtime_settings(clone_runtime_settings(thread))
-end
+local thread_api = thread_api_mod.new({
+  ensure_runtime = ensure_runtime,
+  ensure_ready = ensure_ready,
+  notify = notify,
+  request_with_wait = request_with_wait,
+  wait_opts = wait_opts,
+  build_thread_start_params = build_thread_start_params,
+  build_thread_resume_params = build_thread_resume_params,
+  build_thread_fork_params = build_thread_fork_params,
+  build_thread_list_params = build_thread_list_params,
+  build_turn_steer_params = build_turn_steer_params,
+  reveal_chat = reveal_chat,
+  workbench = workbench,
+  chat = chat,
+  compact_text = compact_text,
+  clone_runtime_settings = clone_runtime_settings,
+  normalize_runtime_settings = normalize_runtime_settings,
+  current_cwd = current_cwd,
+  get_config = function()
+    return config
+  end,
+  make_runtime_picker = make_runtime_picker,
+})
 
 function M.new_thread(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  if opts.open_chat ~= false then
-    reveal_chat(rt)
-  end
-
-  local result, request_err = request_with_wait(function(done)
-    rt.client:thread_start(build_thread_start_params(opts), done)
-  end, wait_opts(opts))
-
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  if result and result.thread then
-    update_thread_runtime(result.thread.id, {
-      model = opts.model,
-      effort = opts.effort,
-      summary = opts.summary,
-      collaborationModeMask = opts.collaboration_mode_mask,
-      ephemeral = opts.ephemeral,
-    })
-    if opts.name and vim.trim(tostring(opts.name)) ~= "" then
-      submit_thread_rename(rt, result.thread, opts.name, { wait = true, notify = false, timeout_ms = opts.timeout_ms })
-    end
-  end
-
-  notify(string.format("Started thread %s", result.thread.id), vim.log.levels.INFO, opts.notify)
-  return result, nil
+  return thread_api.new_thread(opts)
 end
 
 function M.resume_thread(opts)
-  opts = opts or {}
-  if not opts.thread_id then
-    return nil, "thread_id is required"
-  end
-
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local result, request_err = request_with_wait(function(done)
-    rt.client:thread_resume(build_thread_resume_params(opts), done)
-  end, wait_opts(opts))
-
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  if opts.open_chat ~= false then
-    reveal_chat(rt)
-  end
-
-  if result and result.thread then
-    local runtime_settings = clone_runtime_settings(result.thread)
-    if opts.model ~= nil then runtime_settings.model = opts.model end
-    if opts.effort ~= nil then runtime_settings.effort = opts.effort end
-    if opts.summary ~= nil then runtime_settings.summary = opts.summary end
-    if opts.collaboration_mode_mask ~= nil then runtime_settings.collaborationModeMask = opts.collaboration_mode_mask end
-    update_thread_runtime(result.thread.id, runtime_settings)
-  end
-
-  notify(string.format("Resumed thread %s", result.thread.id), vim.log.levels.INFO, opts.notify)
-  return result, nil
+  return thread_api.resume_thread(opts)
 end
 
 function M.list_threads(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local result, request_err = request_with_wait(function(done)
-    rt.client:thread_list(build_thread_list_params(opts), done)
-  end, wait_opts(opts))
-
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  return result, nil
+  return thread_api.list_threads(opts)
 end
 
 function M.read_thread(opts)
-  opts = opts or {}
-  if not opts.thread_id then
-    return nil, "thread_id is required"
-  end
-
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local result, request_err = request_with_wait(function(done)
-    rt.client:thread_read({
-      threadId = opts.thread_id,
-      includeTurns = opts.include_turns ~= false,
-    }, done)
-  end, wait_opts(opts))
-
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  return result, nil
+  return thread_api.read_thread(opts)
 end
 
 function M.open_thread_report(opts)
-  opts = opts or {}
-  local result, err = M.read_thread(vim.tbl_extend("force", opts, { include_turns = true }))
-  if err and err:match("includeTurns is unavailable") then
-    result, err = M.read_thread(vim.tbl_extend("force", opts, { include_turns = false, notify = false }))
-  end
-  if err then
-    return nil, err
-  end
-
-  local view = renderer.render_thread(result.thread, { title = "# Codex Thread" })
-  presentation.open_report(string.format("thread-%s", result.thread.id), view.lines)
-  return result, nil
+  return thread_api.open_thread_report(opts)
 end
 
 function M.pick_thread(opts)
-  opts = opts or {}
-  local rt, ready_err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(ready_err, vim.log.levels.ERROR, opts.notify)
-    return nil, ready_err
-  end
-
-  local result, err = M.list_threads(vim.tbl_extend("force", opts, { notify = false }))
-  if err then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local state = M.get_state()
-  local loaded_threads = query_loaded_threads(rt, opts)
-  if type(loaded_threads) ~= "table" then
-    loaded_threads = {}
-  end
-
-  local threads = merge_known_threads(result.data or {}, state, opts)
-  if #threads == 0 then
-    notify("No matching Codex threads found", vim.log.levels.INFO, opts.notify)
-    return nil, "no threads found"
-  end
-
-  local active_id = state.threads.active_id
-  select_async(threads, {
-    prompt = opts.prompt or "Select Codex thread",
-    format_item = function(thread)
-      return format_thread_label(thread, active_id, state, loaded_threads)
-    end,
-  }, function(choice)
-    if not choice then
-      return
-    end
-
-    if opts.action == "read" then
-      M.open_thread_report({ thread_id = choice.id, notify = opts.notify })
-      return
-    end
-    if opts.action == "archive" then
-      M.archive_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
-      return
-    end
-    if opts.action == "unarchive" then
-      M.unarchive_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
-      return
-    end
-    if opts.action == "compact" then
-      M.compact_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
-      return
-    end
-
-    local local_thread = selectors.get_thread(M.get_state(), choice.id)
-    if choice.id == M.get_state().threads.active_id then
-      reveal_chat(rt)
-      return
-    end
-
-    if loaded_threads[choice.id] and local_thread and #((local_thread.turns_order) or {}) > 0 then
-      rt.store:dispatch({ type = "thread_activated", thread_id = choice.id })
-      reveal_chat(rt)
-      return
-    end
-
-    M.resume_thread({ thread_id = choice.id, open_chat = true, notify = opts.notify })
-  end)
-
-  return threads, nil
+  return thread_api.pick_thread(opts)
 end
 
 function M.create_thread_with_settings(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  pick_thread_runtime_async(rt, {
-    include_name = true,
-    include_ephemeral = true,
-    seed = opts.seed,
-    timeout_ms = opts.timeout_ms,
-    notify = opts.notify,
-  }, function(settings, settings_err)
-    if settings_err then
-      if settings_err ~= "cancelled" then
-        notify(settings_err, vim.log.levels.ERROR, opts.notify)
-      end
-      return
-    end
-
-    M.new_thread(vim.tbl_extend("force", opts, {
-      name = settings.name,
-      ephemeral = settings.ephemeral,
-      model = settings.model,
-      effort = settings.effort,
-      collaboration_mode_mask = settings.collaborationModeMask,
-    }))
-  end)
-
-  return { pending = true }, nil
+  return thread_api.create_thread_with_settings(opts)
 end
 
 function M.configure_thread(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local snapshot = rt.client:get_state()
-  local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
-  if not thread then
-    return nil, "no active thread"
-  end
-
-  local seed = clone_runtime_settings(thread)
-  seed.ephemeral = thread.ephemeral == true or seed.ephemeral == true
-  pick_thread_runtime_async(rt, {
-    include_name = false,
-    include_ephemeral = false,
-    seed = seed,
-    timeout_ms = opts.timeout_ms,
-    notify = opts.notify,
-  }, function(settings, settings_err)
-    if settings_err then
-      if settings_err ~= "cancelled" then
-        notify(settings_err, vim.log.levels.ERROR, opts.notify)
-      end
-      return
-    end
-
-    update_thread_runtime(thread.id, {
-      model = settings.model,
-      effort = settings.effort,
-      summary = seed.summary,
-      collaborationModeMask = settings.collaborationModeMask,
-      ephemeral = seed.ephemeral,
-    })
-
-    notify(string.format("Updated thread settings · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
-  end)
-
-  return { threadId = thread.id }, nil
+  return thread_api.configure_thread(opts)
 end
 
 function M.fork_thread(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local source_thread = opts.thread_id and selectors.get_thread(rt.client:get_state(), opts.thread_id) or selectors.get_active_thread(rt.client:get_state())
-  if not source_thread then
-    return nil, "no active thread"
-  end
-
-  local thread_result, thread_err = M.read_thread({ thread_id = source_thread.id, include_turns = true, notify = false, timeout_ms = opts.timeout_ms })
-  if thread_err then
-    notify(thread_err, vim.log.levels.ERROR, opts.notify)
-    return nil, thread_err
-  end
-
-  local turns = thread_result.thread.turns or {}
-  if #turns == 0 then
-    return nil, "thread has no turns to fork"
-  end
-
-  local turn_choices = {}
-  for index, turn in ipairs(turns) do
-    turn_choices[#turn_choices + 1] = { index = index, turn = turn }
-  end
-  select_async(turn_choices, {
-    prompt = "Fork from turn",
-    format_item = function(item)
-      return turn_preview(item.turn, item.index)
-    end,
-  }, function(selected)
-    if not selected then
-      return
-    end
-
-    local seed = clone_runtime_settings(source_thread)
-    seed.name = thread_title(source_thread)
-    seed.ephemeral = source_thread.ephemeral == true or seed.ephemeral == true
-    pick_thread_runtime_async(rt, {
-      include_name = true,
-      include_ephemeral = true,
-      seed = seed,
-      timeout_ms = opts.timeout_ms,
-      notify = opts.notify,
-    }, function(settings, settings_err)
-      if settings_err then
-        if settings_err ~= "cancelled" then
-          notify(settings_err, vim.log.levels.ERROR, opts.notify)
-        end
-        return
-      end
-
-      local fork_result, fork_err = request_with_wait(function(done)
-        rt.client:thread_fork(build_thread_fork_params({
-          thread_id = source_thread.id,
-          cwd = opts.cwd,
-          model = settings.model,
-          approval_policy = opts.approval_policy,
-          sandbox = opts.sandbox,
-          ephemeral = settings.ephemeral,
-        }), done)
-      end, wait_opts(opts))
-      if fork_err then
-        notify(fork_err, vim.log.levels.ERROR, opts.notify)
-        return
-      end
-
-      local dropped_turns = #turns - selected.index
-      if dropped_turns > 0 then
-        local rollback_result, rollback_err = request_with_wait(function(done)
-          rt.client:thread_rollback({ threadId = fork_result.thread.id, numTurns = dropped_turns }, done)
-        end, wait_opts(opts))
-        if rollback_err then
-          notify(rollback_err, vim.log.levels.ERROR, opts.notify)
-          return
-        end
-        fork_result = rollback_result or fork_result
-      end
-
-      update_thread_runtime(fork_result.thread.id, {
-        model = settings.model,
-        effort = settings.effort,
-        summary = seed.summary,
-        collaborationModeMask = settings.collaborationModeMask,
-        ephemeral = settings.ephemeral,
-      })
-      if settings.name and settings.name ~= "" then
-        submit_thread_rename(rt, fork_result.thread, settings.name, { wait = true, notify = false, timeout_ms = opts.timeout_ms })
-      end
-
-      reveal_chat(rt)
-      notify(string.format("Forked thread %s from %s", short_thread_id(fork_result.thread.id), short_thread_id(source_thread.id)), vim.log.levels.INFO, opts.notify)
-    end)
-  end)
-
-  return { threadId = source_thread.id }, nil
-end
-
-submit_thread_rename = function(rt, thread, name, opts)
-  local normalized_name = vim.trim(tostring(name))
-
-  if opts.wait == true then
-    local result, request_err = request_with_wait(function(done)
-      rt.client:thread_name_set({ threadId = thread.id, name = normalized_name }, done)
-    end, wait_opts(opts))
-
-    if request_err then
-      notify(request_err, vim.log.levels.ERROR, opts.notify)
-      return nil, request_err
-    end
-
-    if normalized_name == "" then
-      notify(string.format("Cleared thread name · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
-    else
-      notify(string.format("Renamed thread %s to %s", short_thread_id(thread.id), normalized_name), vim.log.levels.INFO, opts.notify)
-    end
-    return result, nil
-  end
-
-  rt.client:thread_name_set({ threadId = thread.id, name = normalized_name }, function(request_err)
-    if request_err then
-      notify(request_err, vim.log.levels.ERROR, opts.notify)
-      return
-    end
-
-    if normalized_name == "" then
-      notify(string.format("Cleared thread name · %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
-    else
-      notify(string.format("Renamed thread %s to %s", short_thread_id(thread.id), normalized_name), vim.log.levels.INFO, opts.notify)
-    end
-  end)
-
-  return { threadId = thread.id, name = normalized_name }, nil
+  return thread_api.fork_thread(opts)
 end
 
 function M.rename_thread(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local snapshot = rt.client:get_state()
-  local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
-  if not thread then
-    notify("No active Codex thread to rename", vim.log.levels.INFO, opts.notify)
-    return nil, "no active thread"
-  end
-
-  local name = opts.name
-  if name == nil then
-    input_async({
-      prompt = string.format("Rename Codex thread %s: ", short_thread_id(thread.id)),
-      default = thread.name ~= nil and thread.name ~= vim.NIL and tostring(thread.name) or thread_title(thread),
-    }, function(input)
-      if input == nil then
-        notify("Cancelled thread rename", vim.log.levels.INFO, opts.notify)
-        return
-      end
-      M.rename_thread({
-        thread_id = thread.id,
-        name = input,
-        notify = opts.notify,
-        timeout_ms = opts.timeout_ms,
-        wait = true,
-      })
-    end)
-    return { threadId = thread.id }, nil
-  end
-
-  return submit_thread_rename(rt, thread, name, opts)
+  return thread_api.rename_thread(opts)
 end
 
 function M.archive_thread(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local snapshot = rt.client:get_state()
-  local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
-  if not thread then
-    return M.pick_thread({ action = "archive", notify = opts.notify, timeout_ms = opts.timeout_ms })
-  end
-
-  local _, request_err = request_with_wait(function(done)
-    rt.client:thread_archive({ threadId = thread.id }, done)
-  end, wait_opts(opts))
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  if snapshot.threads.active_id == thread.id then
-    rt.store:dispatch({ type = "thread_activated", thread_id = nil })
-  end
-
-  notify(string.format("Archived thread %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
-  return { threadId = thread.id }, nil
+  return thread_api.archive_thread(opts)
 end
 
 function M.unarchive_thread(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  if not opts.thread_id then
-    return M.pick_thread({
-      action = "unarchive",
-      archived = true,
-      prompt = "Select archived Codex thread",
-      notify = opts.notify,
-      timeout_ms = opts.timeout_ms,
-    })
-  end
-
-  local result, request_err = request_with_wait(function(done)
-    rt.client:thread_unarchive({ threadId = opts.thread_id }, done)
-  end, wait_opts(opts))
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  notify(string.format("Restored thread %s", short_thread_id(opts.thread_id)), vim.log.levels.INFO, opts.notify)
-  return result or { threadId = opts.thread_id }, nil
+  return thread_api.unarchive_thread(opts)
 end
 
 function M.compact_thread(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  local snapshot = rt.client:get_state()
-  local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
-  if not thread then
-    return M.pick_thread({
-      action = "compact",
-      archived = false,
-      prompt = "Select Codex thread to compact",
-      notify = opts.notify,
-      timeout_ms = opts.timeout_ms,
-    })
-  end
-
-  local result, request_err = request_with_wait(function(done)
-    rt.client:thread_compact_start({ threadId = thread.id }, done)
-  end, wait_opts(opts))
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  notify(string.format("Started compaction for %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
-  return result or { threadId = thread.id }, nil
+  return thread_api.compact_thread(opts)
 end
 
 function M.steer(opts)
-  opts = opts or {}
-  local rt, err = ensure_ready(opts.timeout_ms)
-  if not rt then
-    notify(err, vim.log.levels.ERROR, opts.notify)
-    return nil, err
-  end
-
-  if workbench.has_fragments() then
-    notify("Steer is unavailable while workbench fragments are staged", vim.log.levels.INFO, opts.notify)
-    return nil, "workbench fragments are staged"
-  end
-
-  local turn, thread = selectors.find_running_turn(rt.client:get_state(), opts.thread_id)
-  if not turn or not thread then
-    notify("No running Codex turn to steer", vim.log.levels.INFO, opts.notify)
-    return nil, "no running turn"
-  end
-
-  local using_draft = false
-  local text = opts.text
-  if opts.input == nil and text == nil then
-    if not chat.is_visible() then
-      notify("Steer text is required when chat is hidden", vim.log.levels.INFO, opts.notify)
-      return nil, "steer text is required"
-    end
-    text = chat.read_draft()
-    using_draft = true
-  end
-
-  if opts.input == nil and vim.trim(tostring(text or "")) == "" then
-    notify("Steer text is empty", vim.log.levels.INFO, opts.notify)
-    return nil, "steer text is empty"
-  end
-
-  local result, request_err = request_with_wait(function(done)
-    rt.client:turn_steer(build_turn_steer_params(thread.id, turn.id, text, opts), done)
-  end, wait_opts(opts))
-  if request_err then
-    notify(request_err, vim.log.levels.ERROR, opts.notify)
-    return nil, request_err
-  end
-
-  if using_draft and opts.clear_draft ~= false then
-    chat.clear_draft()
-  end
-
-  notify(string.format("Steered turn %s", turn.id), vim.log.levels.INFO, opts.notify)
-  return result or { turnId = turn.id }, nil
+  return thread_api.steer(opts)
 end
 
 function M.open_shortcuts(opts)
