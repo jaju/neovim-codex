@@ -167,6 +167,69 @@ test("store accumulates streamed plan, reasoning, and command output deltas", fu
   eq(turn.items_by_id.cmd_1.aggregatedOutput, "line 1\nline 2")
 end)
 
+test("store reuses untouched branches across streaming deltas", function()
+  local selectors = require("neovim_codex.core.selectors")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_a",
+      preview = "active",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/a",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_b",
+      preview = "other",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/b",
+      turns = {},
+    },
+    activate = false,
+    replace_turns = false,
+  })
+  store:dispatch({
+    type = "turn_received",
+    thread_id = "thr_a",
+    turn = { id = "turn_a", status = "inProgress", items = {}, error = nil },
+  })
+
+  local before = store:get_state()
+  local before_thread_a = selectors.get_thread(before, "thr_a")
+  local before_thread_b = selectors.get_thread(before, "thr_b")
+
+  store:dispatch({
+    type = "agent_message_delta",
+    thread_id = "thr_a",
+    turn_id = "turn_a",
+    item_id = "msg_a",
+    delta = "Hello",
+  })
+
+  local after = store:get_state()
+  local after_thread_a = selectors.get_thread(after, "thr_a")
+  local after_thread_b = selectors.get_thread(after, "thr_b")
+
+  assert(before ~= after, "dispatch should replace the root state table")
+  assert(before_thread_a ~= after_thread_a, "mutated thread should get a new table")
+  assert(before_thread_b == after_thread_b, "untouched thread should be structurally shared")
+end)
+
 
 test("store tracks streamed thread token usage for footer summaries", function()
   local selectors = require("neovim_codex.core.selectors")

@@ -109,6 +109,7 @@ The current usable slice includes:
 ## Important Contract Notes
 
 - request/response methods mutate state only through the store
+- `store:get_state()` and subscriber callbacks now expose the current store snapshot directly; callers must treat that state as read-only and clone only the local fragments they intend to retain or mutate
 - transcript and composer buffers intentionally use plain `markdown` so user filetype, treesitter, and markdown-renderer customization can apply naturally
 - plugin-owned markdown buffers are distinguished through buffer variables, not custom filetypes
 - optional app-server fields can arrive as `vim.NIL` through `vim.json.decode`, so projection and render metadata must clone values safely
