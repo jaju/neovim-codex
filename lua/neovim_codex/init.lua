@@ -13,6 +13,7 @@ local thread_params = require("neovim_codex.nvim.thread_params")
 local thread_runtime = require("neovim_codex.nvim.thread_runtime")
 local thread_runtime_picker = require("neovim_codex.nvim.thread_runtime_picker")
 local chat_layout = require("neovim_codex.nvim.chat.layout")
+local ui_prompt = require("neovim_codex.nvim.ui_prompt")
 
 local M = {}
 
@@ -93,6 +94,8 @@ local defaults = {
     },
   },
   keymaps = {
+    global_fast_modes = { "n", "i", "x" },
+    global_workflow_modes = { "n" },
     global_modes = { "n", "i", "x" },
     surface_help = "<F1>",
     global = {
@@ -103,8 +106,11 @@ local defaults = {
       thread_rename = false,
       thread_fork = false,
       thread_archive = false,
+      thread_unarchive = false,
       thread_settings = false,
+      thread_compact = false,
       interrupt = false,
+      turn_steer = false,
       shortcuts = false,
       request = false,
       workbench = false,
@@ -128,6 +134,7 @@ local defaults = {
     composer = {
       send = "<C-s>",
       send_normal = "gS",
+      steer = "gT",
       switch_pane = "<C-w>w",
       close = "q",
       help = "g?",
@@ -186,49 +193,69 @@ local function map_if(lhs, modes, rhs, desc)
   vim.keymap.set(modes or "n", lhs, rhs, { silent = true, desc = desc })
 end
 
+local function global_modes_for(lane, fallback)
+  local keymaps = config.keymaps or {}
+  if lane == "fast" then
+    return keymaps.global_fast_modes or keymaps.global_modes or fallback
+  end
+  return keymaps.global_workflow_modes or keymaps.global_modes or fallback
+end
+
 local function apply_global_keymaps()
   local keymaps = config.keymaps.global or {}
-  local global_modes = config.keymaps.global_modes or { "n" }
-  map_if(keymaps.chat, global_modes, function()
+  local fast_modes = global_modes_for("fast", { "n", "i", "x" })
+  local workflow_modes = global_modes_for("workflow", { "n" })
+
+  map_if(keymaps.chat, fast_modes, function()
     require("neovim_codex").chat()
   end, "Toggle Codex chat")
-  map_if(keymaps.new_thread, global_modes, function()
-    require("neovim_codex").new_thread()
-  end, "Create a new Codex thread")
-  map_if(keymaps.threads, global_modes, function()
-    require("neovim_codex").pick_thread({ action = "resume" })
-  end, "Pick a Codex thread")
-  map_if(keymaps.read_thread, global_modes, function()
-    require("neovim_codex").pick_thread({ action = "read" })
-  end, "Read a Codex thread")
-  map_if(keymaps.thread_rename, global_modes, function()
-    require("neovim_codex").rename_thread()
-  end, "Rename the active Codex thread")
-  map_if(keymaps.thread_fork, global_modes, function()
-    require("neovim_codex").fork_thread()
-  end, "Fork the active Codex thread")
-  map_if(keymaps.thread_archive, global_modes, function()
-    require("neovim_codex").archive_thread()
-  end, "Archive a Codex thread")
-  map_if(keymaps.thread_settings, global_modes, function()
-    require("neovim_codex").configure_thread()
-  end, "Configure the active Codex thread")
-  map_if(keymaps.interrupt, global_modes, function()
-    require("neovim_codex").interrupt()
-  end, "Interrupt the active Codex turn")
-  map_if(keymaps.request, global_modes, function()
+  map_if(keymaps.request, fast_modes, function()
     require("neovim_codex").open_request()
   end, "Open the active Codex request")
-  map_if(keymaps.shortcuts, global_modes, function()
+  map_if(keymaps.shortcuts, fast_modes, function()
     require("neovim_codex").open_shortcuts()
   end, "Show contextual Codex shortcuts")
-  map_if(keymaps.workbench, global_modes, function()
+
+  map_if(keymaps.new_thread, workflow_modes, function()
+    require("neovim_codex").new_thread()
+  end, "Create a new Codex thread")
+  map_if(keymaps.threads, workflow_modes, function()
+    require("neovim_codex").pick_thread({ action = "resume" })
+  end, "Pick a Codex thread")
+  map_if(keymaps.read_thread, workflow_modes, function()
+    require("neovim_codex").pick_thread({ action = "read" })
+  end, "Read a Codex thread")
+  map_if(keymaps.thread_rename, workflow_modes, function()
+    require("neovim_codex").rename_thread()
+  end, "Rename the active Codex thread")
+  map_if(keymaps.thread_fork, workflow_modes, function()
+    require("neovim_codex").fork_thread()
+  end, "Fork the active Codex thread")
+  map_if(keymaps.thread_archive, workflow_modes, function()
+    require("neovim_codex").archive_thread()
+  end, "Archive a Codex thread")
+  map_if(keymaps.thread_unarchive, workflow_modes, function()
+    require("neovim_codex").unarchive_thread()
+  end, "Restore an archived Codex thread")
+  map_if(keymaps.thread_settings, workflow_modes, function()
+    require("neovim_codex").configure_thread()
+  end, "Configure the active Codex thread")
+  map_if(keymaps.thread_compact, workflow_modes, function()
+    require("neovim_codex").compact_thread()
+  end, "Compact Codex thread history")
+  map_if(keymaps.interrupt, workflow_modes, function()
+    require("neovim_codex").interrupt()
+  end, "Interrupt the active Codex turn")
+  map_if(keymaps.turn_steer, workflow_modes, function()
+    require("neovim_codex").steer()
+  end, "Steer the running Codex turn")
+  map_if(keymaps.workbench, workflow_modes, function()
     require("neovim_codex").toggle_workbench()
   end, "Toggle the Codex workbench")
-  map_if(keymaps.compose, global_modes, function()
+  map_if(keymaps.compose, workflow_modes, function()
     require("neovim_codex").open_compose_review()
   end, "Open Codex compose review")
-  map_if(keymaps.capture_path, global_modes, function()
+  map_if(keymaps.capture_path, workflow_modes, function()
     require("neovim_codex").capture_current_file()
   end, "Add the current file to the Codex workbench")
   if keymaps.capture_selection then
@@ -236,7 +263,7 @@ local function apply_global_keymaps()
       require("neovim_codex").capture_visual_selection()
     end, { silent = true, desc = "Add the current selection to the Codex workbench" })
   end
-  map_if(keymaps.capture_diagnostic, global_modes, function()
+  map_if(keymaps.capture_diagnostic, workflow_modes, function()
     require("neovim_codex").capture_current_diagnostic()
   end, "Add the current diagnostic to the Codex workbench")
 end
@@ -392,51 +419,10 @@ local function current_cwd()
   return vim.fn.getcwd()
 end
 
-local function select_sync(items, opts)
-  local choice = nil
-  local finished = false
-  vim.ui.select(items, opts or {}, function(item)
-    choice = item
-    finished = true
-  end)
-  vim.wait(10000, function()
-    return finished
-  end, 20)
-  return choice
-end
-
-local function input_sync(opts)
-  local value = nil
-  local finished = false
-  vim.ui.input(opts or {}, function(input)
-    value = input
-    finished = true
-  end)
-  vim.wait(10000, function()
-    return finished
-  end, 20)
-  return value
-end
-
-local function select_async(items, opts, on_choice)
-  vim.schedule(function()
-    vim.ui.select(items, opts or {}, function(item)
-      vim.schedule(function()
-        on_choice(item)
-      end)
-    end)
-  end)
-end
-
-local function input_async(opts, on_input)
-  vim.schedule(function()
-    vim.ui.input(opts or {}, function(input)
-      vim.schedule(function()
-        on_input(input)
-      end)
-    end)
-  end)
-end
+local select_sync = ui_prompt.select_sync
+local input_sync = ui_prompt.input_sync
+local select_async = ui_prompt.select_async
+local input_async = ui_prompt.input_async
 
 local compact_text = thread_runtime.compact_text
 local clone_runtime_settings = thread_runtime.clone_settings
@@ -495,6 +481,10 @@ end
 
 local function build_turn_start_params(thread_id, text, opts)
   return thread_params.build_turn_start(config, thread_id, text, opts)
+end
+
+local function build_turn_steer_params(thread_id, turn_id, text, opts)
+  return thread_params.build_turn_steer(thread_id, turn_id, text, opts)
 end
 
 local function chat_actions()
@@ -873,7 +863,7 @@ function M.pick_thread(opts)
   end
 
   local active_id = state.threads.active_id
-  vim.ui.select(threads, {
+  select_async(threads, {
     prompt = opts.prompt or "Select Codex thread",
     format_item = function(thread)
       return format_thread_label(thread, active_id, state, loaded_threads)
@@ -888,7 +878,15 @@ function M.pick_thread(opts)
       return
     end
     if opts.action == "archive" then
-      M.archive_thread({ thread_id = choice.id, notify = opts.notify })
+      M.archive_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
+      return
+    end
+    if opts.action == "unarchive" then
+      M.unarchive_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
+      return
+    end
+    if opts.action == "compact" then
+      M.compact_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
       return
     end
 
@@ -1143,7 +1141,7 @@ function M.rename_thread(opts)
 
   local name = opts.name
   if name == nil then
-    vim.ui.input({
+    input_async({
       prompt = string.format("Rename Codex thread %s: ", short_thread_id(thread.id)),
       default = thread.name ~= nil and thread.name ~= vim.NIL and tostring(thread.name) or thread_title(thread),
     }, function(input)
@@ -1193,6 +1191,119 @@ function M.archive_thread(opts)
 
   notify(string.format("Archived thread %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
   return { threadId = thread.id }, nil
+end
+
+function M.unarchive_thread(opts)
+  opts = opts or {}
+  local rt, err = ensure_ready(opts.timeout_ms)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+
+  if not opts.thread_id then
+    return M.pick_thread({
+      action = "unarchive",
+      archived = true,
+      prompt = "Select archived Codex thread",
+      notify = opts.notify,
+      timeout_ms = opts.timeout_ms,
+    })
+  end
+
+  local result, request_err = request_with_wait(function(done)
+    rt.client:thread_unarchive({ threadId = opts.thread_id }, done)
+  end, wait_opts(opts))
+  if request_err then
+    notify(request_err, vim.log.levels.ERROR, opts.notify)
+    return nil, request_err
+  end
+
+  notify(string.format("Restored thread %s", short_thread_id(opts.thread_id)), vim.log.levels.INFO, opts.notify)
+  return result or { threadId = opts.thread_id }, nil
+end
+
+function M.compact_thread(opts)
+  opts = opts or {}
+  local rt, err = ensure_ready(opts.timeout_ms)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+
+  local snapshot = rt.client:get_state()
+  local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+  if not thread then
+    return M.pick_thread({
+      action = "compact",
+      archived = false,
+      prompt = "Select Codex thread to compact",
+      notify = opts.notify,
+      timeout_ms = opts.timeout_ms,
+    })
+  end
+
+  local result, request_err = request_with_wait(function(done)
+    rt.client:thread_compact_start({ threadId = thread.id }, done)
+  end, wait_opts(opts))
+  if request_err then
+    notify(request_err, vim.log.levels.ERROR, opts.notify)
+    return nil, request_err
+  end
+
+  notify(string.format("Started compaction for %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
+  return result or { threadId = thread.id }, nil
+end
+
+function M.steer(opts)
+  opts = opts or {}
+  local rt, err = ensure_ready(opts.timeout_ms)
+  if not rt then
+    notify(err, vim.log.levels.ERROR, opts.notify)
+    return nil, err
+  end
+
+  if workbench.has_fragments() then
+    notify("Steer is unavailable while workbench fragments are staged", vim.log.levels.INFO, opts.notify)
+    return nil, "workbench fragments are staged"
+  end
+
+  local turn, thread = selectors.find_running_turn(rt.client:get_state(), opts.thread_id)
+  if not turn or not thread then
+    notify("No running Codex turn to steer", vim.log.levels.INFO, opts.notify)
+    return nil, "no running turn"
+  end
+
+  local using_draft = false
+  local text = opts.text
+  if opts.input == nil and text == nil then
+    if not chat.is_visible() then
+      notify("Steer text is required when chat is hidden", vim.log.levels.INFO, opts.notify)
+      return nil, "steer text is required"
+    end
+    text = chat.read_draft()
+    using_draft = true
+  end
+
+  if opts.input == nil and vim.trim(tostring(text or "")) == "" then
+    notify("Steer text is empty", vim.log.levels.INFO, opts.notify)
+    return nil, "steer text is empty"
+  end
+
+  local result, request_err = request_with_wait(function(done)
+    rt.client:turn_steer(build_turn_steer_params(thread.id, turn.id, text, opts), done)
+  end, wait_opts(opts))
+  if request_err then
+    notify(request_err, vim.log.levels.ERROR, opts.notify)
+    return nil, request_err
+  end
+
+  if using_draft and opts.clear_draft ~= false then
+    chat.clear_draft()
+  end
+
+  notify(string.format("Steered turn %s", turn.id), vim.log.levels.INFO, opts.notify)
+  return result or { turnId = turn.id }, nil
 end
 
 function M.open_shortcuts(opts)

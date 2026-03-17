@@ -90,7 +90,10 @@ Default request viewer mappings:
   - when no name is supplied, the prompt is collected asynchronously so the UI does not freeze first
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
+- `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
 - `:CodexThreadSettings [thread-id]` - edit sticky model, effort, and collaboration mode for a thread
+- `:CodexThreadCompact [thread-id]` - start manual history compaction for the active thread, or pick one
+- `:CodexSteer [text]` - steer the currently running turn, or use the active draft when the shell is open
 - `:CodexInterrupt` - interrupt the current turn
 
 ## Default overlay mappings
@@ -112,9 +115,11 @@ Composer buffer:
 
 - `<C-s>` - send the current draft from normal or insert mode
 - `gS` - send the current draft from normal mode
+- `gT` - steer the running turn with the current draft
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
 - `gr` - reopen the active thread inbox
+- `gs` - open the active thread settings sheet
 - `gR` - toggle between rail and reader widths
 - `g?` or `<F1>` in normal mode - open the shortcut sheet for the current surface
 - `<CR>` - insert a newline
@@ -126,14 +131,17 @@ Mappings are merged over defaults in `setup()`.
 ```lua
 require("neovim_codex").setup({
   keymaps = {
+    global_fast_modes = { "n", "i", "x" },
+    global_workflow_modes = { "n" },
     transcript = {
       focus_composer = "<CR>",
       next_turn = "]c",
       prev_turn = "[c",
     },
     composer = {
-      send = "<leader>as",
+      send = "<C-s>",
       send_normal = false,
+      steer = "gT",
     },
   },
 })

@@ -1,52 +1,52 @@
 local runtime = require("neovim_codex.nvim.thread_runtime")
+local ui_prompt = require("neovim_codex.nvim.ui_prompt")
 
 local M = {}
 M.__index = M
 
-local function select_sync(items, opts)
-  local choice = nil
-  local finished = false
-  vim.ui.select(items, opts or {}, function(item)
-    choice = item
-    finished = true
-  end)
-  vim.wait(10000, function()
-    return finished
-  end, 20)
-  return choice
+local select_sync = ui_prompt.select_sync
+local input_sync = ui_prompt.input_sync
+local select_async = ui_prompt.select_async
+local input_async = ui_prompt.input_async
+
+local function same_mode_mask(left, right)
+  if left == right then
+    return true
+  end
+  if type(left) ~= "table" or type(right) ~= "table" then
+    return false
+  end
+  return left.name == right.name
+    and left.mode == right.mode
+    and (left.model or left.model_id or left.modelId) == (right.model or right.model_id or right.modelId)
+    and left.reasoning_effort == right.reasoning_effort
 end
 
-local function input_sync(opts)
-  local value = nil
-  local finished = false
-  vim.ui.input(opts or {}, function(input)
-    value = input
-    finished = true
-  end)
-  vim.wait(10000, function()
-    return finished
-  end, 20)
-  return value
+local function build_mode_choices(modes)
+  local choices = { { label = "No collaboration mode override", value = nil } }
+  for _, mask in ipairs(modes or {}) do
+    choices[#choices + 1] = {
+      label = runtime.mode_choice_label(mask),
+      value = mask,
+    }
+  end
+  return choices
 end
 
-local function select_async(items, opts, on_choice)
-  vim.schedule(function()
-    vim.ui.select(items, opts or {}, function(item)
-      vim.schedule(function()
-        on_choice(item)
-      end)
-    end)
-  end)
-end
-
-local function input_async(opts, on_input)
-  vim.schedule(function()
-    vim.ui.input(opts or {}, function(input)
-      vim.schedule(function()
-        on_input(input)
-      end)
-    end)
-  end)
+local function build_model_choices(models)
+  local model_lookup = {}
+  local choices = { { label = "Default model", value = nil } }
+  for _, model in ipairs(models or {}) do
+    model_lookup[model.model] = model
+    if model.hidden ~= true then
+      choices[#choices + 1] = {
+        label = runtime.model_choice_label(model),
+        value = model.model,
+        model_info = model,
+      }
+    end
+  end
+  return choices, model_lookup
 end
 
 function M.new(opts)
@@ -218,7 +218,7 @@ function M:pick_async(opts, on_done)
   end
 
   local function current_model_label()
-    return runtime.effective_model(settings) or "Default"
+    return runtime.model_menu_label(runtime.effective_model(settings), settings.modelCatalog)
   end
 
   local function current_effort_label()
@@ -263,20 +263,11 @@ function M:pick_async(opts, on_done)
   end
 
   local function choose_mode(next_step)
-    local modes = settings.modeCatalog or {}
-    local mode_choices = { { label = "No collaboration mode override", value = nil } }
-    for _, mask in ipairs(modes) do
-      local reasoning = mask.reasoning_effort == nil and "default" or tostring(mask.reasoning_effort)
-      mode_choices[#mode_choices + 1] = {
-        label = string.format("%s — mode=%s, model=%s, effort=%s", mask.name, tostring(mask.mode), tostring(mask.model), reasoning),
-        value = mask,
-      }
-    end
-
+    local mode_choices = build_mode_choices(settings.modeCatalog)
     select_async(mode_choices, {
       prompt = "Codex collaboration mode",
       format_item = function(item)
-        local current = settings.collaborationModeMask and item.value and item.value.name == settings.collaborationModeMask.name
+        local current = same_mode_mask(settings.collaborationModeMask, item.value)
         if settings.collaborationModeMask == nil and item.value == nil then
           current = true
         end
@@ -297,20 +288,7 @@ function M:pick_async(opts, on_done)
   end
 
   local function choose_model(next_step)
-    local model_lookup = {}
-    local model_choices = { { label = "Default model", value = nil } }
-    for _, model in ipairs(settings.modelCatalog or {}) do
-      model_lookup[model.model] = model
-      if model.hidden ~= true then
-        local label = string.format("%s — %s", model.displayName or model.model, runtime.compact_text(model.description, 72) or "")
-        model_choices[#model_choices + 1] = {
-          label = label,
-          value = model.model,
-          model_info = model,
-        }
-      end
-    end
-
+    local model_choices, model_lookup = build_model_choices(settings.modelCatalog)
     local selected_model = runtime.effective_model(settings)
     select_async(model_choices, {
       prompt = "Codex model",
@@ -333,13 +311,7 @@ function M:pick_async(opts, on_done)
 
   local function choose_effort(next_step)
     local current_model = runtime.effective_model(settings)
-    local model_info = nil
-    for _, item in ipairs(settings.modelCatalog or {}) do
-      if item.model == current_model then
-        model_info = item
-        break
-      end
-    end
+    local model_info = runtime.find_model(settings.modelCatalog, current_model)
     local selected_effort = runtime.effective_effort(settings)
     select_effort_for_model_async(model_info, selected_effort, function(effort, effort_err)
       if effort_err then
@@ -393,9 +365,7 @@ function M:pick_async(opts, on_done)
         return
       end
       if choice.key == "model" then
-        choose_model(function()
-          show_menu()
-        end)
+        choose_model(show_menu)
         return
       end
       if choice.key == "effort" then
@@ -460,21 +430,13 @@ function M:pick(opts)
     mode_err = nil
   end
 
-  local mode_choices = { { label = "No collaboration mode override", value = nil } }
-  if type(modes) == "table" then
-    for _, mask in ipairs(modes) do
-      local reasoning = mask.reasoning_effort == nil and "default" or tostring(mask.reasoning_effort)
-      local label = string.format("%s — mode=%s, model=%s, effort=%s", mask.name, tostring(mask.mode), tostring(mask.model), reasoning)
-      mode_choices[#mode_choices + 1] = { label = label, value = mask }
-    end
-  end
-
   local selected_mode_mask = seed.collaborationModeMask
+  local mode_choices = build_mode_choices(type(modes) == "table" and modes or {})
   if #mode_choices > 1 then
     local mode_selection = select_sync(mode_choices, {
       prompt = "Codex collaboration mode",
       format_item = function(item)
-        local current = selected_mode_mask and item.value and item.value.name == selected_mode_mask.name
+        local current = same_mode_mask(selected_mode_mask, item.value)
         if selected_mode_mask == nil and item.value == nil then
           current = true
         end
@@ -490,19 +452,7 @@ function M:pick(opts)
     selected_mode_mask = mode_selection.value
   end
 
-  local model_lookup = {}
-  local model_choices = { { label = "Default model", value = nil } }
-  for _, model in ipairs(models or {}) do
-    model_lookup[model.model] = model
-    if model.hidden ~= true then
-      model_choices[#model_choices + 1] = {
-        label = string.format("%s — %s", model.displayName or model.model, runtime.compact_text(model.description, 72) or ""),
-        value = model.model,
-        model_info = model,
-      }
-    end
-  end
-
+  local model_choices, model_lookup = build_model_choices(models)
   local selected_model = seed.model or (selected_mode_mask and (selected_mode_mask.model or selected_mode_mask.model_id or selected_mode_mask.modelId))
   local selected_effort = seed.effort
   if selected_effort == nil and selected_mode_mask then

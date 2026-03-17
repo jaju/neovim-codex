@@ -90,6 +90,9 @@ local function ensure_surface()
     send = function()
       M.submit()
     end,
+    steer = function()
+      require("neovim_codex").steer()
+    end,
     hide = function()
       M.close()
     end,

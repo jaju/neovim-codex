@@ -205,4 +205,15 @@ function M.build_turn_start(_config, thread_id, text, opts)
   return params
 end
 
+function M.build_turn_steer(thread_id, turn_id, text, opts)
+  opts = opts or {}
+  return {
+    threadId = thread_id,
+    expectedTurnId = turn_id,
+    input = opts.input or {
+      { type = "text", text = text },
+    },
+  }
+end
+
 return M

@@ -420,6 +420,27 @@ function M:thread_archive(params, on_result)
   end)
 end
 
+function M:thread_unarchive(params, on_result)
+  return self:_request("thread/unarchive", params, function(err, result, message)
+    if not err and result.thread then
+      self.store:dispatch({
+        type = "thread_received",
+        thread = result.thread,
+        replace_turns = false,
+        activate = false,
+        archived = false,
+      })
+      self.store:dispatch({
+        type = "thread_unarchived",
+        thread_id = params.threadId,
+      })
+    end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
 function M:thread_fork(params, on_result)
   return self:_request("thread/fork", params, function(err, result, message)
     if not err and result.thread then
@@ -517,6 +538,22 @@ function M:turn_start(params, on_result)
         replace_items = false,
       })
     end
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:thread_compact_start(params, on_result)
+  return self:_request("thread/compact/start", params, function(err, result, message)
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
+function M:turn_steer(params, on_result)
+  return self:_request("turn/steer", params, function(err, result, message)
     if on_result then
       on_result(err, result, message)
     end

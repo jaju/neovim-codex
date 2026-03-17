@@ -1,5 +1,6 @@
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 local surface_help = require("neovim_codex.nvim.surface_help")
+local ui_prompt = require("neovim_codex.nvim.ui_prompt")
 
 local M = {}
 M.__index = M
@@ -22,18 +23,7 @@ local function array_items(value)
   return {}
 end
 
-local function select_sync(items, opts)
-  local choice = nil
-  local finished = false
-  vim.ui.select(items, opts or {}, function(item)
-    choice = item
-    finished = true
-  end)
-  vim.wait(10000, function()
-    return finished
-  end, 20)
-  return choice
-end
+local select_sync = ui_prompt.select_sync
 
 local function set_prompt_buffer_contract(bufnr)
   vim.bo[bufnr].buftype = "nofile"

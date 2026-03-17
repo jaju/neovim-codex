@@ -17,11 +17,17 @@ Add this to your plugin list to install from the public GitHub repository:
   config = function()
     require("neovim_codex").setup({
       keymaps = {
-        global_modes = { "n", "i", "x" }, -- let your chosen global Codex mappings work across common modes
+        global_fast_modes = { "n", "i", "x" }, -- fast open/reopen actions can stay available across common modes
+        global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
         global = {
           chat = false, -- toggle the chat overlay globally
-          threads = false, -- open the thread picker
           request = false, -- reopen the current approval or question
+          shortcuts = false, -- reopen the current shortcut sheet
+          threads = false, -- open the thread picker
+          thread_settings = false, -- edit sticky thread runtime settings
+          thread_unarchive = false, -- restore an archived thread
+          thread_compact = false, -- start manual thread compaction
+          turn_steer = false, -- steer the currently running turn
           workbench = false, -- toggle the workbench tray
           compose = false, -- open compose review
           capture_path = false, -- stage the current file path

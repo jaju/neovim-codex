@@ -51,14 +51,24 @@ COMMANDS                                               *neovim-codex-commands*
 :CodexThreadArchive [thread-id]
     Archive the active thread, or pick one to archive.
 
+:CodexThreadUnarchive [thread-id]
+    Restore an archived thread, or pick one from archived threads.
+
 :CodexThreadSettings [thread-id]
     Edit sticky model, effort, and collaboration mode for a thread.
+
+:CodexThreadCompact [thread-id]
+    Start manual history compaction for a thread.
 
 :CodexInspect
     Open a details viewer for the selected transcript block.
 
 :CodexInterrupt
     Interrupt the current running turn, if one exists.
+
+:CodexSteer [text]
+    Steer the current running turn, or use the active draft when the shell is
+    open.
 
 :CodexRequest
     Reopen the active pending approval or question request.

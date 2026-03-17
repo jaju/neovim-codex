@@ -77,13 +77,19 @@ Install from the public GitHub repository:
   config = function()
     require("neovim_codex").setup({
       keymaps = {
-        global_modes = { "n", "i", "x" }, -- keep your global Codex shortcuts available across common modes
+        global_fast_modes = { "n", "i", "x" }, -- fast open/reopen actions can stay available across common modes
+        global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
         global = {
           chat = false, -- set a mapping like "<C-,>" to toggle the chat overlay
-          threads = false, -- open the thread picker
           request = false, -- reopen the active approval or question
+          shortcuts = false, -- reopen the current shortcut sheet
+          threads = false, -- open the thread picker
           workbench = false, -- toggle the thread-local workbench tray
           compose = false, -- open compose review for the active thread
+          thread_settings = false, -- edit sticky model/effort/mode settings for the active thread
+          thread_unarchive = false, -- restore an archived thread from the picker
+          thread_compact = false, -- start manual history compaction for a thread
+          turn_steer = false, -- steer the currently running turn explicitly
           capture_path = false, -- stage the current file path into the workbench
           capture_selection = false, -- stage the current visual selection as a code fragment
           capture_diagnostic = false, -- stage the diagnostic under cursor
@@ -133,8 +139,11 @@ Useful thread commands:
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick/archive another thread
+- `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
 - `:CodexThreadSettings [thread-id]` - open the editable thread settings sheet for model, effort, and collaboration mode
+- `:CodexThreadCompact [thread-id]` - start manual history compaction for the active thread, or pick one
 - `:CodexInterrupt` - interrupt the running turn, if any
+- `:CodexSteer [text]` - steer the currently running turn, or use the current chat draft when the shell is open
 - `:CodexRequest` - reopen the active approval or question request if one is pending
 - `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
 
@@ -166,9 +175,12 @@ Workbench and compose commands:
 - `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
+- `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
 - `:CodexThreadSettings [thread-id]` - adjust sticky model, effort, and collaboration mode for a thread
+- `:CodexThreadCompact [thread-id]` - start manual history compaction for a thread
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn
+- `:CodexSteer [text]` - steer the current running turn
 - `:CodexRequest` - reopen the active pending Codex request
 - `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
 - `:CodexWorkbench` - toggle the workbench tray for the active thread
@@ -180,7 +192,7 @@ Workbench and compose commands:
 
 ## Keymaps
 
-Global mappings are disabled by default, but when you set them they can be applied across multiple modes through `keymaps.global_modes`. Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or `<F1>` inside a Codex surface to reopen the current shortcut sheet, which is grouped into "This surface", "Global fast", and "Global workflow" lanes.
+Global mappings are disabled by default. Fast open/reopen actions use `keymaps.global_fast_modes`; workflow actions use `keymaps.global_workflow_modes`. If you only set the older `keymaps.global_modes`, it still works as the fallback for both lanes. Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or `<F1>` inside a Codex surface to reopen the current shortcut sheet, which is grouped into "This surface", "Global fast", and "Global workflow" lanes.
 
 Transcript buffer defaults:
 
@@ -199,9 +211,11 @@ Composer buffer defaults:
 
 - `<C-s>` - send the current draft from normal or insert mode
 - `gS` - send the current draft from normal mode
+- `gT` - steer the running turn with the current draft
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
 - `gr` - reopen the active thread inbox
+- `gs` - open the active thread settings
 - `gR` - toggle between rail and reader widths
 - `g?` or `<F1>` in normal mode - open the Codex shortcut sheet for the current surface
 - `<CR>` - insert a newline
@@ -217,19 +231,27 @@ Pending request viewer defaults:
 - `g?` or `<F1>` - open the Codex shortcut sheet for the current surface
 - `q` or `<Esc>` - hide the request viewer without resolving the request
 
-All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_modes = { "n", "i", "x" }` (the default) to keep global Codex shortcuts available without changing modes.
+All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_fast_modes = { "n", "i", "x" }` to keep fast global Codex actions available without changing modes, and `keymaps.global_workflow_modes = { "n" }` to keep workflow actions normal-mode only.
 
 ```lua
 require("neovim_codex").setup({
   keymaps = {
+    global_fast_modes = { "n", "i", "x" },
+    global_workflow_modes = { "n" },
     global = {
-      chat = "<leader>ac",
-      threads = "<leader>at",
-      read_thread = "<leader>aT",
-      workbench = "<leader>aw",
-      compose = "<leader>ap",
-      capture_path = "<leader>af",
-      capture_selection = "<leader>as",
+      chat = "<C-,>",
+      request = "<C-.>",
+      shortcuts = "<F1>",
+      threads = "<leader>ct",
+      read_thread = "<leader>cT",
+      thread_settings = "<leader>cs",
+      thread_unarchive = "<leader>cu",
+      thread_compact = "<leader>ck",
+      turn_steer = "<leader>cS",
+      workbench = "<leader>cw",
+      compose = "<leader>cp",
+      capture_path = "<leader>cf",
+      capture_selection = "<leader>cx",
     },
     transcript = {
       focus_composer = "i",
@@ -238,8 +260,9 @@ require("neovim_codex").setup({
       prev_turn = "[c",
     },
     composer = {
-      send = "<leader>as",
+      send = "<C-s>",
       send_normal = false,
+      steer = "gT",
     },
   },
 })
@@ -336,11 +359,17 @@ A fuller workflow note lives in [`docs/development/workflow.md`](docs/developmen
 ```lua
 require("neovim_codex").setup({
   keymaps = {
-    global_modes = { "n", "i", "x" }, -- make your chosen global Codex shortcuts work across common modes
+    global_fast_modes = { "n", "i", "x" }, -- fast open/reopen actions can stay available across common modes
+    global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
     global = {
       chat = "<C-,>", -- toggle the chat overlay
+      request = "<C-.>", -- reopen the active approval or question
+      shortcuts = "<F1>", -- reopen the current shortcut sheet
       threads = "<leader>ct", -- open the thread picker
-      request = "<leader>cq", -- reopen the active approval or question
+      thread_settings = "<leader>cs", -- edit sticky thread runtime settings
+      thread_unarchive = "<leader>cu", -- restore an archived thread
+      thread_compact = "<leader>ck", -- start manual thread compaction
+      turn_steer = "<leader>cS", -- steer the currently running turn
       workbench = "<leader>cw", -- toggle the workbench tray
       compose = "<leader>cp", -- open compose review
       capture_path = "<leader>cf", -- stage the current file path

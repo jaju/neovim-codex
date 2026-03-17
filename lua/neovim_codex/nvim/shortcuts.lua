@@ -61,25 +61,30 @@ local function fast_entries(config)
   local global = (config.keymaps or {}).global or {}
   local entries = {}
   add_mapping(entries, global.chat, "Toggle the Codex shell")
+  add_mapping(entries, global.request, "Reopen the active thread inbox")
+  add_mapping(entries, global.shortcuts, "Open this shortcut sheet from anywhere")
   return entries
 end
 
 local function workflow_entries(config)
   local global = (config.keymaps or {}).global or {}
   local entries = {}
+  add_mapping(entries, global.new_thread, "Create a new thread")
   add_mapping(entries, global.threads, "Pick or resume a thread")
   add_mapping(entries, global.read_thread, "Open a thread report")
   add_mapping(entries, global.thread_rename, "Rename the active thread")
   add_mapping(entries, global.thread_fork, "Fork the active thread")
   add_mapping(entries, global.thread_archive, "Archive a thread")
+  add_mapping(entries, global.thread_unarchive, "Restore an archived thread")
   add_mapping(entries, global.thread_settings, "Edit the active thread settings")
-  add_mapping(entries, global.request, "Reopen the active thread inbox")
+  add_mapping(entries, global.thread_compact, "Start manual history compaction")
+  add_mapping(entries, global.interrupt, "Interrupt the active Codex turn")
+  add_mapping(entries, global.turn_steer, "Steer the running Codex turn")
   add_mapping(entries, global.workbench, "Toggle the workbench tray")
   add_mapping(entries, global.compose, "Open compose review")
   add_mapping(entries, global.capture_path, "Stage the current file path")
   add_mapping(entries, global.capture_selection, "Stage the current visual selection")
   add_mapping(entries, global.capture_diagnostic, "Stage the diagnostic under cursor")
-  add_mapping(entries, global.shortcuts, "Open this shortcut sheet from anywhere")
   return entries
 end
 
@@ -101,6 +106,7 @@ local function surface_entries(config, surface)
     local keymaps = (config.keymaps or {}).composer or {}
     add_mapping(entries, keymaps.send, "Send the message, or open compose review when fragments are staged")
     add_mapping(entries, keymaps.send_normal, "Send from normal mode")
+    add_mapping(entries, keymaps.steer, "Steer the running turn with the current draft")
     add_mapping(entries, keymaps.switch_pane, "Switch between composer and transcript")
     add_mapping(entries, keymaps.request, "Reopen the active thread inbox")
     add_mapping(entries, keymaps.settings, "Edit the active thread settings")

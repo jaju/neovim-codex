@@ -24,6 +24,7 @@ local function count_chat_shell_windows()
 end
 
 local codex = require("neovim_codex")
+local selectors = require("neovim_codex.core.selectors")
 codex.setup({})
 
 assert(vim.fn.exists(":CodexStart") == 2, "CodexStart command should exist")
@@ -34,9 +35,12 @@ assert(vim.fn.exists(":CodexThreadNew") == 2, "CodexThreadNew command should exi
 assert(vim.fn.exists(":CodexThreads") == 2, "CodexThreads command should exist")
 assert(vim.fn.exists(":CodexThreadRead") == 2, "CodexThreadRead command should exist")
 assert(vim.fn.exists(":CodexThreadRename") == 2, "CodexThreadRename command should exist")
+assert(vim.fn.exists(":CodexThreadUnarchive") == 2, "CodexThreadUnarchive command should exist")
+assert(vim.fn.exists(":CodexThreadCompact") == 2, "CodexThreadCompact command should exist")
 assert(vim.fn.exists(":CodexRequest") == 2, "CodexRequest command should exist")
 assert(vim.fn.exists(":CodexWorkbench") == 2, "CodexWorkbench command should exist")
 assert(vim.fn.exists(":CodexCompose") == 2, "CodexCompose command should exist")
+assert(vim.fn.exists(":CodexSteer") == 2, "CodexSteer command should exist")
 assert(vim.fn.exists(":CodexCapturePath") == 2, "CodexCapturePath command should exist")
 assert(vim.fn.exists(":CodexCaptureSelection") == 2, "CodexCaptureSelection command should exist")
 assert(vim.fn.exists(":CodexCaptureDiagnostic") == 2, "CodexCaptureDiagnostic command should exist")
@@ -123,6 +127,19 @@ end, 20)
 assert(codex.get_chat_state().mode == "rail", "gR should switch the shell back to rail mode")
 assert(count_chat_shell_windows() == 3, "toggling back to rail should not leave stale shell windows behind")
 
+codex.setup({
+  keymaps = {
+    global = {
+      chat = "<leader>cc",
+      request = "<leader>cr",
+      shortcuts = "<leader>c?",
+      thread_unarchive = "<leader>cu",
+      thread_compact = "<leader>ck",
+      turn_steer = "<leader>ct",
+    },
+  },
+})
+
 local shortcuts_surface, shortcut_lines = codex.open_shortcuts({ surface = "composer" })
 assert(shortcuts_surface == "composer", "shortcut sheet should target the requested surface")
 local shortcuts_body = table.concat(shortcut_lines, "\n")
@@ -131,6 +148,10 @@ assert(shortcuts_body:find("## Global fast", 1, true), "shortcut sheet should sh
 assert(shortcuts_body:find("## Global workflow", 1, true), "shortcut sheet should show the workflow global lane")
 assert(shortcuts_body:find("g? / <F1>", 1, true), "shortcut sheet should explain the local help entrypoints")
 assert(shortcuts_body:find("Edit the active thread settings", 1, true), "shortcut sheet should expose the local thread settings path")
+assert(shortcuts_body:find("Restore an archived thread", 1, true), "shortcut sheet should expose thread restore actions in the workflow lane")
+assert(shortcuts_body:find("Start manual history compaction", 1, true), "shortcut sheet should expose thread compaction in the workflow lane")
+assert(shortcuts_body:find("Steer the running Codex turn", 1, true), "shortcut sheet should expose global steer actions in the workflow lane")
+assert(shortcuts_body:find("Steer the running turn with the current draft", 1, true), "shortcut sheet should expose the composer-local steer path")
 require("neovim_codex.nvim.presentation").close_viewers()
 
 vim.cmd("startinsert")
@@ -203,6 +224,50 @@ if #list_result.data > 0 then
   assert(codex.get_state().threads.active_id == list_result.data[1].id, "resumed stored thread should become active")
 end
 
+local archive_thread_result, archive_thread_err = codex.new_thread({
+  notify = false,
+  open_chat = false,
+  cwd = repo_root,
+  timeout_ms = 8000,
+})
+assert(archive_thread_err == nil, archive_thread_err or "archive test thread should start")
+assert(archive_thread_result and archive_thread_result.thread and archive_thread_result.thread.id, "archive test thread should return a thread id")
+local archive_turn_result, archive_turn_err = codex.submit_text("materialize archive rollout", {
+  notify = false,
+  open_chat = false,
+  timeout_ms = 8000,
+})
+assert(archive_turn_err == nil, archive_turn_err or "archive test turn should start cleanly")
+assert(archive_turn_result ~= nil, "archive test turn should return a result")
+vim.wait(15000, function()
+  local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]
+  return thread ~= nil and type(thread.path) == "string" and thread.path ~= "" and vim.uv.fs_stat(thread.path) ~= nil
+end, 50)
+local archived_thread_snapshot = codex.get_state().threads.by_id[archive_thread_result.thread.id]
+assert(
+  archived_thread_snapshot ~= nil
+    and type(archived_thread_snapshot.path) == "string"
+    and archived_thread_snapshot.path ~= ""
+    and vim.uv.fs_stat(archived_thread_snapshot.path) ~= nil,
+  "archive test thread should materialize a rollout path before archiving"
+)
+local archive_action, archive_action_err = codex.archive_thread({ thread_id = archive_thread_result.thread.id, notify = false, timeout_ms = 8000 })
+assert(archive_action_err == nil, archive_action_err or "thread archive should succeed")
+assert(archive_action ~= nil, "thread archive should return a result")
+vim.wait(1000, function()
+  local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]
+  return thread and thread.archived == true
+end, 20)
+assert(codex.get_state().threads.by_id[archive_thread_result.thread.id].archived == true, "thread archive should mark the thread archived")
+local unarchive_action, unarchive_err = codex.unarchive_thread({ thread_id = archive_thread_result.thread.id, notify = false, timeout_ms = 8000 })
+assert(unarchive_err == nil, unarchive_err or "thread unarchive should succeed")
+assert(unarchive_action ~= nil, "thread unarchive should return a result")
+vim.wait(1000, function()
+  local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]
+  return thread and thread.archived == false
+end, 20)
+assert(codex.get_state().threads.by_id[archive_thread_result.thread.id].archived == false, "thread unarchive should restore the archived thread")
+
 local capture_thread_result, capture_thread_err = codex.new_thread({
   notify = false,
   open_chat = false,
@@ -212,6 +277,14 @@ local capture_thread_result, capture_thread_err = codex.new_thread({
 assert(capture_thread_err == nil, capture_thread_err or "capture thread start failed")
 assert(capture_thread_result and capture_thread_result.thread and capture_thread_result.thread.id, "capture flow should run against a fresh thread")
 assert(codex.get_state().threads.active_id == capture_thread_result.thread.id, "fresh capture thread should become active")
+
+local steer_none_result, steer_none_err = codex.steer({ text = "Focus on failing tests first.", notify = false, timeout_ms = 8000 })
+assert(steer_none_result == nil, "steer should refuse when no turn is running")
+assert(steer_none_err == "no running turn", "steer should report when no turn is running")
+
+local compact_result, compact_err = codex.compact_thread({ thread_id = capture_thread_result.thread.id, notify = false, timeout_ms = 8000 })
+assert(compact_err == nil, compact_err or "thread compaction should start cleanly")
+assert(compact_result ~= nil, "thread compaction should return a result")
 
 local rename_result, rename_err = codex.rename_thread({ name = "Workbench thread", notify = false, timeout_ms = 8000 })
 assert(rename_err == nil, rename_err or "thread rename should succeed")
@@ -230,6 +303,9 @@ assert(path_fragment.kind == "path_ref", "current file capture should stage a pa
 assert(path_fragment.handle == "f1", "first captured fragment should get the first stable handle")
 assert(codex.get_workbench_state().thread_id == codex.get_state().threads.active_id, "workbench should stay thread-local to the active thread")
 assert(codex.get_workbench_state().workbench.fragments_order[1] == path_fragment.id, "captured file should appear in the active workbench")
+local steer_blocked_result, steer_blocked_err = codex.steer({ text = "Actually patch tests first.", notify = false, timeout_ms = 8000 })
+assert(steer_blocked_result == nil, "steer should refuse while workbench fragments are staged")
+assert(steer_blocked_err == "workbench fragments are staged", "steer should explain why staged fragments block the request")
 
 codex.toggle_workbench()
 assert(codex.get_workbench_state().tray.visible == true, "workbench tray should open")

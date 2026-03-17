@@ -19,6 +19,64 @@ local function eq(actual, expected, message)
   end
 end
 
+local function fake_transport()
+  return {
+    is_running = function()
+      return true
+    end,
+    start = function()
+      return true, nil, 1
+    end,
+    stop = function()
+      return true, nil
+    end,
+    write = function() end,
+  }
+end
+
+local function new_test_client()
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+  local client = require("neovim_codex.core.client").new({
+    store = store,
+    transport = fake_transport(),
+    json = {
+      encode = vim.json.encode,
+      decode = vim.json.decode,
+    },
+    client_info = {
+      name = "test_client",
+      title = "Test Client",
+      version = "0.0.0",
+    },
+    experimental_api = true,
+  })
+  local calls = {}
+  client._request = function(_, method, params, on_result)
+    calls[#calls + 1] = { method = method, params = vim.deepcopy(params) }
+    if method == "thread/unarchive" then
+      on_result(nil, {
+        thread = {
+          id = params.threadId,
+          preview = "restored",
+          ephemeral = false,
+          modelProvider = "openai",
+          createdAt = 1,
+          updatedAt = 1,
+          status = { type = "idle" },
+          cwd = "/tmp/demo",
+          turns = {},
+        },
+      }, {})
+    elseif method == "turn/steer" then
+      on_result(nil, { turnId = params.expectedTurnId }, {})
+    else
+      on_result(nil, {}, {})
+    end
+    return #calls
+  end
+  return client, store, calls
+end
+
 test("jsonrpc decoder handles partial lines", function()
   local jsonrpc = require("neovim_codex.core.jsonrpc")
   local decoder = jsonrpc.new_decoder({
@@ -710,6 +768,99 @@ test("thread renderer accepts raw thread/read payloads", function()
   assert((view.footer or ""):find("thread thr_raw", 1, true), "raw thread footer should use a short thread id")
   assert((view.footer or ""):find("Raw thread", 1, true), "raw thread footer should include the thread title")
   assert((view.footer or ""):find("1 turn", 1, true), "raw thread footer should include the turn count")
+end)
+
+test("client thread_unarchive restores archived thread state", function()
+  local client, store, calls = new_test_client()
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_restore",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = false,
+    replace_turns = false,
+  })
+  store:dispatch({ type = "thread_archived", thread_id = "thr_restore" })
+
+  local callback_result = nil
+  client:thread_unarchive({ threadId = "thr_restore" }, function(err, result)
+    eq(err, nil)
+    callback_result = result
+  end)
+
+  eq(calls[1].method, "thread/unarchive")
+  eq(calls[1].params.threadId, "thr_restore")
+  eq(callback_result.thread.id, "thr_restore")
+  eq(store:get_state().threads.by_id.thr_restore.archived, false)
+end)
+
+test("client thread_compact_start uses the compact RPC", function()
+  local client, _, calls = new_test_client()
+  local callback_result = nil
+
+  client:thread_compact_start({ threadId = "thr_compact" }, function(err, result)
+    eq(err, nil)
+    callback_result = result
+  end)
+
+  eq(calls[1].method, "thread/compact/start")
+  eq(calls[1].params.threadId, "thr_compact")
+  eq(type(callback_result), "table")
+end)
+
+test("client turn_steer uses expectedTurnId precondition", function()
+  local client, _, calls = new_test_client()
+  local callback_result = nil
+
+  client:turn_steer({
+    threadId = "thr_steer",
+    expectedTurnId = "turn_steer",
+    input = { { type = "text", text = "Focus on tests first." } },
+  }, function(err, result)
+    eq(err, nil)
+    callback_result = result
+  end)
+
+  eq(calls[1].method, "turn/steer")
+  eq(calls[1].params.threadId, "thr_steer")
+  eq(calls[1].params.expectedTurnId, "turn_steer")
+  eq(calls[1].params.input[1].text, "Focus on tests first.")
+  eq(callback_result.turnId, "turn_steer")
+end)
+
+test("thread runtime model labels include upgrade and availability hints", function()
+  local runtime = require("neovim_codex.nvim.thread_runtime")
+  local model = {
+    model = "gpt-5.2-codex",
+    displayName = "gpt-5.2-codex",
+    description = "Balanced coding model",
+    hidden = false,
+    isDefault = true,
+    upgrade = nil,
+    upgradeInfo = {
+      model = "gpt-5.4",
+      upgradeCopy = "Try gpt-5.4 for higher quality.",
+      modelLink = nil,
+      migrationMarkdown = nil,
+    },
+    availabilityNux = { message = "Available on upgraded accounts." },
+    supportedReasoningEfforts = {},
+  }
+
+  local label = runtime.model_choice_label(model)
+  assert(label:find("gpt%-5%.4"), "model picker label should include upgrade hints")
+  assert(label:find("Available on upgraded accounts"), "model picker label should include availability hints")
+  local menu_label = runtime.model_menu_label("gpt-5.2-codex", { model })
+  assert(menu_label:find("gpt%-5%.2%-codex"), "menu label should resolve against the catalog")
 end)
 
 for _, case in ipairs(tests) do

@@ -86,6 +86,93 @@ function M.normalize(settings)
   return normalized
 end
 
+function M.find_model(model_catalog, model_name)
+  if not model_name then
+    return nil
+  end
+  for _, model in ipairs(model_catalog or {}) do
+    if model.model == model_name then
+      return model
+    end
+  end
+  return nil
+end
+
+local function model_upgrade_hint(model)
+  local upgrade_info = type(model) == "table" and model.upgradeInfo or nil
+  if type(upgrade_info) == "table" then
+    local copy = M.compact_text(upgrade_info.upgradeCopy, 44)
+    if copy then
+      return copy
+    end
+    if upgrade_info.model then
+      return string.format("upgrade: %s", upgrade_info.model)
+    end
+  end
+  if type(model) == "table" and model.upgrade then
+    return string.format("upgrade: %s", model.upgrade)
+  end
+  return nil
+end
+
+local function model_availability_hint(model)
+  local availability = type(model) == "table" and model.availabilityNux or nil
+  if type(availability) ~= "table" then
+    return nil
+  end
+  return M.compact_text(availability.message, 44)
+end
+
+function M.model_choice_label(model)
+  if type(model) ~= "table" then
+    return "Default model"
+  end
+
+  local label = model.displayName or model.model or "Unknown model"
+  local description = M.compact_text(model.description, 56)
+  if description then
+    label = string.format("%s — %s", label, description)
+  end
+
+  local hints = {}
+  local upgrade = model_upgrade_hint(model)
+  if upgrade then
+    hints[#hints + 1] = upgrade
+  end
+  local availability = model_availability_hint(model)
+  if availability then
+    hints[#hints + 1] = availability
+  end
+  if model.isDefault then
+    hints[#hints + 1] = "default"
+  end
+
+  if #hints > 0 then
+    label = string.format("%s [%s]", label, table.concat(hints, " · "))
+  end
+
+  return M.compact_text(label, 132) or label
+end
+
+function M.model_menu_label(model_name, model_catalog)
+  if not model_name then
+    return "Default"
+  end
+  local model = M.find_model(model_catalog, model_name)
+  if not model then
+    return tostring(model_name)
+  end
+  return M.compact_text(M.model_choice_label(model), 72) or tostring(model_name)
+end
+
+function M.mode_choice_label(mask)
+  if type(mask) ~= "table" then
+    return "No collaboration mode override"
+  end
+  local reasoning = mask.reasoning_effort == nil and "default" or tostring(mask.reasoning_effort)
+  return string.format("%s — mode=%s, model=%s, effort=%s", mask.name, tostring(mask.mode), tostring(mask.model), reasoning)
+end
+
 function M.supported_effort_choices(model)
   local choices = { { label = "Default", value = nil } }
   for _, option in ipairs((model and model.supportedReasoningEfforts) or {}) do

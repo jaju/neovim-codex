@@ -34,6 +34,11 @@ vim.api.nvim_create_user_command("CodexSend", function()
   require("neovim_codex").send()
 end, {})
 
+vim.api.nvim_create_user_command("CodexSteer", function(command)
+  local args = vim.trim(command.args or "")
+  require("neovim_codex").steer(args == "" and {} or { text = args })
+end, { nargs = "*" })
+
 vim.api.nvim_create_user_command("CodexThreadNew", function()
   require("neovim_codex").new_thread()
 end, {})
@@ -68,6 +73,16 @@ end, { nargs = "?" })
 vim.api.nvim_create_user_command("CodexThreadArchive", function(command)
   local args = vim.trim(command.args or "")
   require("neovim_codex").archive_thread(args == "" and {} or { thread_id = args })
+end, { nargs = "?" })
+
+vim.api.nvim_create_user_command("CodexThreadUnarchive", function(command)
+  local args = vim.trim(command.args or "")
+  require("neovim_codex").unarchive_thread(args == "" and {} or { thread_id = args })
+end, { nargs = "?" })
+
+vim.api.nvim_create_user_command("CodexThreadCompact", function(command)
+  local args = vim.trim(command.args or "")
+  require("neovim_codex").compact_thread(args == "" and {} or { thread_id = args })
 end, { nargs = "?" })
 
 vim.api.nvim_create_user_command("CodexThreadSettings", function(command)

@@ -48,6 +48,11 @@ function Composer:_bind_keymaps(bufnr)
   map_if(keymaps.send_normal, "n", function()
     self.handlers.send()
   end, { buffer = bufnr, desc = "Send Codex prompt" })
+  map_if(keymaps.steer, { "i", "n" }, function()
+    if self.handlers.steer then
+      self.handlers.steer()
+    end
+  end, { buffer = bufnr, desc = "Steer the active Codex turn" })
   map_if(keymaps.switch_pane, "n", function()
     if self.handlers.focus_transcript then
       self.handlers.focus_transcript()
