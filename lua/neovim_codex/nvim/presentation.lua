@@ -1,4 +1,5 @@
 local selectors = require("neovim_codex.core.selectors")
+local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 
 local M = {}
@@ -7,6 +8,7 @@ local state = {
   events_buf = nil,
   unsubscribe = nil,
   reports = {},
+  refresh_job = nil,
 }
 
 local function ensure_report_buffer(name, filetype)
@@ -93,20 +95,25 @@ function M.open_events(store)
     state.unsubscribe()
     state.unsubscribe = nil
   end
+  if state.refresh_job then
+    state.refresh_job:dispose()
+    state.refresh_job = nil
+  end
 
+  state.refresh_job = coalesced_schedule.new(function()
+    refresh_events(store)
+    viewer_stack.refresh("events", {
+      title = "Codex Events",
+      role = "events",
+      filetype = "markdown",
+      width = 0.84,
+      height = 0.72,
+      wrap = false,
+      lines = vim.api.nvim_buf_get_lines(state.events_buf, 0, -1, false),
+    })
+  end)
   state.unsubscribe = store:subscribe(function()
-    vim.schedule(function()
-      refresh_events(store)
-      viewer_stack.refresh("events", {
-        title = "Codex Events",
-        role = "events",
-        filetype = "markdown",
-        width = 0.84,
-        height = 0.72,
-        wrap = false,
-        lines = vim.api.nvim_buf_get_lines(state.events_buf, 0, -1, false),
-      })
-    end)
+    state.refresh_job:trigger()
   end)
 end
 

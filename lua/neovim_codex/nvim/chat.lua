@@ -1,4 +1,5 @@
 local presentation = require("neovim_codex.nvim.presentation")
+local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 
 local M = {}
 
@@ -15,6 +16,7 @@ local state = {
   last_document = nil,
   last_render = nil,
   mode = nil,
+  render_job = nil,
 }
 
 local function notify(message, level)
@@ -165,13 +167,18 @@ local function attach(store)
     state.unsubscribe()
     state.unsubscribe = nil
   end
+  if state.render_job then
+    state.render_job:dispose()
+    state.render_job = nil
+  end
 
   state.store = store
+  state.render_job = coalesced_schedule.new(render)
   state.unsubscribe = store:subscribe(function()
     if not (state.surface and state.surface:is_visible()) then
       return
     end
-    vim.schedule(render)
+    state.render_job:trigger()
   end)
 end
 

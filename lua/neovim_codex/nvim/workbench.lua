@@ -1,4 +1,6 @@
 local packet = require("neovim_codex.core.packet")
+local selectors = require("neovim_codex.core.selectors")
+local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local presentation = require("neovim_codex.nvim.presentation")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 local thread_identity = require("neovim_codex.nvim.thread_identity")
@@ -12,6 +14,7 @@ local state = {
   tray = nil,
   review = nil,
   unsubscribe = nil,
+  refresh_job = nil,
 }
 
 local function notify(message, level, enabled)
@@ -31,10 +34,6 @@ local function clone_value(value)
     out[key] = clone_value(item)
   end
   return out
-end
-
-local function selectors()
-  return require("neovim_codex.core.selectors")
 end
 
 local function ensure_modules()
@@ -136,7 +135,7 @@ local function active_workbench()
   end
 
   local snapshot = state.store:get_state()
-  return selectors().get_active_workbench(snapshot), snapshot.threads.active_id
+  return selectors.get_active_workbench(snapshot), snapshot.threads.active_id
 end
 
 local function refresh_ui()
@@ -148,8 +147,8 @@ local function refresh_ui()
   if not thread_id then
     return nil, "No active thread for compose review"
   end
-  local fragments = selectors().list_fragments(workbench)
-  local message = selectors().workbench_message(workbench)
+  local fragments = selectors.list_fragments(workbench)
+  local message = selectors.workbench_message(workbench)
   if viewer_stack.is_open("workbench-tray") then
     viewer_stack.refresh("workbench-tray", M._tray_viewer_spec(thread_id, fragments))
   else
@@ -168,13 +167,18 @@ local function attach(store)
     state.unsubscribe()
     state.unsubscribe = nil
   end
+  if state.refresh_job then
+    state.refresh_job:dispose()
+    state.refresh_job = nil
+  end
 
   state.store = store
+  state.refresh_job = coalesced_schedule.new(refresh_ui)
   state.unsubscribe = store:subscribe(function(_, event)
     if not event.type:match("^workbench_") and event.type ~= "thread_activated" and event.type ~= "thread_received" then
       return
     end
-    vim.schedule(refresh_ui)
+    state.refresh_job:trigger()
   end)
 end
 
@@ -290,8 +294,8 @@ local function add_fragment_for_thread(thread_id, fragment, opts)
     fragment = fragment,
   })
 
-  local workbench = selectors().get_workbench(state.store:get_state(), thread_id)
-  local stored_fragment = selectors().get_fragment(workbench, fragment.id) or fragment
+  local workbench = selectors.get_workbench(state.store:get_state(), thread_id)
+  local stored_fragment = selectors.get_fragment(workbench, fragment.id) or fragment
   notify(string.format("Added %s to workbench · thread %s", stored_fragment.kind, thread_id), vim.log.levels.INFO, opts and opts.notify)
   refresh_ui()
   return stored_fragment, nil
@@ -316,7 +320,7 @@ function M.toggle()
     return false, nil
   end
 
-  viewer_stack.open(M._tray_viewer_spec(thread_id, selectors().list_fragments(workbench)))
+  viewer_stack.open(M._tray_viewer_spec(thread_id, selectors.list_fragments(workbench)))
   return true, nil
 end
 
@@ -330,12 +334,12 @@ function M.open_review(seed_message)
     return nil, "No active thread"
   end
 
-  local fragments = selectors().list_fragments(workbench)
-  local current_message = selectors().workbench_message(workbench)
+  local fragments = selectors.list_fragments(workbench)
+  local current_message = selectors.workbench_message(workbench)
   if seed_message ~= nil and current_message == "" then
     state.store:dispatch({ type = "workbench_message_updated", thread_id = thread_id, message = seed_message })
-    workbench = selectors().get_active_workbench(state.store:get_state())
-    current_message = selectors().workbench_message(workbench)
+    workbench = selectors.get_active_workbench(state.store:get_state())
+    current_message = selectors.workbench_message(workbench)
   end
 
   viewer_stack.close("workbench-tray")
@@ -573,7 +577,7 @@ function M.fragment_count()
   if not state.store then
     return 0
   end
-  return selectors().workbench_fragment_count(state.store:get_state())
+  return selectors.workbench_fragment_count(state.store:get_state())
 end
 
 function M.has_fragments()
@@ -586,8 +590,8 @@ function M.send_packet()
     return nil, "No active thread"
   end
 
-  local fragments = selectors().list_fragments(workbench)
-  local message = selectors().workbench_message(workbench)
+  local fragments = selectors.list_fragments(workbench)
+  local message = selectors.workbench_message(workbench)
   local submit = state.actions and state.actions.submit_packet
   if not submit then
     return nil, "Packet submission is unavailable"
@@ -621,8 +625,8 @@ function M.preview_packet()
     return nil, "No active thread"
   end
 
-  local fragments = selectors().list_fragments(workbench)
-  local message = selectors().workbench_message(workbench)
+  local fragments = selectors.list_fragments(workbench)
+  local message = selectors.workbench_message(workbench)
   local lines = nil
   local analysis = nil
   local err = nil

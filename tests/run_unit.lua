@@ -96,6 +96,25 @@ test("jsonrpc decoder handles partial lines", function()
   eq(messages[1].result.userAgent, "ua")
 end)
 
+test("coalesced scheduler collapses repeated triggers and keeps latest args", function()
+  local scheduler = require("neovim_codex.nvim.coalesced_schedule")
+  local calls = 0
+  local last_value = nil
+  local job = scheduler.new(function(value)
+    calls = calls + 1
+    last_value = value
+  end)
+
+  eq(job:trigger("first"), true)
+  eq(job:trigger("second"), false)
+  eq(vim.wait(1000, function()
+    return calls == 1
+  end, 10), true)
+  eq(last_value, "second")
+
+  job:dispose()
+end)
+
 test("store tracks initialize success without stderr poisoning state", function()
   local store = require("neovim_codex.core.store").new({ max_log_entries = 10 })
 

@@ -1,4 +1,5 @@
 local selectors = require("neovim_codex.core.selectors")
+local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 local request_input = require("neovim_codex.nvim.server_requests.input")
 local request_render = require("neovim_codex.nvim.server_requests.render")
@@ -207,6 +208,7 @@ function M.new(opts, handlers)
     current = nil,
     input_bufnr = nil,
     input_session = nil,
+    sync_job = nil,
   }, M)
   instance.input = request_input.new(opts, {
     notify = handlers.notify,
@@ -223,11 +225,16 @@ function M:attach(store)
     self.unsubscribe()
     self.unsubscribe = nil
   end
+  if self.sync_job then
+    self.sync_job:dispose()
+    self.sync_job = nil
+  end
   self.store = store
+  self.sync_job = coalesced_schedule.new(function(store_state)
+    self:sync(store_state)
+  end)
   self.unsubscribe = store:subscribe(function(store_state)
-    vim.schedule(function()
-      self:sync(store_state)
-    end)
+    self.sync_job:trigger(store_state)
   end)
   self:sync(store:get_state())
 end
