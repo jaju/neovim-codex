@@ -1,4 +1,6 @@
 local Popup = nil
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
 
 local M = {}
 
@@ -19,38 +21,8 @@ local function valid_window(winid)
   return winid and vim.api.nvim_win_is_valid(winid)
 end
 
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
-end
-
-local function present(value)
-  return value ~= nil and type(value) ~= "userdata"
-end
-
 local function split_lines(value)
-  if type(value) == "table" then
-    local lines = {}
-    for _, line in ipairs(value) do
-      for _, part in ipairs(vim.split(tostring(line), "\n", { plain = true })) do
-        lines[#lines + 1] = part
-      end
-    end
-    return lines
-  end
-
-  if not present(value) or tostring(value) == "" then
-    return { "" }
-  end
-
-  return vim.split(tostring(value), "\n", { plain = true })
+  return text_utils.split_lines(value, { empty = { "" } })
 end
 
 local function resolve_dimension(value, total, minimum)
@@ -73,8 +45,8 @@ local function overlay_config(spec)
   if spec.relative and spec.position and spec.size then
     return {
       relative = spec.relative,
-      position = clone_value(spec.position),
-      size = clone_value(spec.size),
+      position = value.deep_copy(spec.position),
+      size = value.deep_copy(spec.size),
     }
   end
 
@@ -427,13 +399,13 @@ function M.inspect()
       bufnr = entry.bufnr,
       winid = entry.popup and entry.popup.winid or nil,
       visible = entry_visible(entry),
-      surface = entry.surface and type(entry.surface) == "table" and clone_value(entry.surface.inspect and entry.surface.inspect(entry) or {}) or nil,
+      surface = entry.surface and type(entry.surface) == "table" and value.deep_copy(entry.surface.inspect and entry.surface.inspect(entry) or {}) or nil,
     }
   end
 
   return {
     stack = stack,
-    top = clone_value(stack[#stack]),
+    top = value.deep_copy(stack[#stack]),
   }
 end
 

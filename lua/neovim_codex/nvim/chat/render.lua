@@ -1,30 +1,8 @@
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
+
 local M = {}
-
-local function append_lines(target, source)
-  for _, line in ipairs(source or {}) do
-    local value = tostring(line)
-    local split = vim.split(value, "\n", { plain = true })
-    if #split == 0 then
-      target[#target + 1] = ""
-    else
-      for _, part in ipairs(split) do
-        target[#target + 1] = part
-      end
-    end
-  end
-end
-
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
-end
+local append_lines = text_utils.append_lines
 
 function M.render(document)
   local lines = {}
@@ -48,7 +26,7 @@ function M.render(document)
       line_end = end_line,
       header_line_start = start_line,
       header_line_end = math.min(end_line, start_line + header_lines - 1),
-      protocol = clone_value(block.protocol),
+      protocol = value.deep_copy(block.protocol),
     }
 
     if block.kind == "turn_boundary" then
@@ -69,7 +47,7 @@ function M.render(document)
     blocks = blocks,
     turn_lines = turn_lines,
     footer = document.footer,
-    footer_segments = clone_value(document.footer_segments),
+    footer_segments = value.deep_copy(document.footer_segments),
     thread_id = document.thread_id,
     pending_requests = document.pending_requests or 0,
   }

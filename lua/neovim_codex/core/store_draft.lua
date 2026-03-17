@@ -1,3 +1,5 @@
+local value = require("neovim_codex.core.value")
+
 local M = {}
 
 local SEP = string.char(31)
@@ -6,37 +8,10 @@ local function now_iso()
   return os.date("!%Y-%m-%dT%H:%M:%SZ")
 end
 
-local function deep_copy(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = deep_copy(item)
-  end
-  return out
-end
-
-local function shallow_copy(value)
-  local out = {}
-  for key, item in pairs(value or {}) do
-    out[key] = item
-  end
-  return out
-end
-
-local function copy_array(values)
-  local out = {}
-  for index, item in ipairs(values or {}) do
-    out[index] = item
-  end
-  return out
-end
-
-local function present(value)
-  return value ~= nil and type(value) ~= "userdata"
-end
+local deep_copy = value.deep_copy
+local shallow_copy = value.shallow_copy
+local copy_array = value.copy_array
+local present = value.present
 
 local function request_key(value)
   return tostring(value)
@@ -54,8 +29,12 @@ local function append_log(logs, max_entries, entry)
   logs[#logs + 1] = entry
   local overflow = #logs - max_entries
   if overflow > 0 then
-    for _ = 1, overflow do
-      table.remove(logs, 1)
+    local kept = #logs - overflow
+    for index = 1, kept do
+      logs[index] = logs[index + overflow]
+    end
+    for index = #logs, kept + 1, -1 do
+      logs[index] = nil
     end
   end
 end

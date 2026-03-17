@@ -115,6 +115,37 @@ test("coalesced scheduler collapses repeated triggers and keeps latest args", fu
   job:dispose()
 end)
 
+test("text helpers preserve explicit blank lines when flattening tables", function()
+  local text = require("neovim_codex.core.text")
+  local lines = text.split_lines({ "alpha", "", "beta\ngamma" }, { empty = { "" } })
+
+  eq(#lines, 4)
+  eq(lines[1], "alpha")
+  eq(lines[2], "")
+  eq(lines[3], "beta")
+  eq(lines[4], "gamma")
+end)
+
+test("client notification handlers update store through the shared dispatch table", function()
+  local client, store = new_test_client()
+
+  client:_handle_notification({
+    method = "thread/unarchived",
+    params = { threadId = "thr_notify" },
+  })
+  client:_handle_notification({
+    method = "turn/started",
+    params = {
+      threadId = "thr_notify",
+      turn = { id = "turn_notify", status = "inProgress", items = {}, error = nil },
+    },
+  })
+
+  local thread = require("neovim_codex.core.selectors").get_thread(store:get_state(), "thr_notify")
+  eq(thread.archived, false)
+  eq(thread.turns_by_id.turn_notify.status, "inProgress")
+end)
+
 test("store tracks initialize success without stderr poisoning state", function()
   local store = require("neovim_codex.core.store").new({ max_log_entries = 10 })
 

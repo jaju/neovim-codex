@@ -1,4 +1,5 @@
 local selectors = require("neovim_codex.core.selectors")
+local value = require("neovim_codex.core.value")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 local request_input = require("neovim_codex.nvim.server_requests.input")
@@ -10,187 +11,11 @@ M.__index = M
 
 local surface_help = require("neovim_codex.nvim.surface_help")
 
-local function present(value)
-  return value ~= nil and type(value) ~= "userdata"
-end
-
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
-end
-
-local function value_or(value, fallback)
-  if present(value) and tostring(value) ~= "" then
-    return tostring(value)
-  end
-  return fallback
-end
-
-local function display_path(path)
-  if not present(path) then
-    return nil
-  end
-  local text = tostring(path)
-  local home = vim.env.HOME
-  if home and text:sub(1, #home) == home then
-    return "~" .. text:sub(#home + 1)
-  end
-  return text
-end
-
 local function array_items(value)
   if type(value) == "table" then
     return value
   end
   return {}
-end
-
-local function split_lines(text)
-  if not present(text) or tostring(text) == "" then
-    return {}
-  end
-  return vim.split(tostring(text), "\n", { plain = true })
-end
-
-local function append_lines(target, lines)
-  for _, line in ipairs(lines or {}) do
-    target[#target + 1] = tostring(line)
-  end
-end
-
-local function append_section(lines, heading, body)
-  local body_lines = type(body) == "table" and body or split_lines(body)
-  if not body_lines or #body_lines == 0 then
-    return
-  end
-  if #lines > 0 then
-    lines[#lines + 1] = ""
-  end
-  lines[#lines + 1] = heading
-  lines[#lines + 1] = ""
-  append_lines(lines, body_lines)
-end
-
-local function fence(text, lang)
-  local out = { string.format("```%s", lang or "") }
-  append_lines(out, type(text) == "table" and text or split_lines(text))
-  out[#out + 1] = "```"
-  return out
-end
-
-local function json_fence(value)
-  if not present(value) then
-    return nil
-  end
-  local ok, encoded = pcall(vim.json.encode, value)
-  if not ok then
-    return nil
-  end
-  return fence(encoded, "json")
-end
-
-local function compact(text, limit)
-  if not present(text) then
-    return nil
-  end
-  local value = tostring(text):gsub("\n", " "):gsub("%s+", " ")
-  value = vim.trim(value)
-  if value == "" then
-    return nil
-  end
-  if #value <= limit then
-    return value
-  end
-  return value:sub(1, math.max(1, limit - 3)) .. "..."
-end
-
-local function action_summary(action)
-  local action_type = value_or(action and action.type, "unknown")
-  if action_type == "read" then
-    return string.format("- Read `%s`", display_path(action.path) or value_or(action.name, "file"))
-  end
-  if action_type == "listFiles" then
-    return string.format("- Listed files in `%s`", display_path(action.path) or "workspace")
-  end
-  if action_type == "search" then
-    local query = compact(action.query, 48)
-    if query then
-      return string.format("- Searched `%s` for `%s`", display_path(action.path) or "workspace", query)
-    end
-    return string.format("- Searched `%s`", display_path(action.path) or "workspace")
-  end
-  return string.format("- Action `%s`", action_type)
-end
-
-local function decision_kind(decision)
-  if type(decision) == "string" then
-    return decision
-  end
-  if type(decision) == "table" then
-    return next(decision)
-  end
-  return "unknown"
-end
-
-local function decision_label(decision)
-  local kind = decision_kind(decision)
-  if kind == "accept" then
-    return "Approve once"
-  end
-  if kind == "acceptForSession" then
-    return "Approve for session"
-  end
-  if kind == "decline" then
-    return "Decline"
-  end
-  if kind == "cancel" then
-    return "Cancel"
-  end
-  if kind == "acceptWithExecpolicyAmendment" then
-    return "Approve and persist similar commands"
-  end
-  if kind == "applyNetworkPolicyAmendment" then
-    return "Apply proposed network policy"
-  end
-  return kind
-end
-
-local function command_decisions(request)
-  local decisions = request.params.availableDecisions
-  if type(decisions) == "table" and #decisions > 0 then
-    return clone_value(decisions)
-  end
-  return { "accept", "acceptForSession", "decline", "cancel" }
-end
-
-local function file_change_decisions()
-  return { "accept", "acceptForSession", "decline", "cancel" }
-end
-
-local function choice_for_shortcut(shortcut, decisions)
-  for _, decision in ipairs(decisions or {}) do
-    local kind = decision_kind(decision)
-    if shortcut == "a" and kind == "accept" then
-      return clone_value(decision)
-    end
-    if shortcut == "s" and kind == "acceptForSession" then
-      return clone_value(decision)
-    end
-    if shortcut == "d" and kind == "decline" then
-      return clone_value(decision)
-    end
-    if shortcut == "c" and kind == "cancel" then
-      return clone_value(decision)
-    end
-  end
-  return nil
 end
 
 local select_sync = ui_prompt.select_sync
@@ -322,7 +147,7 @@ function M:_request_spec(request)
   end
 
   if request.method == "item/commandExecution/requestApproval" then
-    local decisions = command_decisions(request)
+    local decisions = request_render.command_decisions(request)
     local shortcut_map = {
       a = "accept",
       s = "acceptForSession",
@@ -398,7 +223,7 @@ end
 function M:sync(store_state)
   local active_thread = selectors.get_active_thread(store_state)
   local request = selectors.get_active_request_for_thread(store_state, active_thread and active_thread.id or nil)
-  self.current = clone_value(request)
+  self.current = value.deep_copy(request)
 
   if not request then
     viewer_stack.close("server-request")
@@ -427,13 +252,13 @@ function M:open_current(opts)
     return nil, "no pending Codex request"
   end
   self:clear_dismissal(request.key)
-  self.current = clone_value(request)
+  self.current = value.deep_copy(request)
   viewer_stack.open(self:_request_spec(request))
   return request, nil
 end
 
 function M:respond_with_decision(request, decision)
-  local payload = { decision = clone_value(decision) }
+  local payload = { decision = value.deep_copy(decision) }
   local ok, err
 
   if request.method == "item/commandExecution/requestApproval" then
@@ -497,10 +322,10 @@ function M:respond_current()
   local decisions = request.method == "item/commandExecution/requestApproval" and request_render.command_decisions(request) or request_render.file_change_decisions()
   local choices = {}
   for _, decision in ipairs(decisions) do
-    choices[#choices + 1] = {
-      label = request_render.decision_label(decision),
-      value = clone_value(decision),
-    }
+      choices[#choices + 1] = {
+        label = request_render.decision_label(decision),
+        value = value.deep_copy(decision),
+      }
   end
 
   local selection = select_sync(choices, {
@@ -522,8 +347,8 @@ end
 function M:inspect()
   local input_state = self.input and self.input:inspect() or {}
   return {
-    current = clone_value(self.current),
-    dismissed = clone_value(self.dismissed),
+    current = value.deep_copy(self.current),
+    dismissed = value.deep_copy(self.dismissed),
     input_active = input_state.input_active == true,
   }
 end

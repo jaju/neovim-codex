@@ -1,4 +1,5 @@
 local selectors = require("neovim_codex.core.selectors")
+local text_utils = require("neovim_codex.core.text")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 
@@ -48,16 +49,8 @@ local function render_lines(store_state)
 end
 
 local function set_buffer_lines(buf, lines)
-  local normalized = {}
-  for _, line in ipairs(lines) do
-    local parts = vim.split(tostring(line), "\n", { plain = true })
-    for _, part in ipairs(parts) do
-      normalized[#normalized + 1] = part
-    end
-  end
-
   vim.bo[buf].modifiable = true
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, normalized)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, text_utils.split_lines(lines))
   vim.bo[buf].modifiable = false
 end
 

@@ -1,5 +1,7 @@
 local packet = require("neovim_codex.core.packet")
 local selectors = require("neovim_codex.core.selectors")
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local presentation = require("neovim_codex.nvim.presentation")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
@@ -22,18 +24,6 @@ local function notify(message, level, enabled)
     return
   end
   vim.notify(message, level or vim.log.levels.INFO)
-end
-
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
 end
 
 local function ensure_modules()
@@ -184,15 +174,6 @@ end
 
 local function now_id(prefix)
   return string.format("%s_%d_%d", prefix, os.time(), math.random(1000, 9999))
-end
-
-local function display_path(path)
-  local text = tostring(path or "")
-  local home = vim.env.HOME
-  if home and text:sub(1, #home) == home then
-    return "~" .. text:sub(#home + 1)
-  end
-  return text
 end
 
 local function diagnostic_severity_label(severity)
@@ -392,7 +373,7 @@ function M.add_path(opts)
   local fragment = {
     id = now_id("path"),
     kind = "path_ref",
-    label = display_path(target.path),
+    label = text_utils.display_path(target.path),
     path = target.path,
     filetype = target.filetype,
     source = "buffer",
@@ -430,7 +411,7 @@ function M.add_selection(opts)
     return nil, err
   end
 
-  local label = string.format("%s:%d-%d", display_path(target.path), start_line, end_line)
+  local label = string.format("%s:%d-%d", text_utils.display_path(target.path), start_line, end_line)
   local fragment = {
     id = now_id("code"),
     kind = "code_range",
@@ -461,7 +442,7 @@ function M.add_diagnostic(opts)
   local end_line = (tonumber(diagnostic.end_lnum) or tonumber(diagnostic.lnum) or 0) + 1
   local code = diagnostic.code and tostring(diagnostic.code) or nil
   local severity = diagnostic_severity_label(diagnostic.severity)
-  local label = string.format("%s %s:%d", code or "diagnostic", display_path(target.path), start_line)
+  local label = string.format("%s %s:%d", code or "diagnostic", text_utils.display_path(target.path), start_line)
   local fragment = {
     id = now_id("diag"),
     kind = "diagnostic",
@@ -664,7 +645,7 @@ function M.inspect()
   local workbench, thread_id = active_workbench()
   return {
     thread_id = thread_id,
-    workbench = clone_value(workbench),
+    workbench = value.deep_copy(workbench),
     tray = state.tray and state.tray:inspect() or {},
     review = state.review and state.review:inspect() or {},
     viewers = viewer_stack.inspect(),
@@ -678,7 +659,7 @@ function M._tray_viewer_spec(thread_id, fragments)
     title = state.tray:title(thread_id, fragments or {}),
     role = "workbench",
     thread_id = thread_id,
-    fragments = clone_value(fragments or {}),
+    fragments = value.deep_copy(fragments or {}),
     bufnr = state.tray:bufnr_value(),
     manage_buffer = false,
     relative = layout.relative,
@@ -706,7 +687,7 @@ function M._review_viewer_spec(thread_id, message, fragments)
     role = "compose_review",
     thread_id = thread_id,
     message = message or "",
-    fragments = clone_value(fragments or {}),
+    fragments = value.deep_copy(fragments or {}),
     surface = {
       open = function(entry)
         state.review:show(entry.spec.thread_id, entry.spec.message, entry.spec.fragments)

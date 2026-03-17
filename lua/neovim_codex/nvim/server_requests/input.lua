@@ -1,17 +1,14 @@
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
+local value = require("neovim_codex.core.value")
 local surface_help = require("neovim_codex.nvim.surface_help")
 local ui_prompt = require("neovim_codex.nvim.ui_prompt")
 
 local M = {}
 M.__index = M
 
-local function present(value)
-  return value ~= nil and type(value) ~= "userdata"
-end
-
-local function value_or(value, fallback)
-  if present(value) and tostring(value) ~= "" then
-    return tostring(value)
+local function value_or(candidate, fallback)
+  if value.present(candidate) and tostring(candidate) ~= "" then
+    return tostring(candidate)
   end
   return fallback
 end

@@ -1,4 +1,5 @@
 local jsonrpc = require("neovim_codex.core.jsonrpc")
+local notification_handlers = require("neovim_codex.core.client_notifications")
 
 local M = {}
 M.__index = M
@@ -103,127 +104,7 @@ function M:_dispatch_result(message, on_result)
 end
 
 function M:_handle_notification(message)
-  local params = message.params or {}
-
-  if message.method == "initialized" then
-    return
-  elseif message.method == "thread/started" then
-    self.store:dispatch({
-      type = "thread_received",
-      thread = params.thread,
-      replace_turns = false,
-      activate = false,
-    })
-  elseif message.method == "thread/status/changed" then
-    self.store:dispatch({
-      type = "thread_status_changed",
-      thread_id = params.threadId,
-      status = params.status,
-    })
-  elseif message.method == "thread/archived" then
-    self.store:dispatch({ type = "thread_archived", thread_id = params.threadId })
-  elseif message.method == "thread/name/updated" then
-    self.store:dispatch({
-      type = "thread_name_updated",
-      thread_id = params.threadId,
-      thread_name = params.threadName,
-    })
-  elseif message.method == "thread/unarchived" then
-    self.store:dispatch({ type = "thread_unarchived", thread_id = params.threadId })
-  elseif message.method == "thread/closed" then
-    self.store:dispatch({ type = "thread_closed", thread_id = params.threadId })
-  elseif message.method == "turn/started" or message.method == "turn/completed" then
-    self.store:dispatch({
-      type = "turn_received",
-      thread_id = params.threadId,
-      turn = params.turn,
-      replace_items = false,
-    })
-  elseif message.method == "thread/tokenUsage/updated" then
-    self.store:dispatch({
-      type = "thread_token_usage_updated",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      token_usage = params.tokenUsage,
-    })
-  elseif message.method == "turn/diff/updated" then
-    self.store:dispatch({
-      type = "turn_diff_updated",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      diff = params.diff,
-    })
-  elseif message.method == "turn/plan/updated" then
-    self.store:dispatch({
-      type = "turn_plan_updated",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      plan = params.plan,
-    })
-  elseif message.method == "item/started" or message.method == "item/completed" then
-    self.store:dispatch({
-      type = "item_received",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      item = params.item,
-    })
-  elseif message.method == "item/agentMessage/delta" then
-    self.store:dispatch({
-      type = "agent_message_delta",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      item_id = params.itemId,
-      delta = params.delta,
-    })
-  elseif message.method == "item/plan/delta" then
-    self.store:dispatch({
-      type = "plan_delta",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      item_id = params.itemId,
-      delta = params.delta,
-    })
-  elseif message.method == "item/reasoning/summaryPartAdded" then
-    self.store:dispatch({
-      type = "reasoning_summary_part_added",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      item_id = params.itemId,
-      summary_index = params.summaryIndex,
-    })
-  elseif message.method == "item/reasoning/summaryTextDelta" then
-    self.store:dispatch({
-      type = "reasoning_summary_text_delta",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      item_id = params.itemId,
-      summary_index = params.summaryIndex,
-      delta = params.delta,
-    })
-  elseif message.method == "item/reasoning/textDelta" then
-    self.store:dispatch({
-      type = "reasoning_text_delta",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      item_id = params.itemId,
-      content_index = params.contentIndex,
-      delta = params.delta,
-    })
-  elseif message.method == "item/commandExecution/outputDelta" then
-    self.store:dispatch({
-      type = "command_execution_output_delta",
-      thread_id = params.threadId,
-      turn_id = params.turnId,
-      item_id = params.itemId,
-      delta = params.delta,
-    })
-  elseif message.method == "serverRequest/resolved" then
-    self.store:dispatch({
-      type = "server_request_resolved",
-      thread_id = params.threadId,
-      request_id = params.requestId,
-    })
-  end
+  notification_handlers.handle(self.store, message)
 end
 
 function M:_handle_server_request(message)

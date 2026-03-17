@@ -1,4 +1,6 @@
 local selectors = require("neovim_codex.core.selectors")
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
 local thread_identity = require("neovim_codex.nvim.thread_identity")
 
 local M = {}
@@ -20,22 +22,15 @@ local IN_PROGRESS_ITEM_TYPES = {
   collabAgentToolCall = true,
 }
 
-local function present(value)
-  return value ~= nil and type(value) ~= "userdata"
-end
+local display_path = text_utils.display_path
+local present = value.present
+local split_lines = text_utils.split_lines
 
 local function value_or(value, fallback)
   if present(value) and value ~= "" then
     return tostring(value)
   end
   return fallback
-end
-
-local function split_lines(text)
-  if not present(text) or text == "" then
-    return {}
-  end
-  return vim.split(tostring(text), "\n", { plain = true })
 end
 
 local function push_text(lines, text)
@@ -49,31 +44,6 @@ local function add_block(blocks, block)
     return
   end
   blocks[#blocks + 1] = block
-end
-
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
-end
-
-local function display_path(path)
-  if not present(path) then
-    return nil
-  end
-
-  local text = tostring(path)
-  local home = vim.env.HOME
-  if home and text:sub(1, #home) == home then
-    return "~" .. text:sub(#home + 1)
-  end
-  return text
 end
 
 local function duration_label(duration_ms)
@@ -165,7 +135,7 @@ local function preview_lines(text, max_lines)
 end
 
 local function fenced_block(language, text, max_lines)
-  local body = type(text) == "table" and clone_value(text) or preview_lines(text, max_lines)
+  local body = type(text) == "table" and value.deep_copy(text) or preview_lines(text, max_lines)
   if #body == 0 then
     return {}
   end
@@ -198,7 +168,7 @@ end
 local function protocol_payload(item)
   return {
     item_type = item.type,
-    item = clone_value(item),
+    item = value.deep_copy(item),
   }
 end
 

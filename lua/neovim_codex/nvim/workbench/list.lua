@@ -1,4 +1,5 @@
 local packet = require("neovim_codex.core.packet")
+local value = require("neovim_codex.core.value")
 
 local M = {}
 
@@ -22,18 +23,6 @@ local function map_if(lhs, mode, rhs, opts)
     nowait = true,
     desc = opts.desc,
   })
-end
-
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
 end
 
 local function contains_line(entry, line)
@@ -61,7 +50,7 @@ local function add_fragment_block(lines, entries, fragment)
     lines[#lines + 1] = string.format("  %s", preview)
   end
   entries[#entries + 1] = {
-    fragment = clone_value(fragment),
+    fragment = value.deep_copy(fragment),
     line_start = start_line,
     line_end = #lines,
   }
@@ -202,7 +191,7 @@ function ListView:update(thread_id, fragments)
   end
 
   self.fragments = entries
-  self.signature = { thread_id = thread_id, lines = clone_value(lines) }
+  self.signature = { thread_id = thread_id, lines = value.deep_copy(lines) }
 
   vim.bo[bufnr].modifiable = true
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
@@ -217,7 +206,7 @@ function ListView:current_fragment()
   local line = vim.api.nvim_win_get_cursor(self.winid)[1]
   for _, entry in ipairs(self.fragments or {}) do
     if contains_line(entry, line) then
-      return clone_value(entry.fragment)
+      return value.deep_copy(entry.fragment)
     end
   end
 
@@ -228,8 +217,8 @@ function ListView:inspect()
   return {
     bufnr = self.bufnr,
     winid = self.winid,
-    fragments = clone_value(self.fragments or {}),
-    signature = clone_value(self.signature),
+    fragments = value.deep_copy(self.fragments or {}),
+    signature = value.deep_copy(self.signature),
   }
 end
 

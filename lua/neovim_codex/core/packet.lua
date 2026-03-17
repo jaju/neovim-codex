@@ -1,42 +1,17 @@
-local M = {}
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
 
 local HANDLE_PATTERN = "%[%[([%w_%-]+)%]%]"
-
-local function present(value)
-  return value ~= nil and type(value) ~= "userdata"
-end
+local M = {}
+local append_lines = text_utils.append_lines
+local display_path = text_utils.display_path
+local present = value.present
+local split_lines = text_utils.split_lines
 
 local function trim(value)
   local text = tostring(value or "")
   text = text:gsub("^%s+", "")
   text = text:gsub("%s+$", "")
-  return text
-end
-
-local function split_lines(text)
-  local value = tostring(text or "")
-  if value == "" then
-    return {}
-  end
-  return vim.split(value, "\n", { plain = true })
-end
-
-local function append_lines(target, source)
-  for _, line in ipairs(source or {}) do
-    target[#target + 1] = tostring(line)
-  end
-end
-
-local function display_path(path)
-  if not present(path) or tostring(path) == "" then
-    return nil
-  end
-
-  local text = tostring(path)
-  local home = os.getenv("HOME")
-  if home and text:sub(1, #home) == home then
-    return "~" .. text:sub(#home + 1)
-  end
   return text
 end
 

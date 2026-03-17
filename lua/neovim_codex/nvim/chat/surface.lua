@@ -2,6 +2,8 @@ local Layout = require("nui.layout")
 local Popup = require("nui.popup")
 local Line = require("nui.line")
 local Text = require("nui.text")
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
 local readonly_surface = require("neovim_codex.nvim.readonly_surface")
 local chat_layout = require("neovim_codex.nvim.chat.layout")
 
@@ -80,32 +82,8 @@ local function define_default_highlight(name, target)
   })
 end
 
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
-end
-
 local function normalize_lines(lines)
-  local out = {}
-  for _, line in ipairs(lines or {}) do
-    local value = tostring(line)
-    local split = vim.split(value, "\n", { plain = true })
-    if #split == 0 then
-      out[#out + 1] = ""
-    else
-      for _, part in ipairs(split) do
-        out[#out + 1] = part
-      end
-    end
-  end
-  return out
+  return text_utils.split_lines(lines, { empty = { "" } })
 end
 
 local function clone_lines(lines)
@@ -127,18 +105,6 @@ local function block_signature(block)
   }
 end
 
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
-end
-
 local function render_signature(render_result)
   local block_signatures = {}
   for _, block in ipairs(render_result.blocks or {}) do
@@ -148,9 +114,9 @@ local function render_signature(render_result)
   return {
     thread_id = render_result.thread_id,
     footer = render_result.footer,
-    footer_segments = clone_value(render_result.footer_segments),
+    footer_segments = value.deep_copy(render_result.footer_segments),
     lines = clone_lines(render_result.lines),
-    turn_lines = clone_value(render_result.turn_lines or {}),
+    turn_lines = value.deep_copy(render_result.turn_lines or {}),
     blocks = block_signatures,
   }
 end
@@ -483,7 +449,7 @@ function Surface:_update_thread_context(thread_id)
 end
 
 function Surface:_render_blocks(blocks)
-  self.block_ranges = clone_value(blocks or {})
+  self.block_ranges = value.deep_copy(blocks or {})
   vim.api.nvim_buf_clear_namespace(self.transcript_bufnr, namespace, 0, -1)
 
   for _, block in ipairs(self.block_ranges) do
@@ -671,14 +637,14 @@ function Surface:current_block()
   local previous = nil
   for _, block in ipairs(self.block_ranges or {}) do
     if contains_line(block, cursor_line) then
-      return clone_value(block)
+      return value.deep_copy(block)
     end
     if block.line_end and block.line_end < cursor_line then
       previous = block
     end
   end
 
-  return clone_value(previous)
+  return value.deep_copy(previous)
 end
 
 function Surface:goto_turn(direction)
@@ -746,8 +712,8 @@ function Surface:inspect()
     composer_win = self.composer_popup and self.composer_popup.winid or nil,
     prompt_buf = self.composer:bufnr_value(),
     prompt_win = self.composer_popup and self.composer_popup.winid or nil,
-    blocks = clone_value(self.block_ranges or {}),
-    turn_lines = clone_value(self.last_render and self.last_render.turn_lines or {}),
+    blocks = value.deep_copy(self.block_ranges or {}),
+    turn_lines = value.deep_copy(self.last_render and self.last_render.turn_lines or {}),
     current_block = self:current_block(),
     update_count = self.update_count or 0,
     mode = self.shell_mode,

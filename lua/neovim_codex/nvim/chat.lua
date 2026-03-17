@@ -1,5 +1,6 @@
 local presentation = require("neovim_codex.nvim.presentation")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
+local value = require("neovim_codex.core.value")
 
 local M = {}
 
@@ -21,18 +22,6 @@ local state = {
 
 local function notify(message, level)
   vim.notify(message, level or vim.log.levels.ERROR)
-end
-
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
 end
 
 local function open_help()
@@ -330,8 +319,8 @@ end
 
 function M.inspect()
   local surface_state = state.surface and state.surface:inspect() or {}
-  surface_state.document = clone_value(state.last_document)
-  surface_state.render = clone_value(state.last_render)
+  surface_state.document = value.deep_copy(state.last_document)
+  surface_state.render = value.deep_copy(state.last_render)
   surface_state.mode = state.surface and state.surface:mode() or preferred_mode()
   surface_state.details = state.details and state.details:inspect() or {}
   surface_state.viewers = presentation.inspect_viewers()

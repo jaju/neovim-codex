@@ -1,20 +1,12 @@
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
+
 local M = {}
 
-local function present(value)
-  return value ~= nil and type(value) ~= "userdata"
-end
-
-local function clone_value(value)
-  if type(value) ~= "table" then
-    return value
-  end
-
-  local out = {}
-  for key, item in pairs(value) do
-    out[key] = clone_value(item)
-  end
-  return out
-end
+local append_lines = text_utils.append_lines
+local display_path = text_utils.display_path
+local present = value.present
+local split_lines = text_utils.split_lines
 
 local function value_or(value, fallback)
   if present(value) and tostring(value) ~= "" then
@@ -23,36 +15,11 @@ local function value_or(value, fallback)
   return fallback
 end
 
-local function display_path(path)
-  if not present(path) then
-    return nil
-  end
-  local text = tostring(path)
-  local home = vim.env.HOME
-  if home and text:sub(1, #home) == home then
-    return "~" .. text:sub(#home + 1)
-  end
-  return text
-end
-
 local function array_items(value)
   if type(value) == "table" then
     return value
   end
   return {}
-end
-
-local function split_lines(text)
-  if not present(text) or tostring(text) == "" then
-    return {}
-  end
-  return vim.split(tostring(text), "\n", { plain = true })
-end
-
-local function append_lines(target, lines)
-  for _, line in ipairs(lines or {}) do
-    target[#target + 1] = tostring(line)
-  end
 end
 
 local function append_section(lines, heading, body)
@@ -155,7 +122,7 @@ end
 function M.command_decisions(request)
   local decisions = request.params.availableDecisions
   if type(decisions) == "table" and #decisions > 0 then
-    return clone_value(decisions)
+    return value.deep_copy(decisions)
   end
   return { "accept", "acceptForSession", "decline", "cancel" }
 end
@@ -168,16 +135,16 @@ function M.choice_for_shortcut(shortcut, decisions)
   for _, decision in ipairs(decisions or {}) do
     local kind = decision_kind(decision)
     if shortcut == "a" and kind == "accept" then
-      return clone_value(decision)
+      return value.deep_copy(decision)
     end
     if shortcut == "s" and kind == "acceptForSession" then
-      return clone_value(decision)
+      return value.deep_copy(decision)
     end
     if shortcut == "d" and kind == "decline" then
-      return clone_value(decision)
+      return value.deep_copy(decision)
     end
     if shortcut == "c" and kind == "cancel" then
-      return clone_value(decision)
+      return value.deep_copy(decision)
     end
   end
   return nil

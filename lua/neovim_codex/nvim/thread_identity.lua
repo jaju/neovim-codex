@@ -1,8 +1,6 @@
-local M = {}
+local value = require("neovim_codex.core.value")
 
-local function present(value)
-  return value ~= nil and value ~= vim.NIL
-end
+local M = {}
 
 function M.short_id(thread_id)
   local text = tostring(thread_id or "")
@@ -18,9 +16,9 @@ function M.title(thread, opts)
   local fallback = opts.fallback or "(untitled thread)"
 
   local title = nil
-  if type(thread) == "table" and present(thread.name) and thread.name ~= "" then
+  if type(thread) == "table" and value.present(thread.name) and thread.name ~= "" then
     title = thread.name
-  elseif type(thread) == "table" and present(thread.preview) and thread.preview ~= "" then
+  elseif type(thread) == "table" and value.present(thread.preview) and thread.preview ~= "" then
     title = thread.preview
   else
     title = fallback
