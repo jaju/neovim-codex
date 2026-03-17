@@ -165,6 +165,9 @@ local function request_action_line(request, keymaps)
     add(keymaps.respond or "<CR>", "Answer")
   else
     local decisions = request.method == "item/commandExecution/requestApproval" and M.command_decisions(request) or M.file_change_decisions()
+    if request.method == "item/fileChange/requestApproval" then
+      add(keymaps.review or "o", "Review diff")
+    end
     if M.choice_for_shortcut("a", decisions) then
       add(keymaps.accept or "a", "Approve once")
     end
@@ -235,6 +238,7 @@ local function render_file_change_request(request, keymaps)
   lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
   lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
   lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
+  lines[#lines + 1] = string.format("- Request id: `%s`", value_or(request.request_id, "-"))
   if present(request.params.reason) then
     lines[#lines + 1] = string.format("- Reason: %s", request.params.reason)
   end
@@ -246,6 +250,9 @@ local function render_file_change_request(request, keymaps)
     "- Approve for session",
     "- Decline",
     "- Cancel",
+  })
+  append_section(lines, "## Review", {
+    string.format("- `%s` opens the studied diff review before you decide.", keymaps.review or "o"),
   })
   return { title = "File Change Approval", lines = lines }
 end

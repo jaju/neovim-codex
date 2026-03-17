@@ -38,6 +38,7 @@ assert(vim.fn.exists(":CodexThreadRename") == 2, "CodexThreadRename command shou
 assert(vim.fn.exists(":CodexThreadUnarchive") == 2, "CodexThreadUnarchive command should exist")
 assert(vim.fn.exists(":CodexThreadCompact") == 2, "CodexThreadCompact command should exist")
 assert(vim.fn.exists(":CodexRequest") == 2, "CodexRequest command should exist")
+assert(vim.fn.exists(":CodexReview") == 2, "CodexReview command should exist")
 assert(vim.fn.exists(":CodexWorkbench") == 2, "CodexWorkbench command should exist")
 assert(vim.fn.exists(":CodexCompose") == 2, "CodexCompose command should exist")
 assert(vim.fn.exists(":CodexSteer") == 2, "CodexSteer command should exist")
@@ -385,6 +386,7 @@ assert(invalid_path_err == "Current buffer is not backed by a file" or invalid_p
 local request_store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
 local selectors = require("neovim_codex.core.selectors")
 local captured_command = nil
+local captured_file_change = nil
 local captured_tool = nil
 local request_manager = require("neovim_codex.nvim.server_requests").new(codex.get_config(), {
   notify = function() end,
@@ -392,7 +394,8 @@ local request_manager = require("neovim_codex.nvim.server_requests").new(codex.g
     captured_command = { request = request, payload = payload }
     return true, nil
   end,
-  respond_file_change = function(_, _)
+  respond_file_change = function(request, payload)
+    captured_file_change = { request = request, payload = payload }
     return true, nil
   end,
   respond_tool_input = function(request, payload)
@@ -401,6 +404,14 @@ local request_manager = require("neovim_codex.nvim.server_requests").new(codex.g
   end,
 })
 request_manager:attach(request_store)
+local review_manager = require("neovim_codex.nvim.file_change_review").new(codex.get_config(), {
+  notify = function() end,
+  respond_file_change = function(request, payload)
+    captured_file_change = { request = request, payload = payload }
+    return true, nil
+  end,
+})
+review_manager:attach(request_store)
 
 request_store:dispatch({
   type = "thread_received",
@@ -445,6 +456,64 @@ request_store:dispatch({ type = "server_request_resolved", request_id = "req_com
 vim.wait(1000, function()
   local top = require("neovim_codex.nvim.viewer_stack").inspect().top
   return top == nil or top.key ~= "server-request"
+end, 20)
+
+request_store:dispatch({
+  type = "turn_received",
+  thread_id = "thr_req",
+  turn = { id = "turn_diff", status = "completed", items = {}, error = nil },
+})
+request_store:dispatch({
+  type = "item_received",
+  thread_id = "thr_req",
+  turn_id = "turn_diff",
+  item = {
+    type = "fileChange",
+    id = "item_diff",
+    status = "completed",
+    changes = {
+      {
+        path = repo_root .. "/README.md",
+        kind = "update",
+        diff = "@@ -1 +1 @@\n-old\n+new",
+      },
+    },
+  },
+})
+request_store:dispatch({
+  type = "turn_diff_updated",
+  thread_id = "thr_req",
+  turn_id = "turn_diff",
+  diff = "@@ -1 +1 @@\n-old\n+new",
+})
+request_store:dispatch({
+  type = "server_request_received",
+  request = {
+    method = "item/fileChange/requestApproval",
+    id = "req_diff",
+    params = {
+      threadId = "thr_req",
+      turnId = "turn_diff",
+      itemId = "item_diff",
+      reason = "Review the patch",
+      grantRoot = repo_root,
+    },
+  },
+})
+local reviewed_request, review_err = review_manager:open_current({ thread_id = "thr_req" })
+assert(review_err == nil, review_err or "file change review should open for the pending diff request")
+assert(reviewed_request and reviewed_request.request_id == "req_diff", "file change review should target the pending file change request")
+local review_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(review_viewers.top and review_viewers.top.key == "file-change-review", "file change review should open in the stacked viewer layer")
+vim.api.nvim_feedkeys(termcodes("s"), "xt", false)
+vim.wait(1000, function()
+  return captured_file_change ~= nil
+end, 20)
+assert(captured_file_change and captured_file_change.payload.decision == "acceptForSession", "file change review should send the session decision shortcut")
+request_store:dispatch({ type = "server_request_resolved", request_id = "req_diff" })
+vim.wait(1000, function()
+  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
+  return top == nil or top.key ~= "file-change-review"
 end, 20)
 
 request_store:dispatch({

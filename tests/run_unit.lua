@@ -715,6 +715,46 @@ test("chat document renders foldable file changes with diff fences", function()
   eq(doc.blocks[2].lines[6], "@@ -1 +1 @@")
 end)
 
+test("file change review renderer prefers the turn diff and lists changed files", function()
+  local review_render = require("neovim_codex.nvim.file_change_review.render")
+  local rendered = review_render.render_review({
+    request = {
+      thread_id = "thr_diff",
+      turn_id = "turn_diff",
+      item_id = "item_diff",
+      request_id = "req_diff",
+      params = {
+        reason = "Review the patch",
+        grantRoot = "/tmp/demo",
+      },
+    },
+    turn = {
+      status = "completed",
+    },
+    changes = {
+      {
+        path = "/tmp/demo/README.md",
+        kind = "update",
+        diff = "@@ -1 +1 @@\n-old\n+new",
+      },
+    },
+    diff = "@@ -1 +1 @@\n-old\n+new",
+  }, {
+    accept = "a",
+    accept_for_session = "s",
+    decline = "d",
+    cancel = "c",
+    help = "g?",
+  })
+
+  eq(rendered.title, "File Change Review")
+  eq(rendered.lines[1], "# File Change Review")
+  assert(rendered.lines[3]:find("%[s%] Approve session"), "review surface should advertise session approval")
+  assert(table.concat(rendered.lines, "\n"):find("## Changed files", 1, true), "review surface should list changed files")
+  assert(table.concat(rendered.lines, "\n"):find("## Turn Diff {.foldable}", 1, true), "review surface should prefer the aggregated turn diff")
+  assert(table.concat(rendered.lines, "\n"):find("```diff", 1, true), "review surface should expose a diff fence")
+end)
+
 
 test("details renderer keeps verbose command data behind an inspector surface", function()
   local details = require("neovim_codex.nvim.chat.details")

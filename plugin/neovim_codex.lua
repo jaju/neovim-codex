@@ -102,6 +102,11 @@ vim.api.nvim_create_user_command("CodexRequest", function()
   require("neovim_codex").open_request()
 end, {})
 
+vim.api.nvim_create_user_command("CodexReview", function(command)
+  local args = vim.trim(command.args or "")
+  require("neovim_codex").open_review(args == "" and {} or { request_key = args })
+end, { nargs = "?" })
+
 vim.api.nvim_create_user_command("CodexWorkbench", function()
   require("neovim_codex").toggle_workbench()
 end, {})

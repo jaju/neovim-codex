@@ -67,7 +67,7 @@ This applies to:
 
 These are server-request state machines, not transcript content.
 
-Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses.
+Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses. For file-change approvals, use the request-local `o` mapping or `:CodexReview` to inspect the structured diff review surface before you decide.
 
 Default request viewer mappings:
 
@@ -77,6 +77,7 @@ Default request viewer mappings:
 - `s` - approve for session when available
 - `d` - decline
 - `c` - cancel
+- `o` - open the file-change review when the pending request is a file-change approval
 - `g?` or `<F1>` - open the shortcut sheet for the current surface
 - `q` or `<Esc>` - hide the viewer without resolving the request
 
@@ -94,6 +95,7 @@ Default request viewer mappings:
 - `:CodexThreadSettings [thread-id]` - edit sticky model, effort, and collaboration mode for a thread
 - `:CodexThreadCompact [thread-id]` - start manual history compaction for the active thread, or pick one
 - `:CodexSteer [text]` - steer the currently running turn, or use the active draft when the shell is open
+- `:CodexReview [request-key]` - open the current pending file-change review, or reopen one by request key
 - `:CodexInterrupt` - interrupt the current turn
 
 ## Default overlay mappings

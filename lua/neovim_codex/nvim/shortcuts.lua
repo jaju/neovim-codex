@@ -37,6 +37,7 @@ local function surface_from_role(role)
     composer = "composer",
     request = "request",
     request_input = "request_input",
+    file_change_review = "file_change_review",
     workbench = "workbench",
     compose_review_message = "compose_review",
     compose_review_fragments = "compose_review",
@@ -116,12 +117,21 @@ local function surface_entries(config, surface)
   elseif surface == "request" then
     local keymaps = (config.keymaps or {}).request or {}
     add_mapping(entries, keymaps.respond, "Choose a decision or answer")
+    add_mapping(entries, keymaps.review, "Open the studied file-change review")
     add_mapping(entries, keymaps.accept, "Approve once")
     add_mapping(entries, keymaps.accept_for_session, "Approve for session")
     add_mapping(entries, keymaps.decline, "Decline")
     add_mapping(entries, keymaps.cancel, "Cancel")
     add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
     add_mapping(entries, "q", "Hide the request viewer")
+  elseif surface == "file_change_review" then
+    local keymaps = (config.keymaps or {}).file_change_review or {}
+    add_mapping(entries, keymaps.accept, "Approve the reviewed file change once")
+    add_mapping(entries, keymaps.accept_for_session, "Approve the reviewed file change for this session")
+    add_mapping(entries, keymaps.decline, "Decline the reviewed file change")
+    add_mapping(entries, keymaps.cancel, "Cancel the reviewed file change")
+    add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
+    add_mapping(entries, "q", "Close the review surface")
   elseif surface == "request_input" then
     local help_keys = surface_help.keys(config, ((config.keymaps or {}).request or {}).help)
     local send = ((config.keymaps or {}).composer or {}).send or ((config.keymaps or {}).compose_review or {}).send or "<C-s>"

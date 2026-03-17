@@ -73,6 +73,10 @@ COMMANDS                                               *neovim-codex-commands*
 :CodexRequest
     Reopen the active pending approval or question request.
 
+:CodexReview [request-key]
+    Open the current pending file-change review, or reopen a pending
+    file-change request by key.
+
 :CodexShortcuts
     Open the Codex shortcut sheet for the current surface.
 
@@ -192,7 +196,7 @@ If `<C-s>` is captured by terminal flow control, remap
 
 Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one. If focus leaves plugin-owned windows, the chat overlay closes so the cursor never disappears behind the modal.
 
-Blocking request flows are protocol-first and do not render inline as transcript content. When Codex asks for command approval, file-change approval, or tool input, the plugin opens a dedicated request viewer above the chat overlay in normal mode. Use `:CodexRequest` to reopen the active request if you hide it before responding.
+Blocking request flows are protocol-first and do not render inline as transcript content. When Codex asks for command approval, file-change approval, or tool input, the plugin opens a dedicated request viewer above the chat overlay in normal mode. Use `:CodexRequest` to reopen the active request if you hide it before responding. File-change approvals also expose a dedicated review surface through `:CodexReview` or the request-local `o` mapping.
 
 Default request viewer mappings:
 

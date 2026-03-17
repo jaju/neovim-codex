@@ -145,6 +145,7 @@ Useful thread commands:
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexSteer [text]` - steer the currently running turn, or use the current chat draft when the shell is open
 - `:CodexRequest` - reopen the active approval or question request if one is pending
+- `:CodexReview [request-key]` - open the current pending file-change review, or reopen a specific pending file-change request by key
 - `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
 
 Workbench and compose commands:
@@ -182,6 +183,7 @@ Workbench and compose commands:
 - `:CodexInterrupt` - interrupt the active turn
 - `:CodexSteer [text]` - steer the current running turn
 - `:CodexRequest` - reopen the active pending Codex request
+- `:CodexReview [request-key]` - open the current pending file-change review
 - `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
 - `:CodexWorkbench` - toggle the workbench tray for the active thread
 - `:CodexCompose` - open compose review for the active thread
@@ -274,7 +276,7 @@ If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for tha
 
 The transcript is derived from the app-server protocol types, not from shell-string heuristics.
 
-Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses. Use `:CodexRequest` to reopen the current request if you close it before responding.
+Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses. Use `:CodexRequest` to reopen the current request if you close it before responding, and use `:CodexReview` or the request-local `o` mapping to inspect a structured file-change diff before deciding.
 
 Examples:
 

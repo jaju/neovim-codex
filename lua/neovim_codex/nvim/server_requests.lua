@@ -173,6 +173,16 @@ function M:_request_spec(request)
       end
     end
   elseif request.method == "item/fileChange/requestApproval" then
+    if keymaps.review ~= false and self.handlers.open_file_change_review then
+      mappings[#mappings + 1] = {
+        mode = "n",
+        lhs = keymaps.review or "o",
+        rhs = function()
+          self.handlers.open_file_change_review(request)
+        end,
+        desc = "Open the studied file change review",
+      }
+    end
     local decisions = request_render.file_change_decisions()
     local shortcut_map = {
       a = "accept",

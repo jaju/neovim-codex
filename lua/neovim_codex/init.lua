@@ -2,6 +2,7 @@ local client_mod = require("neovim_codex.core.client")
 local selectors = require("neovim_codex.core.selectors")
 local store_mod = require("neovim_codex.core.store")
 local chat = require("neovim_codex.nvim.chat")
+local file_change_review = require("neovim_codex.nvim.file_change_review")
 local presentation = require("neovim_codex.nvim.presentation")
 local requests = require("neovim_codex.nvim.server_requests")
 local smoke = require("neovim_codex.nvim.smoke")
@@ -143,6 +144,14 @@ local defaults = {
     },
     request = {
       respond = "<CR>",
+      review = "o",
+      accept = "a",
+      accept_for_session = "s",
+      decline = "d",
+      cancel = "c",
+      help = "g?",
+    },
+    file_change_review = {
       accept = "a",
       accept_for_session = "s",
       decline = "d",
@@ -295,6 +304,14 @@ function ensure_runtime()
     client_info = config.client_info,
     experimental_api = config.experimental_api,
   })
+  local review_manager = file_change_review.new(config, {
+    notify = function(message, level)
+      notify(message, level, true)
+    end,
+    respond_file_change = function(request, payload)
+      return send_server_request_response(request.key, payload)
+    end,
+  })
   local request_manager = requests.new(config, {
     notify = function(message, level)
       notify(message, level, true)
@@ -308,14 +325,19 @@ function ensure_runtime()
     respond_tool_input = function(request, payload)
       return send_server_request_response(request.key, payload)
     end,
+    open_file_change_review = function(request)
+      return review_manager:open_current({ request_key = request.key })
+    end,
   })
   request_manager:attach(store)
+  review_manager:attach(store)
 
   runtime = {
     store = store,
     transport = transport,
     client = client,
     requests = request_manager,
+    review = review_manager,
     config = current_runtime_config(),
   }
 
@@ -828,6 +850,17 @@ function M.open_request(opts)
   local rt = ensure_runtime()
   local thread_id = opts.thread_id or (selectors.get_active_thread(rt.client:get_state()) and selectors.get_active_thread(rt.client:get_state()).id)
   local request, err = rt.requests:open_current({ thread_id = thread_id })
+  if err then
+    notify(err, vim.log.levels.INFO, opts.notify)
+    return nil, err
+  end
+  return request, nil
+end
+
+function M.open_review(opts)
+  opts = opts or {}
+  local rt = ensure_runtime()
+  local request, err = rt.review:open_current(opts)
   if err then
     notify(err, vim.log.levels.INFO, opts.notify)
     return nil, err
