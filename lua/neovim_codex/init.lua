@@ -13,6 +13,7 @@ local thread_params = require("neovim_codex.nvim.thread_params")
 local thread_runtime = require("neovim_codex.nvim.thread_runtime")
 local thread_runtime_picker = require("neovim_codex.nvim.thread_runtime_picker")
 local chat_layout = require("neovim_codex.nvim.chat.layout")
+local request_wait = require("neovim_codex.nvim.request_wait")
 local ui_prompt = require("neovim_codex.nvim.ui_prompt")
 
 local M = {}
@@ -268,17 +269,6 @@ local function apply_global_keymaps()
   end, "Add the current diagnostic to the Codex workbench")
 end
 
-local function json_codec()
-  return {
-    encode = function(value)
-      return vim.json.encode(value)
-    end,
-    decode = function(value)
-      return vim.json.decode(value)
-    end,
-  }
-end
-
 local function current_runtime_config()
   return vim.deepcopy(config)
 end
@@ -303,7 +293,7 @@ function ensure_runtime()
   local client = client_mod.new({
     store = store,
     transport = transport,
-    json = json_codec(),
+    json = vim.json,
     client_info = config.client_info,
     experimental_api = config.experimental_api,
   })
@@ -384,36 +374,8 @@ local function ensure_ready(timeout_ms)
   return rt, nil
 end
 
-local function request_with_wait(request_fn, opts)
-  opts = opts or {}
-  local done = false
-  local result = nil
-  local err_message = nil
-
-  request_fn(function(err, payload)
-    done = true
-    err_message = err
-    result = payload
-  end)
-
-  if opts.wait then
-    local ok = vim.wait(opts.timeout_ms or 4000, function()
-      return done
-    end, 50)
-    if not ok then
-      return nil, "timed out waiting for app-server response"
-    end
-  end
-
-  return result, err_message
-end
-
-local function wait_opts(opts)
-  return {
-    wait = opts.wait ~= false,
-    timeout_ms = opts.timeout_ms,
-  }
-end
+local request_with_wait = request_wait.call
+local wait_opts = request_wait.options
 
 local function current_cwd()
   return vim.fn.getcwd()
