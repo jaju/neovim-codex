@@ -9,6 +9,7 @@ M.__index = M
 
 local FILE_CHANGE_METHOD = "item/fileChange/requestApproval"
 local VIEWER_KEY = "file-change-review"
+local DETAIL_VIEWER_KEY = "file-change-review-detail"
 
 local function array_items(input)
   if type(input) == "table" then
@@ -72,7 +73,80 @@ function M.new(opts, handlers)
     unsubscribe = nil,
     refresh_job = nil,
     current_request_key = nil,
+    current_file_index = 1,
   }, M)
+end
+
+local function clamp_file_index(context, index)
+  local changes = array_items(context and context.changes)
+  if #changes == 0 then
+    return nil
+  end
+
+  index = tonumber(index) or 1
+  if index < 1 then
+    return 1
+  end
+  if index > #changes then
+    return #changes
+  end
+  return index
+end
+
+function M:_close_review_stack()
+  viewer_stack.close(DETAIL_VIEWER_KEY)
+  viewer_stack.close(VIEWER_KEY)
+  self.current_request_key = nil
+end
+
+function M:_selected_context()
+  if not self.store or not self.current_request_key then
+    return nil, "no active file change review"
+  end
+
+  local request = selectors.get_pending_request(self.store:get_state(), self.current_request_key)
+  if not request or request.method ~= FILE_CHANGE_METHOD then
+    return nil, "no active file change request"
+  end
+
+  local context = resolve_context(self.store:get_state(), request)
+  self.current_file_index = clamp_file_index(context, self.current_file_index) or 1
+  return context, nil
+end
+
+function M:_step_file(delta)
+  local context, err = self:_selected_context()
+  if not context then
+    return nil, err
+  end
+
+  local current = clamp_file_index(context, self.current_file_index)
+  if not current then
+    return nil, "no changed files are available for review"
+  end
+
+  self.current_file_index = clamp_file_index(context, current + delta)
+  viewer_stack.refresh(VIEWER_KEY, self:_review_spec(context))
+  if viewer_stack.is_open(DETAIL_VIEWER_KEY) then
+    viewer_stack.refresh(DETAIL_VIEWER_KEY, self:_detail_spec(context))
+  end
+  return self.current_file_index, nil
+end
+
+function M:open_selected_file_diff()
+  local context, err = self:_selected_context()
+  if not context then
+    return nil, err
+  end
+
+  local current = clamp_file_index(context, self.current_file_index)
+  if not current then
+    return nil, "no changed files are available for review"
+  end
+
+  self.current_file_index = current
+  viewer_stack.open(self:_detail_spec(context))
+  return current, nil
 end
 
 function M:attach(store)
@@ -104,7 +178,8 @@ end
 
 function M:_review_spec(context)
   local keymaps = self:_review_keymaps()
-  local rendered = review_render.render_review(context, keymaps)
+  self.current_file_index = clamp_file_index(context, self.current_file_index) or 1
+  local rendered = review_render.render_review(context, keymaps, self.current_file_index)
   local mappings = {}
 
   local function add_mapping(lhs, rhs, desc)
@@ -131,6 +206,15 @@ function M:_review_spec(context)
   add_mapping(keymaps.cancel or "c", function()
     self:respond_with_decision("cancel")
   end, "Cancel the current Codex file change review")
+  add_mapping(keymaps.open_file or "o", function()
+    self:open_selected_file_diff()
+  end, "Open the selected changed file diff")
+  add_mapping(keymaps.next_file or "]f", function()
+    self:_step_file(1)
+  end, "Move to the next changed file")
+  add_mapping(keymaps.prev_file or "[f", function()
+    self:_step_file(-1)
+  end, "Move to the previous changed file")
 
   local primary_help = keymaps.help or "g?"
   add_mapping(primary_help, function()
@@ -165,6 +249,75 @@ function M:_review_spec(context)
   }
 end
 
+function M:_detail_spec(context)
+  local keymaps = self:_review_keymaps()
+  local rendered = review_render.render_change_detail(context, self.current_file_index)
+  local mappings = {}
+
+  local function add_mapping(lhs, rhs, desc)
+    if lhs == false or lhs == nil then
+      return
+    end
+    mappings[#mappings + 1] = {
+      mode = "n",
+      lhs = lhs,
+      rhs = rhs,
+      desc = desc,
+    }
+  end
+
+  add_mapping(keymaps.open_file or "o", function()
+    self:open_selected_file_diff()
+  end, "Refresh the selected changed file diff")
+  add_mapping(keymaps.next_file or "]f", function()
+    self:_step_file(1)
+  end, "Move to the next changed file")
+  add_mapping(keymaps.prev_file or "[f", function()
+    self:_step_file(-1)
+  end, "Move to the previous changed file")
+  add_mapping(keymaps.accept or "a", function()
+    self:respond_with_decision("accept")
+  end, "Approve the current Codex file change once")
+  add_mapping(keymaps.accept_for_session or "s", function()
+    self:respond_with_decision("acceptForSession")
+  end, "Approve the current Codex file change for this session")
+  add_mapping(keymaps.decline or "d", function()
+    self:respond_with_decision("decline")
+  end, "Decline the current Codex file change")
+  add_mapping(keymaps.cancel or "c", function()
+    self:respond_with_decision("cancel")
+  end, "Cancel the current Codex file change review")
+
+  local primary_help = keymaps.help or "g?"
+  add_mapping(primary_help, function()
+    self:_open_shortcuts()
+  end, "Show file change review shortcuts")
+  for _, lhs in ipairs(surface_help.keys(self.opts, primary_help)) do
+    if lhs ~= primary_help then
+      add_mapping(lhs, function()
+        self:_open_shortcuts()
+      end, "Show file change review shortcuts")
+    end
+  end
+
+  local details = (((self.opts or {}).ui or {}).chat or {}).details or {}
+  return {
+    key = DETAIL_VIEWER_KEY,
+    title = rendered.title,
+    role = "file_change_review",
+    filetype = rendered.filetype or "diff",
+    width = math.max(details.width or 0.72, 0.82),
+    height = math.max(details.height or 0.68, 0.76),
+    border = details.border or "rounded",
+    wrap = false,
+    sticky = true,
+    enter_mode = "normal",
+    prevent_insert = true,
+    lines = rendered.lines,
+    mappings = mappings,
+  }
+end
+
 function M:sync(store_state)
   if not self.current_request_key then
     return
@@ -172,12 +325,16 @@ function M:sync(store_state)
 
   local request = selectors.get_pending_request(store_state, self.current_request_key)
   if not request or request.method ~= FILE_CHANGE_METHOD then
-    self.current_request_key = nil
-    viewer_stack.close(VIEWER_KEY)
+    self:_close_review_stack()
     return
   end
 
-  viewer_stack.refresh(VIEWER_KEY, self:_review_spec(resolve_context(store_state, request)))
+  local context = resolve_context(store_state, request)
+  self.current_file_index = clamp_file_index(context, self.current_file_index) or 1
+  viewer_stack.refresh(VIEWER_KEY, self:_review_spec(context))
+  if viewer_stack.is_open(DETAIL_VIEWER_KEY) then
+    viewer_stack.refresh(DETAIL_VIEWER_KEY, self:_detail_spec(context))
+  end
 end
 
 function M:open_current(opts)
@@ -191,6 +348,7 @@ function M:open_current(opts)
   end
 
   self.current_request_key = request.key
+  self.current_file_index = 1
   viewer_stack.open(self:_review_spec(resolve_context(self.store:get_state(), request)))
   return request, nil
 end
@@ -205,8 +363,7 @@ function M:respond_with_decision(decision)
 
   local request = selectors.get_pending_request(self.store:get_state(), self.current_request_key)
   if not request or request.method ~= FILE_CHANGE_METHOD then
-    viewer_stack.close(VIEWER_KEY)
-    self.current_request_key = nil
+    self:_close_review_stack()
     return nil, "no active file change request"
   end
 
@@ -221,7 +378,7 @@ function M:respond_with_decision(decision)
   if self.handlers.notify then
     self.handlers.notify("Codex file change response sent", vim.log.levels.INFO)
   end
-  viewer_stack.close(VIEWER_KEY)
+  self:_close_review_stack()
   return true, nil
 end
 

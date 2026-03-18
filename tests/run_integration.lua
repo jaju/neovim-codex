@@ -492,6 +492,11 @@ request_store:dispatch({
         kind = "update",
         diff = "@@ -1 +1 @@\n-old\n+new",
       },
+      {
+        path = repo_root .. "/lua/neovim_codex/init.lua",
+        kind = "update",
+        diff = "@@ -1 +1 @@\n-old init\n+new init",
+      },
     },
   },
 })
@@ -520,6 +525,40 @@ assert(review_err == nil, review_err or "file change review should open for the 
 assert(reviewed_request and reviewed_request.request_id == "req_diff", "file change review should target the pending file change request")
 local review_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
 assert(review_viewers.top and review_viewers.top.key == "file-change-review", "file change review should open in the stacked viewer layer")
+vim.api.nvim_feedkeys(termcodes("o"), "xt", false)
+vim.wait(1000, function()
+  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
+  return top and top.key == "file-change-review-detail"
+end, 20)
+local diff_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(diff_viewers.top and diff_viewers.top.key == "file-change-review-detail", "file change review should open a dedicated file diff viewer")
+local diff_lines = vim.api.nvim_buf_get_lines(diff_viewers.top.bufnr, 0, -1, false)
+assert(diff_lines[1] == "@@ -1 +1 @@", "file diff viewer should show the selected unified diff")
+vim.api.nvim_feedkeys(termcodes("]f"), "xt", false)
+vim.wait(1000, function()
+  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
+  if not top or top.key ~= "file-change-review-detail" then
+    return false
+  end
+  local lines = vim.api.nvim_buf_get_lines(top.bufnr, 0, -1, false)
+  return lines[2] == "-old init"
+end, 20)
+local next_diff_lines = vim.api.nvim_buf_get_lines(require("neovim_codex.nvim.viewer_stack").inspect().top.bufnr, 0, -1, false)
+assert(next_diff_lines[2] == "-old init", "file diff viewer should move to the next changed file")
+vim.api.nvim_feedkeys(termcodes("q"), "xt", false)
+vim.wait(1000, function()
+  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
+  return top and top.key == "file-change-review"
+end, 20)
+local review_shortcuts_surface, review_shortcuts_lines = codex.open_shortcuts({ surface = "file_change_review" })
+assert(review_shortcuts_surface == "file_change_review", "shortcut sheet should target the file change review surface")
+local review_shortcuts_body = table.concat(review_shortcuts_lines, "\n")
+assert(review_shortcuts_body:find("Open the selected file diff", 1, true), "file change review shortcuts should expose diff opening")
+assert(review_shortcuts_body:find("Move to the next changed file", 1, true), "file change review shortcuts should expose file navigation")
+require("neovim_codex.nvim.presentation").close_viewers()
+
+reviewed_request, review_err = review_manager:open_current({ thread_id = "thr_req" })
+assert(review_err == nil, review_err or "file change review should reopen after checking shortcuts")
 vim.api.nvim_feedkeys(termcodes("s"), "xt", false)
 vim.wait(1000, function()
   return captured_file_change ~= nil

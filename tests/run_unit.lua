@@ -751,8 +751,31 @@ test("file change review renderer prefers the turn diff and lists changed files"
   eq(rendered.lines[1], "# File Change Review")
   assert(rendered.lines[3]:find("%[s%] Approve session"), "review surface should advertise session approval")
   assert(table.concat(rendered.lines, "\n"):find("## Changed files", 1, true), "review surface should list changed files")
+  assert(table.concat(rendered.lines, "\n"):find("## Selected file", 1, true), "review surface should highlight the selected file")
   assert(table.concat(rendered.lines, "\n"):find("## Turn Diff {.foldable}", 1, true), "review surface should prefer the aggregated turn diff")
   assert(table.concat(rendered.lines, "\n"):find("```diff", 1, true), "review surface should expose a diff fence")
+end)
+
+test("file change review renderer can project a selected file diff", function()
+  local review_render = require("neovim_codex.nvim.file_change_review.render")
+  local rendered = review_render.render_change_detail({
+    changes = {
+      {
+        path = "/tmp/demo/README.md",
+        kind = "update",
+        diff = "@@ -1 +1 @@\n-old\n+new",
+      },
+      {
+        path = "/tmp/demo/src/app.lua",
+        kind = "create",
+        diff = "@@ -0,0 +1 @@\n+return true",
+      },
+    },
+  }, 2)
+
+  eq(rendered.filetype, "diff")
+  assert(rendered.title:find("src/app.lua", 1, true), "detail title should name the selected file")
+  eq(rendered.lines[1], "@@ -0,0 +1 @@")
 end)
 
 
@@ -1128,4 +1151,3 @@ end
 if failures > 0 then
   os.exit(1)
 end
-

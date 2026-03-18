@@ -276,7 +276,7 @@ If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for tha
 
 The transcript is derived from the app-server protocol types, not from shell-string heuristics.
 
-Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses. Use `:CodexRequest` to reopen the current request if you close it before responding, and use `:CodexReview` or the request-local `o` mapping to inspect a structured file-change diff before deciding.
+Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses. Use `:CodexRequest` to reopen the current request if you close it before responding, and use `:CodexReview` or the request-local `o` mapping to inspect a structured file-change review. Inside that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer before you decide.
 
 Examples:
 

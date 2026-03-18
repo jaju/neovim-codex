@@ -55,14 +55,48 @@ end
 
 local function file_summary_lines(changes)
   local lines = {}
-  for _, change in ipairs(array_items(changes)) do
+  for index, change in ipairs(array_items(changes)) do
     lines[#lines + 1] = string.format(
-      "- `%s` `%s`",
+      "%d. `%s` `%s`",
+      index,
       change_kind_label(change.kind),
       display_path(change.path) or value_or(change.path, "-")
     )
   end
   return lines
+end
+
+local function clamp_index(changes, index)
+  local count = #array_items(changes)
+  if count == 0 then
+    return nil
+  end
+
+  index = tonumber(index) or 1
+  if index < 1 then
+    return 1
+  end
+  if index > count then
+    return count
+  end
+  return index
+end
+
+local function selected_file_lines(changes, selected_index)
+  local normalized_index = clamp_index(changes, selected_index)
+  local lines = {}
+
+  for index, change in ipairs(array_items(changes)) do
+    local marker = index == normalized_index and ">" or "-"
+    lines[#lines + 1] = string.format(
+      "%s `%s` `%s`",
+      marker,
+      change_kind_label(change.kind),
+      display_path(change.path) or value_or(change.path, "-")
+    )
+  end
+
+  return lines, normalized_index
 end
 
 local function fallback_diff_sections(changes)
@@ -90,6 +124,9 @@ local function action_summary(keymaps)
     pieces[#pieces + 1] = string.format("[%s] %s", lhs, label)
   end
 
+  add(keymaps.open_file or "o", "Open file diff")
+  add(keymaps.next_file or "]f", "Next file")
+  add(keymaps.prev_file or "[f", "Prev file")
   add(keymaps.accept or "a", "Approve once")
   add(keymaps.accept_for_session or "s", "Approve session")
   add(keymaps.decline or "d", "Decline")
@@ -100,10 +137,11 @@ local function action_summary(keymaps)
   return string.format("> Actions: %s", table.concat(pieces, " · "))
 end
 
-function M.render_review(context, keymaps)
+function M.render_review(context, keymaps, selected_index)
   local request = context.request or {}
   local turn = context.turn or {}
   local changes = array_items(context.changes)
+  local selected_files, normalized_index = selected_file_lines(changes, selected_index)
   local lines = {
     "# File Change Review",
     "",
@@ -115,6 +153,9 @@ function M.render_review(context, keymaps)
     string.format("- Request id: `%s`", value_or(request.request_id, "-")),
     string.format("- Files changed: `%d`", #changes),
   }
+  if normalized_index then
+    lines[#lines + 1] = string.format("- Selected file: `%d/%d`", normalized_index, #changes)
+  end
 
   if present(request.params and request.params.reason) then
     lines[#lines + 1] = string.format("- Reason: %s", request.params.reason)
@@ -140,6 +181,7 @@ function M.render_review(context, keymaps)
   })
 
   append_section(lines, "## Changed files", file_summary_lines(changes))
+  append_section(lines, "## Selected file", selected_files)
 
   if present(context.diff) then
     append_section(lines, "## Turn Diff {.foldable}", fence(context.diff, "diff"))
@@ -150,6 +192,46 @@ function M.render_review(context, keymaps)
   return {
     title = "File Change Review",
     lines = lines,
+  }
+end
+
+function M.render_change_detail(context, selected_index)
+  local changes = array_items(context.changes)
+  local normalized_index = clamp_index(changes, selected_index)
+  if not normalized_index then
+    return {
+      title = "File Diff",
+      filetype = "markdown",
+      lines = {
+        "# File Diff",
+        "",
+        "> No changed file is currently selected.",
+      },
+    }
+  end
+
+  local change = changes[normalized_index]
+  local path_label = display_path(change.path) or value_or(change.path, "Changed file")
+  local diff_lines = split_lines(change.diff)
+  if #diff_lines == 0 then
+    return {
+      title = string.format("File Diff · %s (%d/%d)", path_label, normalized_index, #changes),
+      filetype = "markdown",
+      lines = {
+        "# File Diff",
+        "",
+        string.format("- File: `%s`", path_label),
+        string.format("- Change: `%s`", change_kind_label(change.kind)),
+        "",
+        "> Codex did not provide a per-file diff for this change.",
+      },
+    }
+  end
+
+  return {
+    title = string.format("File Diff · %s (%d/%d)", path_label, normalized_index, #changes),
+    filetype = "diff",
+    lines = diff_lines,
   }
 end
 

@@ -126,6 +126,9 @@ local function surface_entries(config, surface)
     add_mapping(entries, "q", "Hide the request viewer")
   elseif surface == "file_change_review" then
     local keymaps = (config.keymaps or {}).file_change_review or {}
+    add_mapping(entries, keymaps.open_file, "Open the selected file diff")
+    add_mapping(entries, keymaps.next_file, "Move to the next changed file")
+    add_mapping(entries, keymaps.prev_file, "Move to the previous changed file")
     add_mapping(entries, keymaps.accept, "Approve the reviewed file change once")
     add_mapping(entries, keymaps.accept_for_session, "Approve the reviewed file change for this session")
     add_mapping(entries, keymaps.decline, "Decline the reviewed file change")

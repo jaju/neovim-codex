@@ -150,6 +150,9 @@ local defaults = {
       help = "g?",
     },
     file_change_review = {
+      open_file = "o",
+      next_file = "]f",
+      prev_file = "[f",
       accept = "a",
       accept_for_session = "s",
       decline = "d",

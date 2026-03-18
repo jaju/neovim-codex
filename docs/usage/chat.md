@@ -67,7 +67,7 @@ This applies to:
 
 These are server-request state machines, not transcript content.
 
-Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses. For file-change approvals, use the request-local `o` mapping or `:CodexReview` to inspect the structured diff review surface before you decide.
+Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses. For file-change approvals, use the request-local `o` mapping or `:CodexReview` to inspect the structured diff review surface before you decide. Inside the review surface, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
 
 Default request viewer mappings:
 
@@ -80,6 +80,18 @@ Default request viewer mappings:
 - `o` - open the file-change review when the pending request is a file-change approval
 - `g?` or `<F1>` - open the shortcut sheet for the current surface
 - `q` or `<Esc>` - hide the viewer without resolving the request
+
+Default file-change review mappings:
+
+- `o` - open the currently selected changed file in a dedicated diff viewer
+- `]f` - move to the next changed file
+- `[f` - move to the previous changed file
+- `a` - approve once
+- `s` - approve for session
+- `d` - decline
+- `c` - cancel
+- `g?` or `<F1>` - open the shortcut sheet for the current surface
+- `q` or `<Esc>` - close the top review viewer and return to the previous review layer
 
 ## Thread commands
 
