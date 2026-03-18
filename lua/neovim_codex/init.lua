@@ -6,6 +6,7 @@ local file_change_review = require("neovim_codex.nvim.file_change_review")
 local presentation = require("neovim_codex.nvim.presentation")
 local requests = require("neovim_codex.nvim.server_requests")
 local smoke = require("neovim_codex.nvim.smoke")
+local statusline = require("neovim_codex.nvim.statusline")
 local workbench = require("neovim_codex.nvim.workbench")
 local transport_mod = require("neovim_codex.nvim.transport")
 local thread_params = require("neovim_codex.nvim.thread_params")
@@ -111,7 +112,7 @@ local defaults = {
       interrupt = false,
       turn_steer = false,
       shortcuts = false,
-      request = false,
+      request = "<F2>",
       workbench = false,
       compose = false,
       capture_path = false,
@@ -327,6 +328,7 @@ function ensure_runtime()
   })
   request_manager:attach(store)
   review_manager:attach(store)
+  statusline.attach(store, config)
 
   runtime = {
     store = store,
@@ -472,6 +474,10 @@ end
 
 function M.setup(opts)
   config = vim.tbl_deep_extend("force", vim.deepcopy(defaults), normalize_legacy_config(opts))
+  statusline.configure(config)
+  if runtime then
+    statusline.attach(runtime.store, config)
+  end
   apply_global_keymaps()
 end
 
@@ -669,9 +675,27 @@ function M.interrupt(opts)
 end
 
 function M.status()
-  local rt = ensure_runtime()
-  local state = rt.client:get_state()
-  return presentation.status_line(state.connection, state.threads, state.server_requests, state.workbench)
+  if not runtime then
+    return statusline.render_plain({
+      connection = { status = "stopped" },
+      threads = { by_id = {}, order = {}, active_id = nil },
+      server_requests = { by_id = {}, order = {}, active_id = nil },
+      workbench = { by_thread_id = {} },
+    }, config)
+  end
+  return statusline.render_plain(runtime.client:get_state(), config)
+end
+
+function M.statusline()
+  if not runtime then
+    return statusline.render({
+      connection = { status = "stopped" },
+      threads = { by_id = {}, order = {}, active_id = nil },
+      server_requests = { by_id = {}, order = {}, active_id = nil },
+      workbench = { by_thread_id = {} },
+    }, config)
+  end
+  return statusline.render(runtime.client:get_state(), config)
 end
 
 function M.toggle_workbench()

@@ -527,29 +527,30 @@ local review_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
 assert(review_viewers.top and review_viewers.top.key == "file-change-review", "file change review should open in the stacked viewer layer")
 vim.api.nvim_feedkeys(termcodes("o"), "xt", false)
 vim.wait(1000, function()
-  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
-  return top and top.key == "file-change-review-detail"
+  return review_manager.diff_tab and review_manager.diff_tab:is_open()
 end, 20)
-local diff_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
-assert(diff_viewers.top and diff_viewers.top.key == "file-change-review-detail", "file change review should open a dedicated file diff viewer")
-local diff_lines = vim.api.nvim_buf_get_lines(diff_viewers.top.bufnr, 0, -1, false)
-assert(diff_lines[1] == "@@ -1 +1 @@", "file diff viewer should show the selected unified diff")
+assert(review_manager.diff_tab and review_manager.diff_tab:is_open(), "file change review should open a dedicated file diff tab")
+local left_lines = vim.api.nvim_buf_get_lines(review_manager.diff_tab.left_buf, 0, -1, false)
+local right_lines = vim.api.nvim_buf_get_lines(review_manager.diff_tab.right_buf, 0, -1, false)
+assert(left_lines[1] == "@@ -1 +1 @@", "diff tab should show the selected unified diff hunk header")
+assert(left_lines[2] == "old", "left diff buffer should show removed lines")
+assert(right_lines[2] == "new", "right diff buffer should show added lines")
 vim.api.nvim_feedkeys(termcodes("]f"), "xt", false)
 vim.wait(1000, function()
-  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
-  if not top or top.key ~= "file-change-review-detail" then
+  if not (review_manager.diff_tab and review_manager.diff_tab:is_open()) then
     return false
   end
-  local lines = vim.api.nvim_buf_get_lines(top.bufnr, 0, -1, false)
-  return lines[2] == "-old init"
+  local lines = vim.api.nvim_buf_get_lines(review_manager.diff_tab.left_buf, 0, -1, false)
+  return lines[2] == "old init"
 end, 20)
-local next_diff_lines = vim.api.nvim_buf_get_lines(require("neovim_codex.nvim.viewer_stack").inspect().top.bufnr, 0, -1, false)
-assert(next_diff_lines[2] == "-old init", "file diff viewer should move to the next changed file")
+local next_diff_lines = vim.api.nvim_buf_get_lines(review_manager.diff_tab.left_buf, 0, -1, false)
+assert(next_diff_lines[2] == "old init", "file diff tab should move to the next changed file")
 vim.api.nvim_feedkeys(termcodes("q"), "xt", false)
 vim.wait(1000, function()
-  local top = require("neovim_codex.nvim.viewer_stack").inspect().top
-  return top and top.key == "file-change-review"
+  return not (review_manager.diff_tab and review_manager.diff_tab:is_open())
 end, 20)
+local review_after_diff = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(review_after_diff.top and review_after_diff.top.key == "file-change-review", "closing the diff tab should leave the review surface visible")
 local review_shortcuts_surface, review_shortcuts_lines = codex.open_shortcuts({ surface = "file_change_review" })
 assert(review_shortcuts_surface == "file_change_review", "shortcut sheet should target the file change review surface")
 local review_shortcuts_body = table.concat(review_shortcuts_lines, "\n")

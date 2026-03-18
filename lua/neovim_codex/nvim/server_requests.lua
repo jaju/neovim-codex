@@ -258,6 +258,13 @@ function M:open_current(opts)
   local thread_id = opts.thread_id or (active_thread and active_thread.id or nil)
   local request = selectors.get_active_request_for_thread(state, thread_id)
   if not request then
+    request = selectors.get_active_request(state)
+  end
+  if not request then
+    local pending = selectors.list_pending_requests(state)
+    request = pending[#pending]
+  end
+  if not request then
     return nil, "no pending Codex request"
   end
   self:clear_dismissal(request.key)

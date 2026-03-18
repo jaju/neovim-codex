@@ -81,12 +81,12 @@ Install from the public GitHub repository:
         global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
         global = {
           chat = false, -- set a mapping like "<C-,>" to toggle the chat overlay
-          request = false, -- reopen the active approval or question
+          request = "<F2>", -- reopen the active approval or question
           shortcuts = false, -- reopen the current shortcut sheet
           threads = false, -- open the thread picker
           workbench = false, -- toggle the thread-local workbench tray
           compose = false, -- open compose review for the active thread
-          thread_settings = false, -- edit sticky model/effort/mode settings for the active thread
+          thread_settings = false, -- edit sticky model/effort/approval/mode settings for the active thread
           thread_unarchive = false, -- restore an archived thread from the picker
           thread_compact = false, -- start manual history compaction for a thread
           turn_steer = false, -- steer the currently running turn explicitly
@@ -194,7 +194,7 @@ Workbench and compose commands:
 
 ## Keymaps
 
-Global mappings are disabled by default. Fast open/reopen actions use `keymaps.global_fast_modes`; workflow actions use `keymaps.global_workflow_modes`. If you only set the older `keymaps.global_modes`, it still works as the fallback for both lanes. Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or `<F1>` inside a Codex surface to reopen the current shortcut sheet, which is grouped into "This surface", "Global fast", and "Global workflow" lanes.
+Global mappings are mostly disabled by default. The one fast-path exception is request reopen on `<F2>`, so hidden approvals or questions are always one movement away. Fast open/reopen actions use `keymaps.global_fast_modes`; workflow actions use `keymaps.global_workflow_modes`. If you only set the older `keymaps.global_modes`, it still works as the fallback for both lanes. Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or `<F1>` inside a Codex surface to reopen the current shortcut sheet, which is grouped into "This surface", "Global fast", and "Global workflow" lanes.
 
 Transcript buffer defaults:
 
@@ -277,6 +277,14 @@ If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for tha
 The transcript is derived from the app-server protocol types, not from shell-string heuristics.
 
 Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses. Use `:CodexRequest` to reopen the current request if you close it before responding, and use `:CodexReview` or the request-local `o` mapping to inspect a structured file-change review. Inside that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer before you decide.
+
+For ambient awareness outside the chat shell, expose the built-in statusline component in your own statusline:
+
+```vim
+set statusline+=%{%v:lua.require('neovim_codex').statusline()%}
+```
+
+It shows the current Codex state (`RUN`, `WAIT`, `IDLE`, `ERR`, `OFF`), the active thread, any pending request count plus reopen hint, and the active workbench count.
 
 Examples:
 

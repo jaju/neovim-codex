@@ -21,7 +21,7 @@ Add this to your plugin list to install from the public GitHub repository:
         global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
         global = {
           chat = false, -- toggle the chat overlay globally
-          request = false, -- reopen the current approval or question
+          request = "<F2>", -- reopen the current approval or question
           shortcuts = false, -- reopen the current shortcut sheet
           threads = false, -- open the thread picker
           thread_settings = false, -- edit sticky thread runtime settings

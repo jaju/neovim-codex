@@ -1093,6 +1093,80 @@ test("thread runtime model labels include upgrade and availability hints", funct
   assert(menu_label:find("gpt%-5%.2%-codex"), "menu label should resolve against the catalog")
 end)
 
+test("statusline formatter shows running state, request hint, and workbench counts", function()
+  local formatter = require("neovim_codex.nvim.statusline")
+  local store_state = {
+    connection = {
+      status = "ready",
+      initialized = true,
+    },
+    threads = {
+      active_id = "thr_1",
+      order = { "thr_1" },
+      by_id = {
+        thr_1 = {
+          id = "thr_1",
+          preview = "demo thread",
+          turns_order = { "turn_1" },
+          turns_by_id = {
+            turn_1 = { id = "turn_1", status = "inProgress", items_order = {}, items_by_id = {} },
+          },
+        },
+      },
+    },
+    server_requests = {
+      active_id = "req_1",
+      order = { "req_1" },
+      by_id = {
+        req_1 = { key = "req_1", thread_id = "thr_1" },
+      },
+    },
+    workbench = {
+      by_thread_id = {
+        thr_1 = {
+          fragments_order = { "f_1", "f_2" },
+          fragments_by_id = {
+            f_1 = { id = "f_1", parked = false },
+            f_2 = { id = "f_2", parked = true },
+          },
+        },
+      },
+    },
+  }
+
+  local plain = formatter.render_plain(store_state, {
+    keymaps = { global = { request = "<F2>" } },
+  })
+  assert(plain:find("codex=RUN", 1, true), "plain status should report the running state")
+  assert(plain:find("request=REQ 1 <F2>", 1, true), "plain status should include the reopen hint")
+  assert(plain:find("workbench=WB 1/2", 1, true), "plain status should include active and total workbench counts")
+
+  local rich = formatter.render(store_state, {
+    keymaps = { global = { request = "<F2>" } },
+  })
+  assert(rich:find("NeovimCodexStatusRunning", 1, true), "statusline output should include the running highlight")
+  assert(rich:find("REQ 1 <F2>", 1, true), "statusline output should include the reopen hint")
+end)
+
+test("file change diff tab splits unified diff into before and after buffers", function()
+  local diff_tab = require("neovim_codex.nvim.file_change_review.diff_tab")
+  local left, right = diff_tab._build_hunk_buffers(table.concat({
+    "--- a/demo.txt",
+    "+++ b/demo.txt",
+    "@@ -1,2 +1,2 @@",
+    " keep",
+    "-old",
+    "+new",
+  }, "\n"))
+
+  eq(left[1], "@@ -1,2 +1,2 @@")
+  eq(left[2], "keep")
+  eq(left[3], "old")
+  eq(right[1], "@@ -1,2 +1,2 @@")
+  eq(right[2], "keep")
+  eq(right[3], "new")
+end)
+
 test("server request protocol builds permission grant choices", function()
   local protocol = require("neovim_codex.nvim.server_requests.protocol")
   local choices = protocol.choice_entries({

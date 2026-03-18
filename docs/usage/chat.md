@@ -67,7 +67,7 @@ This applies to:
 
 These are server-request state machines, not transcript content.
 
-Use `:CodexRequest` to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses. For file-change approvals, use the request-local `o` mapping or `:CodexReview` to inspect the structured diff review surface before you decide. Inside the review surface, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
+Use `:CodexRequest` or the default global `<F2>` mapping to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses. For file-change approvals, use the request-local `o` mapping or `:CodexReview` to inspect the structured diff review surface before you decide. Inside the review surface, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
 
 Default request viewer mappings:
 
@@ -92,6 +92,14 @@ Default file-change review mappings:
 - `c` - cancel
 - `g?` or `<F1>` - open the shortcut sheet for the current surface
 - `q` or `<Esc>` - close the top review viewer and return to the previous review layer
+
+If you want Codex state visible while you stay in normal editing windows, add the built-in statusline component to your own statusline:
+
+```vim
+set statusline+=%{%v:lua.require('neovim_codex').statusline()%}
+```
+
+It reports whether Codex is running, waiting for a request response, idle, stopped, or in error, and includes the pending-request reopen hint.
 
 ## Thread commands
 

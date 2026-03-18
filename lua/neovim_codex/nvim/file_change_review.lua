@@ -1,5 +1,6 @@
 local selectors = require("neovim_codex.core.selectors")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
+local diff_tab = require("neovim_codex.nvim.file_change_review.diff_tab")
 local review_render = require("neovim_codex.nvim.file_change_review.render")
 local surface_help = require("neovim_codex.nvim.surface_help")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
@@ -66,7 +67,7 @@ end
 function M.new(opts, handlers)
   opts = opts or {}
   handlers = handlers or {}
-  return setmetatable({
+  local instance = setmetatable({
     opts = opts,
     handlers = handlers,
     store = nil,
@@ -74,7 +75,26 @@ function M.new(opts, handlers)
     refresh_job = nil,
     current_request_key = nil,
     current_file_index = 1,
+    diff_tab = nil,
   }, M)
+  instance.diff_tab = diff_tab.new(opts, {
+    next_file = function()
+      instance:_step_file(1)
+    end,
+    prev_file = function()
+      instance:_step_file(-1)
+    end,
+    refresh_current = function()
+      instance:_refresh_selected_file_diff()
+    end,
+    respond = function(decision)
+      instance:respond_with_decision(decision)
+    end,
+    open_help = function()
+      instance:_open_shortcuts()
+    end,
+  })
+  return instance
 end
 
 local function clamp_file_index(context, index)
@@ -94,6 +114,9 @@ local function clamp_file_index(context, index)
 end
 
 function M:_close_review_stack()
+  if self.diff_tab then
+    self.diff_tab:close()
+  end
   viewer_stack.close(DETAIL_VIEWER_KEY)
   viewer_stack.close(VIEWER_KEY)
   self.current_request_key = nil
@@ -127,13 +150,16 @@ function M:_step_file(delta)
 
   self.current_file_index = clamp_file_index(context, current + delta)
   viewer_stack.refresh(VIEWER_KEY, self:_review_spec(context))
+  if self.diff_tab and self.diff_tab:is_open() then
+    self.diff_tab:refresh(context, self.current_file_index)
+  end
   if viewer_stack.is_open(DETAIL_VIEWER_KEY) then
     viewer_stack.refresh(DETAIL_VIEWER_KEY, self:_detail_spec(context))
   end
   return self.current_file_index, nil
 end
 
-function M:open_selected_file_diff()
+function M:_refresh_selected_file_diff()
   local context, err = self:_selected_context()
   if not context then
     return nil, err
@@ -145,8 +171,21 @@ function M:open_selected_file_diff()
   end
 
   self.current_file_index = current
+  if self.diff_tab then
+    local opened, open_err = self.diff_tab:open(context, self.current_file_index)
+    if opened then
+      viewer_stack.close(DETAIL_VIEWER_KEY)
+      return opened, nil
+    end
+    err = open_err
+  end
+
   viewer_stack.open(self:_detail_spec(context))
   return current, nil
+end
+
+function M:open_selected_file_diff()
+  return self:_refresh_selected_file_diff()
 end
 
 function M:attach(store)
@@ -332,6 +371,9 @@ function M:sync(store_state)
   local context = resolve_context(store_state, request)
   self.current_file_index = clamp_file_index(context, self.current_file_index) or 1
   viewer_stack.refresh(VIEWER_KEY, self:_review_spec(context))
+  if self.diff_tab and self.diff_tab:is_open() then
+    self.diff_tab:refresh(context, self.current_file_index)
+  end
   if viewer_stack.is_open(DETAIL_VIEWER_KEY) then
     viewer_stack.refresh(DETAIL_VIEWER_KEY, self:_detail_spec(context))
   end
@@ -349,6 +391,9 @@ function M:open_current(opts)
 
   self.current_request_key = request.key
   self.current_file_index = 1
+  if self.diff_tab then
+    self.diff_tab:close()
+  end
   viewer_stack.open(self:_review_spec(resolve_context(self.store:get_state(), request)))
   return request, nil
 end

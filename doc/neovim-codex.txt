@@ -215,7 +215,8 @@ Compose review defaults:
 - `q` close compose review
 
 These mappings are configurable through `setup()` and can be disabled by setting
-individual mappings to `false`.
+individual mappings to `false`. By default, hidden request dialogs can always be
+reopened with `<F2>`.
 
 If `<C-s>` is captured by terminal flow control, remap
 `keymaps.composer.send` or run `stty -ixon`.
@@ -223,6 +224,14 @@ If `<C-s>` is captured by terminal flow control, remap
 Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one. If focus leaves plugin-owned windows, the chat overlay closes so the cursor never disappears behind the modal.
 
 Blocking request flows are protocol-first and do not render inline as transcript content. When Codex asks for command approval, file-change approval, or tool input, the plugin opens a dedicated request viewer above the chat overlay in normal mode. Use `:CodexRequest` to reopen the active request if you hide it before responding. File-change approvals also expose a dedicated review surface through `:CodexReview` or the request-local `o` mapping. Within that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
+
+To expose Codex state in your own statusline, add:
+>
+    set statusline+=%{%v:lua.require('neovim_codex').statusline()%}
+<
+
+The component reports whether Codex is running, waiting for a request response,
+idle, stopped, or in error, and includes a pending-request reopen hint.
 
 Default request viewer mappings:
 
