@@ -1,6 +1,10 @@
-local shared = require("neovim_codex.nvim.chat.document.shared")
+local text_utils = require("neovim_codex.core.text")
+local value = require("neovim_codex.core.value")
 
 local M = {}
+
+local display_path = text_utils.display_path
+local present = value.present
 
 local CONTEXT_PATTERNS = {
   ".codex/skills",
@@ -11,12 +15,59 @@ local CONTEXT_PATTERNS = {
   "topics.agent.tsv",
 }
 
-local function lower_text(value)
-  return string.lower(shared.value_or(value, ""))
+local function value_or(candidate, fallback)
+  if present(candidate) and candidate ~= "" then
+    return tostring(candidate)
+  end
+  return fallback
 end
 
-local function matches_context_target(value)
-  local text = lower_text(value)
+local function trim_text(text, limit)
+  if not present(text) then
+    return nil
+  end
+
+  local rendered = tostring(text)
+  if #rendered <= limit then
+    return rendered
+  end
+
+  return rendered:sub(1, math.max(1, limit - 3)) .. "..."
+end
+
+local function compact_inline_code(text)
+  local rendered = trim_text(text, 64)
+  if not rendered then
+    return nil
+  end
+  return string.format("`%s`", rendered)
+end
+
+local function plain_snippet(text, limit)
+  if not present(text) then
+    return nil
+  end
+
+  local rendered = tostring(text)
+  rendered = rendered:gsub("`+", "")
+  rendered = rendered:gsub("[%*_>#-]+", " ")
+  rendered = rendered:gsub("%[([^%]]+)%]%([^%)]+%)", "%1")
+  rendered = rendered:gsub("\n", " ")
+  rendered = rendered:gsub("%s+", " ")
+  rendered = vim.trim(rendered)
+  if rendered == "" then
+    return nil
+  end
+
+  return trim_text(rendered, limit)
+end
+
+local function lower_text(candidate)
+  return string.lower(value_or(candidate, ""))
+end
+
+local function matches_context_target(candidate)
+  local text = lower_text(candidate)
   if text == "" then
     return false
   end
@@ -31,32 +82,32 @@ local function matches_context_target(value)
 end
 
 local function action_type(action)
-  return shared.value_or(action and action.type, "unknown")
+  return value_or(action and action.type, "unknown")
 end
 
 local function describe_action(action)
   local current_type = action_type(action)
 
   if current_type == "read" then
-    local path = shared.display_path(action.path)
+    local path = display_path(action.path)
     if path then
-      return string.format("Read %s", shared.compact_inline_code(path) or path)
+      return string.format("Read %s", compact_inline_code(path) or path)
     end
-    return string.format("Read %s", shared.compact_inline_code(action.name or "file") or "file")
+    return string.format("Read %s", compact_inline_code(action.name or "file") or "file")
   end
 
   if current_type == "listFiles" then
-    local path = shared.display_path(action.path) or "workspace"
-    return string.format("Listed files in %s", shared.compact_inline_code(path) or path)
+    local path = display_path(action.path) or "workspace"
+    return string.format("Listed files in %s", compact_inline_code(path) or path)
   end
 
   if current_type == "search" then
-    local path = shared.display_path(action.path) or "workspace"
-    local query = shared.plain_snippet(action.query, 40)
+    local path = display_path(action.path) or "workspace"
+    local query = plain_snippet(action.query, 40)
     if query then
-      return string.format("Searched %s for %s", shared.compact_inline_code(path) or path, shared.compact_inline_code(query) or query)
+      return string.format("Searched %s for %s", compact_inline_code(path) or path, compact_inline_code(query) or query)
     end
-    return string.format("Searched %s", shared.compact_inline_code(path) or path)
+    return string.format("Searched %s", compact_inline_code(path) or path)
   end
 
   return nil

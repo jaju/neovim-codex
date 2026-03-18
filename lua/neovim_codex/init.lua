@@ -10,10 +10,8 @@ local workbench = require("neovim_codex.nvim.workbench")
 local transport_mod = require("neovim_codex.nvim.transport")
 local thread_params = require("neovim_codex.nvim.thread_params")
 local thread_runtime = require("neovim_codex.nvim.thread_runtime")
-local thread_runtime_picker = require("neovim_codex.nvim.thread_runtime_picker")
 local thread_api_mod = require("neovim_codex.nvim.thread_api")
 local chat_layout = require("neovim_codex.nvim.chat.layout")
-local request_wait = require("neovim_codex.nvim.request_wait")
 
 local M = {}
 
@@ -394,50 +392,49 @@ local function ensure_ready(timeout_ms)
   return rt, nil
 end
 
-local request_with_wait = request_wait.call
-local wait_opts = request_wait.options
+local function request_with_wait(request_fn, opts)
+  opts = opts or {}
+  local done = false
+  local result = nil
+  local err_message = nil
+
+  request_fn(function(err, payload)
+    done = true
+    err_message = err
+    result = payload
+  end)
+
+  if opts.wait then
+    local ok = vim.wait(opts.timeout_ms or 4000, function()
+      return done
+    end, 50)
+    if not ok then
+      return nil, "timed out waiting for app-server response"
+    end
+  end
+
+  return result, err_message
+end
+
+local function wait_opts(opts)
+  return {
+    wait = opts.wait ~= false,
+    timeout_ms = opts.timeout_ms,
+  }
+end
 
 local function current_cwd()
   return vim.fn.getcwd()
 end
 
-local compact_text = thread_runtime.compact_text
 local clone_runtime_settings = thread_runtime.clone_settings
-local normalize_runtime_settings = thread_runtime.normalize
-
-local function make_runtime_picker(rt)
-  return thread_runtime_picker.new({
-    client = rt.client,
-    request_with_wait = request_with_wait,
-    notify = function(message, level, enabled)
-      notify(message, level, enabled)
-    end,
-    experimental_api = config.experimental_api,
-  })
-end
 
 local function build_thread_start_params(opts)
   return thread_params.build_thread_start(config, current_cwd(), opts)
 end
 
-local function build_thread_resume_params(opts)
-  return thread_params.build_thread_resume(config, opts)
-end
-
-local function build_thread_fork_params(opts)
-  return thread_params.build_thread_fork(config, opts)
-end
-
-local function build_thread_list_params(opts)
-  return thread_params.build_thread_list(config, current_cwd(), opts)
-end
-
 local function build_turn_start_params(thread_id, text, opts)
   return thread_params.build_turn_start(config, thread_id, text, opts)
-end
-
-local function build_turn_steer_params(thread_id, turn_id, text, opts)
-  return thread_params.build_turn_steer(thread_id, turn_id, text, opts)
 end
 
 local function chat_actions()
@@ -597,80 +594,33 @@ local thread_api = thread_api_mod.new({
   ensure_runtime = ensure_runtime,
   ensure_ready = ensure_ready,
   notify = notify,
-  request_with_wait = request_with_wait,
-  wait_opts = wait_opts,
-  build_thread_start_params = build_thread_start_params,
-  build_thread_resume_params = build_thread_resume_params,
-  build_thread_fork_params = build_thread_fork_params,
-  build_thread_list_params = build_thread_list_params,
-  build_turn_steer_params = build_turn_steer_params,
   reveal_chat = reveal_chat,
   workbench = workbench,
   chat = chat,
-  compact_text = compact_text,
-  clone_runtime_settings = clone_runtime_settings,
-  normalize_runtime_settings = normalize_runtime_settings,
-  current_cwd = current_cwd,
   get_config = function()
     return config
   end,
-  make_runtime_picker = make_runtime_picker,
 })
 
-function M.new_thread(opts)
-  return thread_api.new_thread(opts)
-end
-
-function M.resume_thread(opts)
-  return thread_api.resume_thread(opts)
-end
-
-function M.list_threads(opts)
-  return thread_api.list_threads(opts)
-end
-
-function M.read_thread(opts)
-  return thread_api.read_thread(opts)
-end
-
-function M.open_thread_report(opts)
-  return thread_api.open_thread_report(opts)
-end
-
-function M.pick_thread(opts)
-  return thread_api.pick_thread(opts)
-end
-
-function M.create_thread_with_settings(opts)
-  return thread_api.create_thread_with_settings(opts)
-end
-
-function M.configure_thread(opts)
-  return thread_api.configure_thread(opts)
-end
-
-function M.fork_thread(opts)
-  return thread_api.fork_thread(opts)
-end
-
-function M.rename_thread(opts)
-  return thread_api.rename_thread(opts)
-end
-
-function M.archive_thread(opts)
-  return thread_api.archive_thread(opts)
-end
-
-function M.unarchive_thread(opts)
-  return thread_api.unarchive_thread(opts)
-end
-
-function M.compact_thread(opts)
-  return thread_api.compact_thread(opts)
-end
-
-function M.steer(opts)
-  return thread_api.steer(opts)
+for _, method_name in ipairs({
+  "new_thread",
+  "resume_thread",
+  "list_threads",
+  "read_thread",
+  "open_thread_report",
+  "pick_thread",
+  "create_thread_with_settings",
+  "configure_thread",
+  "fork_thread",
+  "rename_thread",
+  "archive_thread",
+  "unarchive_thread",
+  "compact_thread",
+  "steer",
+}) do
+  M[method_name] = function(opts)
+    return thread_api[method_name](opts)
+  end
 end
 
 function M.open_shortcuts(opts)
