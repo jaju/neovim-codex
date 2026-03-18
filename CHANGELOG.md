@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 - Streaming transcript updates no longer force layout refreshes, which removes bottom-border flicker during long responses.
 
 ### Changed
+- Expanded the watched Codex app-server contract to cover the current thread-management responses, archive/rename lifecycle notifications, permissions approvals, and MCP elicitation routes, and refreshed snapshots for the new `agentMessage.memoryCitation` field.
 - Removed transcript-to-workbench capture from the first slice; workbench capture is now explicitly code-world first.
 - Thread pickers now show compact thread ids so more of the thread title or preview text remains visible.
 - `g?` now opens contextual shortcut summaries across Codex surfaces instead of jumping straight into `:help`.

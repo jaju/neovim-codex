@@ -25,15 +25,19 @@ Use `./scripts/contracts-check` for the default source-of-truth comparison. Use 
 
 - connection and conversation control
   - initialize
-  - thread lifecycle
+  - thread lifecycle, including archive, unarchive, rename, loaded-list, and compaction flows
+  - response payloads that seed local thread state and sticky runtime settings
   - turn lifecycle
 - streamed turn output
   - item start/completion
-  - agent message, plan, reasoning, command output, file change deltas
+  - agent message, plan, reasoning, command output, file change, diff, and plan-update deltas
+  - thread name/archive lifecycle notifications
 - blocking server requests
   - command approval
   - file-change approval
+  - permissions approval
   - tool `requestUserInput`
+  - MCP elicitation
 - experimental extension path
   - dynamic tools
 
