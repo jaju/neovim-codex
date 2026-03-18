@@ -18,6 +18,17 @@ local IN_PROGRESS_ITEM_TYPES = {
   collabAgentToolCall = true,
 }
 
+local function footer_status_label(status)
+  local normalized = present(status) and tostring(status) ~= "" and tostring(status) or "unknown"
+  if normalized == "active" or normalized == "idle" or normalized == "completed" then
+    return "IDLE", "NeovimCodexChatFooterIdle"
+  end
+  if normalized == "error" then
+    return "ERR", "NeovimCodexChatFooterError"
+  end
+  return string.upper(normalized), "NeovimCodexChatFooterIdle"
+end
+
 local function value_or(candidate, fallback)
   if present(candidate) and candidate ~= "" then
     return tostring(candidate)
@@ -721,7 +732,7 @@ local function thread_footer(state, thread, pending_requests)
   local turns = list_thread_turns(thread)
   local status = thread.status and thread.status.type or "unknown"
   local active_turn = turns[#turns]
-  local status_bits = { status }
+  local status_text, status_highlight = footer_status_label(status)
   local fragment_counts = state and selectors.workbench_fragment_counts(state, thread.id) or { total = 0, active = 0, parked = 0 }
   local token_usage = state and selectors.get_thread_token_usage(state, thread.id) or nil
   local short_id = thread_identity.short_id(thread.id)
@@ -729,15 +740,19 @@ local function thread_footer(state, thread, pending_requests)
 
   if active_turn and active_turn.status == "inProgress" then
     local running = in_progress_item_count(active_turn)
-    if running > 0 then
-      status_bits[#status_bits + 1] = string.format("%d operation%s running", running, running == 1 and "" or "s")
+    if (pending_requests or 0) > 0 then
+      status_text = string.format("WAIT · %d request%s pending", pending_requests, pending_requests == 1 and "" or "s")
+      status_highlight = "NeovimCodexChatFooterWaiting"
+    elseif running > 0 then
+      status_text = string.format("RUN · %d operation%s running", running, running == 1 and "" or "s")
+      status_highlight = "NeovimCodexChatFooterRunning"
     else
-      status_bits[#status_bits + 1] = "waiting for response"
+      status_text = "RUN · turn in progress"
+      status_highlight = "NeovimCodexChatFooterRunning"
     end
-  end
-
-  if (pending_requests or 0) > 0 then
-    status_bits[#status_bits + 1] = string.format("%d request%s pending", pending_requests, pending_requests == 1 and "" or "s")
+  elseif (pending_requests or 0) > 0 then
+    status_text = string.format("WAIT · %d request%s pending", pending_requests, pending_requests == 1 and "" or "s")
+    status_highlight = "NeovimCodexChatFooterWaiting"
   end
 
   local workbench_summary
@@ -748,19 +763,19 @@ local function thread_footer(state, thread, pending_requests)
   end
 
   local token_summary = token_usage_summary(token_usage)
-  local trailing_parts = { workbench_summary }
+  local detail_parts = { workbench_summary }
   if token_summary then
-    trailing_parts[#trailing_parts + 1] = token_summary
+    detail_parts[#detail_parts + 1] = token_summary
   end
-  trailing_parts[#trailing_parts + 1] = string.format("%d turn%s", #turns, #turns == 1 and "" or "s")
-  trailing_parts[#trailing_parts + 1] = table.concat(status_bits, " · ")
+  detail_parts[#detail_parts + 1] = string.format("%d turn%s", #turns, #turns == 1 and "" or "s")
 
-  local footer = string.format("thread %s · %s · %s", short_id, title, table.concat(trailing_parts, " · "))
+  local footer = string.format("thread %s · %s · %s · %s", short_id, title, table.concat(detail_parts, " · "), status_text)
   local segments = {
     { text = string.format("thread %s", short_id), highlight = "NeovimCodexChatFooterMeta" },
     { text = " · ", highlight = "NeovimCodexChatFooterMeta" },
     { text = title, highlight = "NeovimCodexChatFooterThread" },
-    { text = string.format(" · %s", table.concat(trailing_parts, " · ")), highlight = "NeovimCodexChatFooterMeta" },
+    { text = string.format(" · %s · ", table.concat(detail_parts, " · ")), highlight = "NeovimCodexChatFooterMeta" },
+    { text = status_text, highlight = status_highlight },
   }
 
   return footer, segments
@@ -797,7 +812,8 @@ local function project_thread(thread, opts)
   opts = opts or {}
 
   local pending_requests = opts.state and selectors.pending_request_count(opts.state) or 0
-  local footer, footer_segments = thread_footer(opts.state, thread, pending_requests)
+  local thread_pending_requests = opts.state and selectors.pending_request_count_for_thread(opts.state, thread.id) or 0
+  local footer, footer_segments = thread_footer(opts.state, thread, thread_pending_requests)
   local doc = {
     title = opts.title,
     thread_id = thread.id,

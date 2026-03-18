@@ -138,6 +138,10 @@ function Surface:_ensure_highlights()
   define_default_highlight("NeovimCodexChatNoticeHeading", "Comment")
   define_default_highlight("NeovimCodexChatFooterMeta", "Comment")
   define_default_highlight("NeovimCodexChatFooterThread", "Identifier")
+  define_default_highlight("NeovimCodexChatFooterRunning", "DiffAdded")
+  define_default_highlight("NeovimCodexChatFooterWaiting", "WarningMsg")
+  define_default_highlight("NeovimCodexChatFooterIdle", "Comment")
+  define_default_highlight("NeovimCodexChatFooterError", "DiagnosticError")
 end
 
 function Surface:_overlay_config()

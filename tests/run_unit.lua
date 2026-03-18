@@ -732,6 +732,81 @@ test("chat document renders foldable file changes with diff fences", function()
   eq(doc.blocks[2].lines[6], "@@ -1 +1 @@")
 end)
 
+test("chat footer marks an in-progress turn as running even without counted operations", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_footer_run",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "active" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+  store:dispatch({
+    type = "turn_received",
+    thread_id = "thr_footer_run",
+    turn = { id = "turn_footer_run", status = "inProgress", items = {}, error = nil },
+  })
+
+  local doc = document.project_active(store:get_state())
+  assert(doc.footer:find("RUN · turn in progress", 1, true), "footer should show an in-progress turn as running")
+  eq(doc.footer_segments[#doc.footer_segments].highlight, "NeovimCodexChatFooterRunning")
+end)
+
+test("chat footer marks thread-local pending requests as waiting", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_footer_wait",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "active" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+  store:dispatch({
+    type = "turn_received",
+    thread_id = "thr_footer_wait",
+    turn = { id = "turn_footer_wait", status = "inProgress", items = {}, error = nil },
+  })
+  store:dispatch({
+    type = "server_request_received",
+    request = {
+      method = "item/commandExecution/requestApproval",
+      id = "req_footer_wait",
+      params = {
+        threadId = "thr_footer_wait",
+        turnId = "turn_footer_wait",
+        itemId = "item_footer_wait",
+        command = "echo hi",
+      },
+    },
+  })
+
+  local doc = document.project_active(store:get_state())
+  assert(doc.footer:find("WAIT · 1 request pending", 1, true), "footer should show a thread-local pending request as waiting")
+  eq(doc.footer_segments[#doc.footer_segments].highlight, "NeovimCodexChatFooterWaiting")
+end)
+
 test("file change review renderer prefers the turn diff and lists changed files", function()
   local review_render = require("neovim_codex.nvim.file_change_review.render")
   local rendered = review_render.render_review({
