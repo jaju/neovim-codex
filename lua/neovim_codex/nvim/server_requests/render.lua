@@ -1,3 +1,4 @@
+local protocol = require("neovim_codex.nvim.server_requests.protocol")
 local text_utils = require("neovim_codex.core.text")
 local value = require("neovim_codex.core.value")
 
@@ -7,19 +8,30 @@ local append_lines = text_utils.append_lines
 local display_path = text_utils.display_path
 local present = value.present
 local split_lines = text_utils.split_lines
+local methods = protocol.methods()
 
-local function value_or(value, fallback)
-  if present(value) and tostring(value) ~= "" then
-    return tostring(value)
+local function value_or(input, fallback)
+  if present(input) and tostring(input) ~= "" then
+    return tostring(input)
   end
   return fallback
 end
 
-local function array_items(value)
-  if type(value) == "table" then
-    return value
+local function array_items(input)
+  if type(input) == "table" then
+    return input
   end
   return {}
+end
+
+local function keymap_for_choice(keymaps, shortcut)
+  local mapping = {
+    a = keymaps.accept,
+    s = keymaps.accept_for_session,
+    d = keymaps.decline,
+    c = keymaps.cancel,
+  }
+  return mapping[shortcut]
 end
 
 local function append_section(lines, heading, body)
@@ -42,11 +54,11 @@ local function fence(text, lang)
   return out
 end
 
-local function json_fence(value)
-  if not present(value) then
+local function json_fence(input)
+  if not present(input) then
     return nil
   end
-  local ok, encoded = pcall(vim.json.encode, value)
+  local ok, encoded = pcall(vim.json.encode, input)
   if not ok then
     return nil
   end
@@ -57,15 +69,15 @@ local function compact(text, limit)
   if not present(text) then
     return nil
   end
-  local value = tostring(text):gsub("\n", " "):gsub("%s+", " ")
-  value = vim.trim(value)
-  if value == "" then
+  local compacted = tostring(text):gsub("\n", " "):gsub("%s+", " ")
+  compacted = vim.trim(compacted)
+  if compacted == "" then
     return nil
   end
-  if #value <= limit then
-    return value
+  if #compacted <= limit then
+    return compacted
   end
-  return value:sub(1, math.max(1, limit - 3)) .. "..."
+  return compacted:sub(1, math.max(1, limit - 3)) .. "..."
 end
 
 local function action_summary(action)
@@ -86,73 +98,10 @@ local function action_summary(action)
   return string.format("- Action `%s`", action_type)
 end
 
-local function decision_kind(decision)
-  if type(decision) == "string" then
-    return decision
-  end
-  if type(decision) == "table" then
-    return next(decision)
-  end
-  return "unknown"
-end
-
-function M.decision_label(decision)
-  local kind = decision_kind(decision)
-  if kind == "accept" then
-    return "Approve once"
-  end
-  if kind == "acceptForSession" then
-    return "Approve for session"
-  end
-  if kind == "decline" then
-    return "Decline"
-  end
-  if kind == "cancel" then
-    return "Cancel"
-  end
-  if kind == "acceptWithExecpolicyAmendment" then
-    return "Approve and persist similar commands"
-  end
-  if kind == "applyNetworkPolicyAmendment" then
-    return "Apply proposed network policy"
-  end
-  return kind
-end
-
-function M.command_decisions(request)
-  local decisions = request.params.availableDecisions
-  if type(decisions) == "table" and #decisions > 0 then
-    return value.deep_copy(decisions)
-  end
-  return { "accept", "acceptForSession", "decline", "cancel" }
-end
-
-function M.file_change_decisions()
-  return { "accept", "acceptForSession", "decline", "cancel" }
-end
-
-function M.choice_for_shortcut(shortcut, decisions)
-  for _, decision in ipairs(decisions or {}) do
-    local kind = decision_kind(decision)
-    if shortcut == "a" and kind == "accept" then
-      return value.deep_copy(decision)
-    end
-    if shortcut == "s" and kind == "acceptForSession" then
-      return value.deep_copy(decision)
-    end
-    if shortcut == "d" and kind == "decline" then
-      return value.deep_copy(decision)
-    end
-    if shortcut == "c" and kind == "cancel" then
-      return value.deep_copy(decision)
-    end
-  end
-  return nil
-end
-
 local function request_action_line(request, keymaps)
   keymaps = keymaps or {}
   local pieces = {}
+  local response_kind = protocol.response_kind(request)
 
   local function add(lhs, label)
     if lhs == false or lhs == nil then
@@ -161,31 +110,33 @@ local function request_action_line(request, keymaps)
     pieces[#pieces + 1] = string.format("[%s] %s", lhs, label)
   end
 
-  if request.method == "item/tool/requestUserInput" then
+  if response_kind == "tool_input" then
     add(keymaps.respond or "<CR>", "Answer")
-  else
-    local decisions = request.method == "item/commandExecution/requestApproval" and M.command_decisions(request) or M.file_change_decisions()
-    if request.method == "item/fileChange/requestApproval" then
+  elseif response_kind == "choice" then
+    if protocol.allows_review(request) then
       add(keymaps.review or "o", "Review diff")
     end
-    if M.choice_for_shortcut("a", decisions) then
-      add(keymaps.accept or "a", "Approve once")
+    local choice_entries = protocol.choice_entries(request)
+    for _, item in ipairs(choice_entries) do
+      local lhs = item.shortcut and (keymap_for_choice(keymaps, item.shortcut) or item.shortcut) or nil
+      add(lhs, item.label)
     end
-    if M.choice_for_shortcut("s", decisions) then
-      add(keymaps.accept_for_session or "s", "Approve session")
+    if #choice_entries > 0 then
+      add(keymaps.respond or "<CR>", "Choose")
     end
-    if M.choice_for_shortcut("d", decisions) then
-      add(keymaps.decline or "d", "Decline")
-    end
-    if M.choice_for_shortcut("c", decisions) then
-      add(keymaps.cancel or "c", "Cancel")
-    end
-    add(keymaps.respond or "<CR>", "Choose")
   end
 
   add(keymaps.help or "g?", "Shortcuts")
   add("q", "Hide")
   return string.format("> Actions: %s", table.concat(pieces, " · "))
+end
+
+local function choice_lines(request)
+  local lines = {}
+  for _, item in ipairs(protocol.choice_entries(request)) do
+    lines[#lines + 1] = string.format("- %s", item.label)
+  end
+  return lines
 end
 
 local function render_command_request(request, keymaps)
@@ -225,11 +176,7 @@ local function render_command_request(request, keymaps)
   if present(request.params.proposedNetworkPolicyAmendments) then
     append_section(lines, "## Proposed network policy amendments", json_fence(request.params.proposedNetworkPolicyAmendments))
   end
-  local decision_lines = {}
-  for _, decision in ipairs(M.command_decisions(request)) do
-    decision_lines[#decision_lines + 1] = string.format("- %s", M.decision_label(decision))
-  end
-  append_section(lines, "## Available decisions", decision_lines)
+  append_section(lines, "## Available decisions", choice_lines(request))
   return { title = "Command Approval", lines = lines }
 end
 
@@ -245,12 +192,7 @@ local function render_file_change_request(request, keymaps)
   if present(request.params.grantRoot) then
     lines[#lines + 1] = string.format("- Grant root: `%s`", display_path(request.params.grantRoot) or request.params.grantRoot)
   end
-  append_section(lines, "## Available decisions", {
-    "- Approve once",
-    "- Approve for session",
-    "- Decline",
-    "- Cancel",
-  })
+  append_section(lines, "## Available decisions", choice_lines(request))
   append_section(lines, "## Review", {
     string.format("- `%s` opens the studied diff review before you decide.", keymaps.review or "o"),
   })
@@ -279,28 +221,108 @@ local function render_tool_request(request, keymaps)
   return { title = "Tool Input Request", lines = lines }
 end
 
+local function render_permissions_request(request, keymaps)
+  local lines = { "# Permission request", "", request_action_line(request, keymaps), "" }
+  lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
+  lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
+  lines[#lines + 1] = string.format("- Item: `%s`", value_or(request.item_id, "-"))
+  if present(request.params.reason) then
+    lines[#lines + 1] = string.format("- Reason: %s", request.params.reason)
+  end
+  append_section(lines, "## Requested permissions", json_fence(request.params.permissions))
+  append_section(lines, "## Available responses", choice_lines(request))
+  append_section(lines, "## Notes", {
+    "- Only the granted subset is sent back to Codex.",
+    "- Any omitted permissions are treated as denied.",
+  })
+  return { title = "Permission Request", lines = lines }
+end
+
+local function render_mcp_request(request, keymaps)
+  local params = request.params or {}
+  local lines = { "# MCP elicitation", "", request_action_line(request, keymaps), "" }
+  lines[#lines + 1] = string.format("- Thread: `%s`", value_or(request.thread_id, "-"))
+  lines[#lines + 1] = string.format("- Turn: `%s`", value_or(request.turn_id, "-"))
+  lines[#lines + 1] = string.format("- Server: `%s`", value_or(params.serverName, "-"))
+  lines[#lines + 1] = string.format("- Mode: `%s`", value_or(params.mode, "-"))
+  if present(params.message) then
+    lines[#lines + 1] = string.format("- Message: %s", params.message)
+  end
+  if params.mode == "url" and present(params.url) then
+    lines[#lines + 1] = string.format("- URL: `%s`", params.url)
+  end
+  if params.mode == "form" and present(params.requestedSchema) then
+    append_section(lines, "## Requested schema", json_fence(params.requestedSchema))
+  end
+  append_section(lines, "## Available responses", choice_lines(request))
+  append_section(lines, "## Notes", {
+    "- This client currently exposes decline/cancel directly for MCP elicitations.",
+  })
+  return { title = "MCP Elicitation", lines = lines }
+end
+
+local function render_generic_request(request, keymaps)
+  local lines = { "# Pending request", "", request_action_line(request, keymaps), "" }
+  lines[#lines + 1] = string.format("- Method: `%s`", value_or(request.method, "unknown"))
+  lines[#lines + 1] = string.format("- Request id: `%s`", value_or(request.request_id, "-"))
+  if present(request.thread_id) then
+    lines[#lines + 1] = string.format("- Thread: `%s`", request.thread_id)
+  end
+  if present(request.turn_id) then
+    lines[#lines + 1] = string.format("- Turn: `%s`", request.turn_id)
+  end
+  if present(request.item_id) then
+    lines[#lines + 1] = string.format("- Item: `%s`", request.item_id)
+  end
+  append_section(lines, "## Parameters", json_fence(request.params))
+  append_section(lines, "## Notes", {
+    "- This request type does not have a dedicated interactive handler in neovim-codex yet.",
+    "- The request viewer stays read-only until the protocol route is implemented.",
+  })
+  return {
+    title = value_or(request.method, "Pending Request"),
+    lines = lines,
+  }
+end
+
+function M.decision_label(decision)
+  return protocol.decision_label(decision)
+end
+
+function M.command_decisions(request)
+  return protocol.command_decisions(request)
+end
+
+function M.file_change_decisions()
+  return protocol.file_change_decisions()
+end
+
+function M.choice_for_shortcut(shortcut, decisions)
+  local fake_request = { method = methods.command_approval, params = { availableDecisions = decisions } }
+  local choice_item = protocol.choice_for_shortcut(fake_request, shortcut)
+  return choice_item and choice_item.payload and choice_item.payload.decision or nil
+end
+
 function M.render_request(request, keymaps)
   if not request then
     return { title = "Pending Request", lines = { "# Pending request", "", "No request is active." } }
   end
-  if request.method == "item/commandExecution/requestApproval" then
+  if request.method == methods.command_approval then
     return render_command_request(request, keymaps)
   end
-  if request.method == "item/fileChange/requestApproval" then
+  if request.method == methods.file_change_approval then
     return render_file_change_request(request, keymaps)
   end
-  if request.method == "item/tool/requestUserInput" then
+  if request.method == methods.tool_input then
     return render_tool_request(request, keymaps)
   end
-  return {
-    title = value_or(request.method, "Pending Request"),
-    lines = {
-      "# Pending request",
-      "",
-      string.format("- Method: `%s`", value_or(request.method, "unknown")),
-      string.format("- Request id: `%s`", value_or(request.request_id, "-")),
-    },
-  }
+  if request.method == methods.permissions_approval then
+    return render_permissions_request(request, keymaps)
+  end
+  if request.method == methods.mcp_elicitation then
+    return render_mcp_request(request, keymaps)
+  end
+  return render_generic_request(request, keymaps)
 end
 
 return M

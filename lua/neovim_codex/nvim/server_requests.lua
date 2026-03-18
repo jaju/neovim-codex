@@ -3,22 +3,32 @@ local value = require("neovim_codex.core.value")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 local request_input = require("neovim_codex.nvim.server_requests.input")
+local request_protocol = require("neovim_codex.nvim.server_requests.protocol")
 local request_render = require("neovim_codex.nvim.server_requests.render")
+local surface_help = require("neovim_codex.nvim.surface_help")
 local ui_prompt = require("neovim_codex.nvim.ui_prompt")
 
 local M = {}
 M.__index = M
 
-local surface_help = require("neovim_codex.nvim.surface_help")
+local select_sync = ui_prompt.select_sync
 
-local function array_items(value)
-  if type(value) == "table" then
-    return value
+local function array_items(input)
+  if type(input) == "table" then
+    return input
   end
   return {}
 end
 
-local select_sync = ui_prompt.select_sync
+local function keymap_for_choice(keymaps, shortcut)
+  local mapping = {
+    a = keymaps.accept,
+    s = keymaps.accept_for_session,
+    d = keymaps.decline,
+    c = keymaps.cancel,
+  }
+  return mapping[shortcut]
+end
 
 function M.new(opts, handlers)
   opts = opts or {}
@@ -31,8 +41,6 @@ function M.new(opts, handlers)
     dismissed = {},
     render_cache = {},
     current = nil,
-    input_bufnr = nil,
-    input_session = nil,
     sync_job = nil,
   }, M)
   instance.input = request_input.new(opts, {
@@ -97,46 +105,54 @@ function M:_rendered_request(request, keymaps)
   return rendered
 end
 
-function M:_request_spec(request)
-  local keymaps = self:_request_keymaps()
-  local rendered = self:_rendered_request(request, keymaps)
-  local mappings = {}
-
-  if keymaps.respond ~= false then
-    mappings[#mappings + 1] = {
-      mode = "n",
-      lhs = keymaps.respond or "<CR>",
-      rhs = function()
-        self:respond_current()
-      end,
-      desc = "Resolve pending Codex request",
-    }
+function M:_append_respond_mapping(mappings, request, keymaps)
+  local response_kind = request_protocol.response_kind(request)
+  if response_kind ~= "tool_input" and response_kind ~= "choice" then
+    return
+  end
+  if keymaps.respond == false then
+    return
   end
 
-  if keymaps.help ~= false then
-    local primary_help = keymaps.help or "g?"
-    mappings[#mappings + 1] = {
-      mode = "n",
-      lhs = primary_help,
-      rhs = function()
-        require("neovim_codex").open_shortcuts({ surface = "request" })
-      end,
-      desc = "Show Codex request shortcuts",
-    }
-    for _, lhs in ipairs(surface_help.keys(self.opts, primary_help)) do
-      if lhs ~= primary_help then
-        mappings[#mappings + 1] = {
-          mode = "n",
-          lhs = lhs,
-          rhs = function()
-            require("neovim_codex").open_shortcuts({ surface = "request" })
-          end,
-          desc = "Show Codex request shortcuts",
-        }
-      end
+  mappings[#mappings + 1] = {
+    mode = "n",
+    lhs = keymaps.respond or "<CR>",
+    rhs = function()
+      self:respond_current()
+    end,
+    desc = "Resolve pending Codex request",
+  }
+end
+
+function M:_append_help_mappings(mappings, keymaps)
+  if keymaps.help == false then
+    return
+  end
+
+  local primary_help = keymaps.help or "g?"
+  local function open_help()
+    require("neovim_codex").open_shortcuts({ surface = "request" })
+  end
+
+  mappings[#mappings + 1] = {
+    mode = "n",
+    lhs = primary_help,
+    rhs = open_help,
+    desc = "Show Codex request shortcuts",
+  }
+  for _, lhs in ipairs(surface_help.keys(self.opts, primary_help)) do
+    if lhs ~= primary_help then
+      mappings[#mappings + 1] = {
+        mode = "n",
+        lhs = lhs,
+        rhs = open_help,
+        desc = "Show Codex request shortcuts",
+      }
     end
   end
+end
 
+function M:_append_read_only_mappings(mappings)
   for _, lhs in ipairs({ "i", "I", "o", "O", "A", "R" }) do
     mappings[#mappings + 1] = {
       mode = "n",
@@ -145,70 +161,52 @@ function M:_request_spec(request)
       desc = "Request viewer is read-only",
     }
   end
+end
 
-  if request.method == "item/commandExecution/requestApproval" then
-    local decisions = request_render.command_decisions(request)
-    local shortcut_map = {
-      a = "accept",
-      s = "acceptForSession",
-      d = "decline",
-      c = "cancel",
-    }
-    for lhs, _ in pairs(shortcut_map) do
-      local configured = ({
-        a = keymaps.accept,
-        s = keymaps.accept_for_session,
-        d = keymaps.decline,
-        c = keymaps.cancel,
-      })[lhs]
-      if configured ~= false and request_render.choice_for_shortcut(lhs, decisions) then
-        mappings[#mappings + 1] = {
-          mode = "n",
-          lhs = configured or lhs,
-          rhs = function()
-            self:respond_with_decision(request, request_render.choice_for_shortcut(lhs, decisions))
-          end,
-          desc = string.format("Respond to Codex request with %s", lhs),
-        }
-      end
-    end
-  elseif request.method == "item/fileChange/requestApproval" then
-    if keymaps.review ~= false and self.handlers.open_file_change_review then
+function M:_append_review_mapping(mappings, request, keymaps)
+  if not request_protocol.allows_review(request) then
+    return
+  end
+  if keymaps.review == false or not self.handlers.open_file_change_review then
+    return
+  end
+
+  mappings[#mappings + 1] = {
+    mode = "n",
+    lhs = keymaps.review or "o",
+    rhs = function()
+      self.handlers.open_file_change_review(request)
+    end,
+    desc = "Open the studied file change review",
+  }
+end
+
+function M:_append_choice_mappings(mappings, request, keymaps)
+  for _, item in ipairs(request_protocol.choice_entries(request)) do
+    local lhs = item.shortcut and (keymap_for_choice(keymaps, item.shortcut) or item.shortcut) or nil
+    if lhs ~= false and lhs ~= nil then
       mappings[#mappings + 1] = {
         mode = "n",
-        lhs = keymaps.review or "o",
+        lhs = lhs,
         rhs = function()
-          self.handlers.open_file_change_review(request)
+          self:respond_with_payload(request, item.payload)
         end,
-        desc = "Open the studied file change review",
+        desc = string.format("Respond to the current Codex request with %s", item.label),
       }
     end
-    local decisions = request_render.file_change_decisions()
-    local shortcut_map = {
-      a = "accept",
-      s = "acceptForSession",
-      d = "decline",
-      c = "cancel",
-    }
-    for lhs, decision in pairs(shortcut_map) do
-      local configured = ({
-        a = keymaps.accept,
-        s = keymaps.accept_for_session,
-        d = keymaps.decline,
-        c = keymaps.cancel,
-      })[lhs]
-      if configured ~= false then
-        mappings[#mappings + 1] = {
-          mode = "n",
-          lhs = configured or lhs,
-          rhs = function()
-            self:respond_with_decision(request, decision)
-          end,
-          desc = string.format("Respond to Codex file change request with %s", decision),
-        }
-      end
-    end
   end
+end
+
+function M:_request_spec(request)
+  local keymaps = self:_request_keymaps()
+  local rendered = self:_rendered_request(request, keymaps)
+  local mappings = {}
+
+  self:_append_respond_mapping(mappings, request, keymaps)
+  self:_append_help_mappings(mappings, keymaps)
+  self:_append_read_only_mappings(mappings)
+  self:_append_review_mapping(mappings, request, keymaps)
+  self:_append_choice_mappings(mappings, request, keymaps)
 
   return {
     key = "server-request",
@@ -256,7 +254,8 @@ function M:open_current(opts)
     return nil, "request manager is not attached"
   end
   local state = self.store:get_state()
-  local thread_id = opts.thread_id or (selectors.get_active_thread(state) and selectors.get_active_thread(state).id)
+  local active_thread = selectors.get_active_thread(state)
+  local thread_id = opts.thread_id or (active_thread and active_thread.id or nil)
   local request = selectors.get_active_request_for_thread(state, thread_id)
   if not request then
     return nil, "no pending Codex request"
@@ -267,18 +266,8 @@ function M:open_current(opts)
   return request, nil
 end
 
-function M:respond_with_decision(request, decision)
-  local payload = { decision = value.deep_copy(decision) }
-  local ok, err
-
-  if request.method == "item/commandExecution/requestApproval" then
-    ok, err = self.handlers.respond_command(request, payload)
-  elseif request.method == "item/fileChange/requestApproval" then
-    ok, err = self.handlers.respond_file_change(request, payload)
-  else
-    return nil, "request does not use decision responses"
-  end
-
+function M:respond_with_payload(request, payload)
+  local ok, err = self.handlers.respond_request(request, value.deep_copy(payload))
   if not ok then
     if self.handlers.notify then
       self.handlers.notify(err or "failed to send response", vim.log.levels.ERROR)
@@ -292,6 +281,44 @@ function M:respond_with_decision(request, decision)
   return true, nil
 end
 
+function M:_respond_tool_input(request)
+  local answers = {}
+  for _, question in ipairs(array_items(request.params.questions)) do
+    local response, err = self.input:ask_question(question)
+    if err then
+      if self.handlers.notify then
+        self.handlers.notify("Cancelled tool input collection", vim.log.levels.INFO)
+      end
+      return nil, err
+    end
+    answers[question.id] = { answers = response }
+  end
+
+  return self:respond_with_payload(request, { answers = answers })
+end
+
+function M:_respond_choice_request(request)
+  local choices = request_protocol.choice_entries(request)
+  if #choices == 0 then
+    return nil, "request has no available responses"
+  end
+
+  local selection = select_sync(choices, {
+    prompt = "Select Codex response",
+    format_item = function(item)
+      return item.label
+    end,
+  })
+  if not selection then
+    if self.handlers.notify then
+      self.handlers.notify("Cancelled request response", vim.log.levels.INFO)
+    end
+    return nil, "cancelled"
+  end
+
+  return self:respond_with_payload(request, selection.payload)
+end
+
 function M:respond_current()
   if not self.store then
     return nil, "request manager is not attached"
@@ -302,56 +329,18 @@ function M:respond_current()
     return nil, "no pending Codex request"
   end
 
-  if request.method == "item/tool/requestUserInput" then
-    local answers = {}
-    for _, question in ipairs(array_items(request.params.questions)) do
-      local response, err = self.input:ask_question(question)
-      if err then
-        if self.handlers.notify then
-          self.handlers.notify("Cancelled tool input collection", vim.log.levels.INFO)
-        end
-        return nil, err
-      end
-      answers[question.id] = { answers = response }
-    end
-
-    local ok, send_err = self.handlers.respond_tool_input(request, { answers = answers })
-    if not ok then
-      if self.handlers.notify then
-        self.handlers.notify(send_err or "failed to send tool answers", vim.log.levels.ERROR)
-      end
-      return nil, send_err
-    end
-
-    if self.handlers.notify then
-      self.handlers.notify("Codex tool answers sent", vim.log.levels.INFO)
-    end
-    return true, nil
+  local response_kind = request_protocol.response_kind(request)
+  if response_kind == "tool_input" then
+    return self:_respond_tool_input(request)
+  end
+  if response_kind == "choice" then
+    return self:_respond_choice_request(request)
   end
 
-  local decisions = request.method == "item/commandExecution/requestApproval" and request_render.command_decisions(request) or request_render.file_change_decisions()
-  local choices = {}
-  for _, decision in ipairs(decisions) do
-      choices[#choices + 1] = {
-        label = request_render.decision_label(decision),
-        value = value.deep_copy(decision),
-      }
+  if self.handlers.notify then
+    self.handlers.notify("This Codex request type is read-only in neovim-codex right now", vim.log.levels.WARN)
   end
-
-  local selection = select_sync(choices, {
-    prompt = "Select Codex decision",
-    format_item = function(item)
-      return item.label
-    end,
-  })
-  if not selection then
-    if self.handlers.notify then
-      self.handlers.notify("Cancelled request decision", vim.log.levels.INFO)
-    end
-    return nil, "cancelled"
-  end
-
-  return self:respond_with_decision(request, selection.value)
+  return nil, "unsupported request type"
 end
 
 function M:inspect()

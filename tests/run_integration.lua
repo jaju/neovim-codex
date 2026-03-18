@@ -390,23 +390,21 @@ local captured_file_change = nil
 local captured_tool = nil
 local request_manager = require("neovim_codex.nvim.server_requests").new(codex.get_config(), {
   notify = function() end,
-  respond_command = function(request, payload)
-    captured_command = { request = request, payload = payload }
-    return true, nil
-  end,
-  respond_file_change = function(request, payload)
-    captured_file_change = { request = request, payload = payload }
-    return true, nil
-  end,
-  respond_tool_input = function(request, payload)
-    captured_tool = { request = request, payload = payload }
+  respond_request = function(request, payload)
+    if request.method == "item/commandExecution/requestApproval" then
+      captured_command = { request = request, payload = payload }
+    elseif request.method == "item/fileChange/requestApproval" then
+      captured_file_change = { request = request, payload = payload }
+    elseif request.method == "item/tool/requestUserInput" then
+      captured_tool = { request = request, payload = payload }
+    end
     return true, nil
   end,
 })
 request_manager:attach(request_store)
 local review_manager = require("neovim_codex.nvim.file_change_review").new(codex.get_config(), {
   notify = function() end,
-  respond_file_change = function(request, payload)
+  respond_request = function(request, payload)
     captured_file_change = { request = request, payload = payload }
     return true, nil
   end,

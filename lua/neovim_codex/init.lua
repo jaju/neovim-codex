@@ -306,7 +306,7 @@ function ensure_runtime()
     notify = function(message, level)
       notify(message, level, true)
     end,
-    respond_file_change = function(request, payload)
+    respond_request = function(request, payload)
       return send_server_request_response(request.key, payload)
     end,
   })
@@ -314,13 +314,7 @@ function ensure_runtime()
     notify = function(message, level)
       notify(message, level, true)
     end,
-    respond_command = function(request, payload)
-      return send_server_request_response(request.key, payload)
-    end,
-    respond_file_change = function(request, payload)
-      return send_server_request_response(request.key, payload)
-    end,
-    respond_tool_input = function(request, payload)
+    respond_request = function(request, payload)
       return send_server_request_response(request.key, payload)
     end,
     open_file_change_review = function(request)

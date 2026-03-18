@@ -210,7 +210,7 @@ function M:respond_with_decision(decision)
     return nil, "no active file change request"
   end
 
-  local ok, err = self.handlers.respond_file_change(request, { decision = decision })
+  local ok, err = self.handlers.respond_request(request, { decision = decision })
   if not ok then
     if self.handlers.notify then
       self.handlers.notify(err or "failed to send file change response", vim.log.levels.ERROR)

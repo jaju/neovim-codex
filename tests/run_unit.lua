@@ -1016,6 +1016,104 @@ test("thread runtime model labels include upgrade and availability hints", funct
   assert(menu_label:find("gpt%-5%.2%-codex"), "menu label should resolve against the catalog")
 end)
 
+test("server request protocol builds permission grant choices", function()
+  local protocol = require("neovim_codex.nvim.server_requests.protocol")
+  local choices = protocol.choice_entries({
+    method = protocol.methods().permissions_approval,
+    params = {
+      permissions = {
+        fileSystem = {
+          write = { "/tmp/demo" },
+        },
+      },
+    },
+  })
+
+  eq(#choices, 3)
+  eq(choices[1].label, "Grant requested permissions for this turn")
+  eq(choices[1].payload.scope, "turn")
+  eq(choices[1].payload.permissions.fileSystem.write[1], "/tmp/demo")
+  eq(choices[2].payload.scope, "session")
+  eq(next(choices[3].payload.permissions), nil)
+end)
+
+test("server request renderer shows permission requests with grant semantics", function()
+  local request_render = require("neovim_codex.nvim.server_requests.render")
+  local rendered = request_render.render_request({
+    method = "item/permissions/requestApproval",
+    thread_id = "thr_perm",
+    turn_id = "turn_perm",
+    item_id = "item_perm",
+    params = {
+      reason = "Select a workspace root",
+      permissions = {
+        fileSystem = {
+          write = { "/tmp/demo", "/tmp/shared" },
+        },
+      },
+    },
+  }, {
+    respond = "<CR>",
+    accept = "a",
+    accept_for_session = "s",
+    decline = "d",
+    help = "g?",
+  })
+
+  local body = table.concat(rendered.lines, "\n")
+  eq(rendered.title, "Permission Request")
+  assert(body:find("# Permission request", 1, true), "permission requests should get a dedicated title")
+  assert(body:find("Grant requested permissions for this session", 1, true), "permission requests should show the session grant action")
+  assert(body:find("Only the granted subset is sent back to Codex.", 1, true), "permission requests should explain sparse grants")
+end)
+
+test("server request renderer keeps MCP elicitations conservative", function()
+  local request_render = require("neovim_codex.nvim.server_requests.render")
+  local rendered = request_render.render_request({
+    method = "mcpServer/elicitation/request",
+    thread_id = "thr_mcp",
+    turn_id = "turn_mcp",
+    params = {
+      serverName = "docs",
+      mode = "url",
+      message = "Open the sign-in page.",
+      url = "https://example.com/auth",
+    },
+  }, {
+    respond = "<CR>",
+    decline = "d",
+    cancel = "c",
+    help = "g?",
+  })
+
+  local body = table.concat(rendered.lines, "\n")
+  eq(rendered.title, "MCP Elicitation")
+  assert(body:find("Decline", 1, true), "MCP requests should expose decline")
+  assert(body:find("Cancel", 1, true), "MCP requests should expose cancel")
+  assert(body:find("decline/cancel directly", 1, true), "MCP requests should explain the conservative fallback")
+end)
+
+test("server request renderer falls back to a read-only generic view", function()
+  local request_render = require("neovim_codex.nvim.server_requests.render")
+  local rendered = request_render.render_request({
+    method = "item/example/requestApproval",
+    request_id = "req_generic",
+    thread_id = "thr_generic",
+    turn_id = "turn_generic",
+    item_id = "item_generic",
+    params = {
+      example = "value",
+    },
+  }, {
+    help = "g?",
+  })
+
+  local body = table.concat(rendered.lines, "\n")
+  assert(body:find("This request type does not have a dedicated interactive handler", 1, true), "unknown requests should stay readable without pretending to be supported")
+  assert(body:find("```json", 1, true), "unknown requests should still show their raw params")
+end)
+
+
 for _, case in ipairs(tests) do
   local ok, err = pcall(case.fn)
   if ok then
@@ -1030,3 +1128,4 @@ end
 if failures > 0 then
   os.exit(1)
 end
+
