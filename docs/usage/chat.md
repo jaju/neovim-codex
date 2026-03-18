@@ -104,7 +104,7 @@ Default file-change review mappings:
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
 - `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
-- `:CodexThreadSettings [thread-id]` - edit sticky model, effort, and collaboration mode for a thread
+- `:CodexThreadSettings [thread-id]` - edit sticky model, effort, approval policy, and collaboration mode for a thread
 - `:CodexThreadCompact [thread-id]` - start manual history compaction for the active thread, or pick one
 - `:CodexSteer [text]` - steer the currently running turn, or use the active draft when the shell is open
 - `:CodexReview [request-key]` - open the current pending file-change review, or reopen one by request key

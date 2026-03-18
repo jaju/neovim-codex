@@ -1,5 +1,12 @@
 local M = {}
 
+local APPROVAL_POLICY_LABELS = {
+  untrusted = "Untrusted",
+  ["on-failure"] = "On failure",
+  ["on-request"] = "On request",
+  never = "Never",
+}
+
 function M.compact_text(text, limit)
   if text == nil or text == vim.NIL then
     return nil
@@ -84,6 +91,36 @@ function M.normalize(settings)
   normalized.model = M.effective_model(normalized)
   normalized.effort = M.effective_effort(normalized)
   return normalized
+end
+
+function M.approval_policy_choice_label(policy)
+  if policy == nil then
+    return "Default"
+  end
+  if type(policy) == "table" then
+    return "Granular"
+  end
+  return APPROVAL_POLICY_LABELS[policy] or tostring(policy)
+end
+
+function M.approval_policy_menu_label(policy, default_policy)
+  if policy == nil then
+    if default_policy ~= nil then
+      return string.format("Default (%s)", M.approval_policy_choice_label(default_policy))
+    end
+    return "Default"
+  end
+  return M.approval_policy_choice_label(policy)
+end
+
+function M.approval_policy_choices()
+  return {
+    { label = "Default", value = nil },
+    { label = "Untrusted", value = "untrusted" },
+    { label = "On request", value = "on-request" },
+    { label = "On failure", value = "on-failure" },
+    { label = "Never", value = "never" },
+  }
 end
 
 function M.find_model(model_catalog, model_name)

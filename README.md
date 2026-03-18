@@ -8,7 +8,7 @@ This is not Codex inside a floating terminal. `neovim-codex` speaks the app-serv
 
 - a rail-first markdown-native chat shell with a widened reader mode
 - thread-aware approvals and `requestUserInput` flows that reopen safely
-- thread/session controls for create, switch, fork, archive, rename, model, effort, and collaboration mode
+- thread/session controls for create, switch, fork, archive, rename, model, effort, approval policy, and collaboration mode
 - a workbench and compose review flow for packet-backed follow-up context
 - a pure Lua client/state core instead of a terminal wrapper
 
@@ -40,7 +40,7 @@ Stage fragments from the code world, park the ones you do not want yet, place `[
 
 ![Thread and session controls](docs/assets/screenshots/thread-session-controls.png)
 
-Switch threads, fork from earlier turns, and steer sticky runtime settings like model, effort, and collaboration mode without leaving the editor.
+Switch threads, fork from earlier turns, and steer sticky runtime settings like model, effort, approval policy, and collaboration mode without leaving the editor.
 
 ## Requirements
 
@@ -140,7 +140,7 @@ Useful thread commands:
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick/archive another thread
 - `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
-- `:CodexThreadSettings [thread-id]` - open the editable thread settings sheet for model, effort, and collaboration mode
+- `:CodexThreadSettings [thread-id]` - open the editable thread settings sheet for model, effort, approval policy, and collaboration mode
 - `:CodexThreadCompact [thread-id]` - start manual history compaction for the active thread, or pick one
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexSteer [text]` - steer the currently running turn, or use the current chat draft when the shell is open
@@ -177,7 +177,7 @@ Workbench and compose commands:
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
 - `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
-- `:CodexThreadSettings [thread-id]` - adjust sticky model, effort, and collaboration mode for a thread
+- `:CodexThreadSettings [thread-id]` - adjust sticky model, effort, approval policy, and collaboration mode for a thread
 - `:CodexThreadCompact [thread-id]` - start manual history compaction for a thread
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexInterrupt` - interrupt the active turn

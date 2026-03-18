@@ -67,6 +67,23 @@ local function new_test_client()
           turns = {},
         },
       }, {})
+    elseif method == "thread/start" then
+      on_result(nil, {
+        thread = {
+          id = "thr_started",
+          preview = "started",
+          ephemeral = false,
+          modelProvider = "openai",
+          createdAt = 1,
+          updatedAt = 1,
+          status = { type = "idle" },
+          cwd = "/tmp/demo",
+          turns = {},
+        },
+        model = "gpt-5.2-codex",
+        reasoningEffort = "medium",
+        approvalPolicy = "on-request",
+      }, {})
     elseif method == "turn/steer" then
       on_result(nil, { turnId = params.expectedTurnId }, {})
     else
@@ -977,6 +994,43 @@ test("client thread_unarchive restores archived thread state", function()
   eq(calls[1].params.threadId, "thr_restore")
   eq(callback_result.thread.id, "thr_restore")
   eq(store:get_state().threads.by_id.thr_restore.archived, false)
+end)
+
+test("client thread_start stores returned runtime approval policy", function()
+  local client, store, calls = new_test_client()
+
+  local callback_result = nil
+  client:thread_start({ cwd = "/tmp/demo" }, function(err, result)
+    eq(err, nil)
+    callback_result = result
+  end)
+
+  eq(calls[1].method, "thread/start")
+  eq(callback_result.thread.id, "thr_started")
+  local thread = store:get_state().threads.by_id.thr_started
+  eq(thread.runtime.model, "gpt-5.2-codex")
+  eq(thread.runtime.effort, "medium")
+  eq(thread.runtime.approvalPolicy, "on-request")
+end)
+
+test("thread params default and sticky approval policies flow into requests", function()
+  local thread_params = require("neovim_codex.nvim.thread_params")
+  local config = {
+    thread = {
+      cwd = "current",
+      approval_policy = "on-request",
+      persist_extended_history = true,
+      experimental_raw_events = false,
+    },
+  }
+
+  local thread_start = thread_params.build_thread_start(config, "/tmp/demo", {})
+  eq(thread_start.approvalPolicy, "on-request")
+
+  local turn_start = thread_params.build_turn_start(config, "thr_demo", "Please patch this.", {
+    thread_runtime = { approvalPolicy = "never" },
+  })
+  eq(turn_start.approvalPolicy, "never")
 end)
 
 test("client thread_compact_start uses the compact RPC", function()

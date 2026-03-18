@@ -52,6 +52,7 @@ end
 function M.new(opts)
   return setmetatable({
     client = opts.client,
+    config = opts.config or {},
     request_with_wait = opts.request_with_wait,
     notify = opts.notify,
     experimental_api = opts.experimental_api ~= false,
@@ -226,6 +227,11 @@ function M:pick_async(opts, on_done)
     return effort == nil and "Default" or tostring(effort)
   end
 
+  local function current_approval_policy_label()
+    local default_policy = (((self.config or {}).thread or {}).approval_policy)
+    return runtime.approval_policy_menu_label(settings.approvalPolicy, default_policy)
+  end
+
   local function choose_name(next_step)
     input_async({
       prompt = opts.name_prompt or "Codex thread name (optional): ",
@@ -324,6 +330,30 @@ function M:pick_async(opts, on_done)
     end)
   end
 
+  local function choose_approval_policy(next_step)
+    local choices = runtime.approval_policy_choices()
+    select_async(choices, {
+      prompt = "Codex approval policy",
+      format_item = function(item)
+        if settings.approvalPolicy == item.value then
+          return item.label .. "  (current)"
+        end
+        if settings.approvalPolicy == nil and item.value == nil then
+          return item.label .. "  (current)"
+        end
+        return item.label
+      end,
+    }, function(policy_selection)
+      if not policy_selection then
+        finish(nil, "cancelled")
+        return
+      end
+      settings.approvalPolicy = policy_selection.value
+      settings = runtime.normalize(settings)
+      next_step()
+    end)
+  end
+
   local function show_menu()
     local items = {}
     if opts.include_name ~= false then
@@ -335,6 +365,7 @@ function M:pick_async(opts, on_done)
     items[#items + 1] = { key = "mode", label = string.format("Collaboration mode: %s", current_mode_label()) }
     items[#items + 1] = { key = "model", label = string.format("Model: %s", current_model_label()) }
     items[#items + 1] = { key = "effort", label = string.format("Effort: %s", current_effort_label()) }
+    items[#items + 1] = { key = "approval_policy", label = string.format("Approval policy: %s", current_approval_policy_label()) }
     items[#items + 1] = { key = "done", label = "Save settings" }
     items[#items + 1] = { key = "cancel", label = "Cancel" }
 
@@ -370,6 +401,10 @@ function M:pick_async(opts, on_done)
       end
       if choice.key == "effort" then
         choose_effort(show_menu)
+        return
+      end
+      if choice.key == "approval_policy" then
+        choose_approval_policy(show_menu)
         return
       end
       show_menu()
@@ -431,6 +466,7 @@ function M:pick(opts)
   end
 
   local selected_mode_mask = seed.collaborationModeMask
+  local selected_approval_policy = seed.approvalPolicy
   local mode_choices = build_mode_choices(type(modes) == "table" and modes or {})
   if #mode_choices > 1 then
     local mode_selection = select_sync(mode_choices, {
@@ -479,11 +515,29 @@ function M:pick(opts)
     return nil, effort_err
   end
 
+  local approval_policy_selection = select_sync(runtime.approval_policy_choices(), {
+    prompt = "Codex approval policy",
+    format_item = function(item)
+      if selected_approval_policy == item.value then
+        return item.label .. "  (current)"
+      end
+      if selected_approval_policy == nil and item.value == nil then
+        return item.label .. "  (current)"
+      end
+      return item.label
+    end,
+  })
+  if not approval_policy_selection then
+    return nil, "cancelled"
+  end
+  selected_approval_policy = approval_policy_selection.value
+
   return {
     name = opts.include_name ~= false and vim.trim(thread_name or "") or seed.name,
     ephemeral = ephemeral,
     model = selected_model,
     effort = selected_effort,
+    approvalPolicy = selected_approval_policy,
     collaborationModeMask = selected_mode_mask,
     modelCatalog = models,
     modeCatalog = type(modes) == "table" and modes or {},

@@ -32,8 +32,8 @@ function M.check()
     end
   end
 
-  health.info("Commands: :CodexStart, :CodexStop, :CodexStatus, :CodexEvents, :CodexSmoke, :CodexChat, :CodexSend, :CodexRequest, :CodexReview")
-  health.info("Dogfood loop: :Lazy reload neovim-codex -> :checkhealth neovim_codex -> :CodexChat")
+  health.info("Use :CodexSmoke for a detailed report buffer and :help neovim-codex for the full command surface.")
+  health.info("Dogfood loop: :Lazy reload neovim-codex -> :checkhealth neovim_codex -> :CodexChat -> :CodexThreadNew")
 end
 
 return M

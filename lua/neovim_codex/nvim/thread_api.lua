@@ -171,6 +171,7 @@ end
 local function make_runtime_picker(deps, rt)
   return thread_runtime_picker.new({
     client = rt.client,
+    config = deps.get_config(),
     request_with_wait = request_with_wait,
     notify = function(message, level, enabled)
       deps.notify(message, level, enabled)
@@ -258,12 +259,14 @@ function M.new(deps)
     end
 
     if result and result.thread then
+      local runtime_seed = clone_runtime_settings(selectors.get_thread(rt.client:get_state(), result.thread.id))
       update_thread_runtime(deps, result.thread.id, {
-        model = opts.model,
-        effort = opts.effort,
+        model = runtime_seed.model,
+        effort = runtime_seed.effort,
         summary = opts.summary,
+        approvalPolicy = runtime_seed.approvalPolicy,
         collaborationModeMask = opts.collaboration_mode_mask,
-        ephemeral = opts.ephemeral,
+        ephemeral = opts.ephemeral ~= nil and opts.ephemeral or runtime_seed.ephemeral,
       })
       if opts.name and vim.trim(tostring(opts.name)) ~= "" then
         submit_thread_rename(deps, rt, result.thread, opts.name, {
@@ -478,6 +481,7 @@ function M.new(deps)
         ephemeral = settings.ephemeral,
         model = settings.model,
         effort = settings.effort,
+        approval_policy = settings.approvalPolicy,
         collaboration_mode_mask = settings.collaborationModeMask,
       }))
     end)
@@ -519,6 +523,7 @@ function M.new(deps)
         model = settings.model,
         effort = settings.effort,
         summary = seed.summary,
+        approvalPolicy = settings.approvalPolicy,
         collaborationModeMask = settings.collaborationModeMask,
         ephemeral = seed.ephemeral,
       })
@@ -600,7 +605,7 @@ function M.new(deps)
             thread_id = source_thread.id,
             cwd = opts.cwd,
             model = settings.model,
-            approval_policy = opts.approval_policy,
+            approval_policy = settings.approvalPolicy,
             sandbox = opts.sandbox,
             ephemeral = settings.ephemeral,
           }), done)
@@ -622,12 +627,14 @@ function M.new(deps)
           fork_result = rollback_result or fork_result
         end
 
+        local runtime_seed = clone_runtime_settings(selectors.get_thread(rt.client:get_state(), fork_result.thread.id))
         update_thread_runtime(deps, fork_result.thread.id, {
-          model = settings.model,
-          effort = settings.effort,
+          model = runtime_seed.model,
+          effort = runtime_seed.effort,
           summary = seed.summary,
+          approvalPolicy = runtime_seed.approvalPolicy,
           collaborationModeMask = settings.collaborationModeMask,
-          ephemeral = settings.ephemeral,
+          ephemeral = settings.ephemeral ~= nil and settings.ephemeral or runtime_seed.ephemeral,
         })
         if settings.name and settings.name ~= "" then
           submit_thread_rename(deps, rt, fork_result.thread, settings.name, {

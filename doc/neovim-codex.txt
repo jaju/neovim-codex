@@ -24,7 +24,13 @@ COMMANDS                                               *neovim-codex-commands*
     Run the current smoke checks and open a report buffer.
 
 :CodexChat
-    Toggle the Codex overlay.
+    Toggle the default Codex shell mode.
+
+:CodexChatRail
+    Open the narrow side-rail shell explicitly.
+
+:CodexChatReader
+    Open the widened reader explicitly.
 
 :CodexSend
     Send the current composer contents, or open compose review when staged
@@ -55,7 +61,8 @@ COMMANDS                                               *neovim-codex-commands*
     Restore an archived thread, or pick one from archived threads.
 
 :CodexThreadSettings [thread-id]
-    Edit sticky model, effort, and collaboration mode for a thread.
+    Edit sticky model, effort, approval policy, and collaboration mode for a
+    thread.
 
 :CodexThreadCompact [thread-id]
     Start manual history compaction for a thread.
@@ -98,24 +105,34 @@ COMMANDS                                               *neovim-codex-commands*
 ==============================================================================
 CHAT                                                           *neovim-codex-chat*
 
-The current chat UI is a centered overlay:
+The current chat UI is rail-first:
 
-- markdown transcript above
-- multiline markdown composer below
+- the default shell is a narrow right-side rail
+- the reader is a wider centered view of the same thread state
+- both modes keep the markdown transcript above the multiline markdown
+  composer
+
+Run >
+    :CodexChat
+<
+to toggle the default shell mode.
+
+Use >
+    :CodexChatRail
+    :CodexChatReader
+<
+when you want an explicit mode.
 
 Usage:
 
-1. Run >
-    :CodexChat
-<
-2. Write in the composer.
-3. Press <C-s> or run >
+1. Write in the composer.
+2. Press <C-s> or run >
     :CodexSend
 <
    If the workbench is non-empty, compose review opens first so you can place
    fragment handles such as [[f1]] into the packet template.
-4. Use <CR> for newlines.
-5. Run >
+3. Use <CR> for newlines.
+4. Run >
     :CodexChat
 <
    again to hide the overlay.
@@ -135,20 +152,27 @@ Examples:
 Default transcript mappings:
 
 - `q` hide the overlay
+- `gr` reopen the active thread inbox
+- `gR` toggle between rail and reader widths
 - `i` focus the composer
 - insert-like keys (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
 - `<C-w>w` switch between transcript and composer without leaving the overlay
 - `<CR>` inspect the selected transcript block in the stacked viewer layer
 - `[[` jump to the previous turn
 - `]]` jump to the next turn
+- `gs` open the active thread settings sheet
 - `g?` or `<F1>` open the shortcut sheet for the current surface
 
 Default composer mappings:
 
 - `<C-s>` send the current draft from normal or insert mode
 - `gS` send the current draft from normal mode
+- `gT` steer the running turn with the current draft
 - `<C-w>w` in normal mode switches back to the transcript
 - `q` in normal mode hides the overlay
+- `gr` reopen the active thread inbox
+- `gs` open the active thread settings sheet
+- `gR` toggle between rail and reader widths
 - `g?` or `<F1>` in normal mode opens the shortcut sheet for the current surface
 - `<CR>` inserts a newline
 
@@ -162,6 +186,7 @@ Workbench tray defaults:
 - `p` park the selected active fragment
 - `u` unpark the selected parked fragment
 - `P` open packet preview
+- `g?` or `<F1>` open the shortcut sheet for the current surface
 - `q` close the tray
 
 Packet preview shows:
@@ -186,6 +211,7 @@ Compose review defaults:
 - `i` insert the selected fragment handle into the packet template
 - `p` park the selected active fragment from the fragment list
 - `u` unpark the selected parked fragment from the fragment list
+- `g?` or `<F1>` open the shortcut sheet for the current surface
 - `q` close compose review
 
 These mappings are configurable through `setup()` and can be disabled by setting
@@ -206,17 +232,33 @@ Default request viewer mappings:
 - `s` approve for session when available
 - `d` decline
 - `c` cancel
+- `o` open the file-change review when the pending request is a file-change approval
 - `g?` or `<F1>` open the shortcut sheet for the current surface
 - `q` or `<Esc>` hide the viewer without resolving the request
+
+Default file-change review mappings:
+
+- `o` open the currently selected changed file in a dedicated diff viewer
+- `]f` move to the next changed file
+- `[f` move to the previous changed file
+- `a` approve once
+- `s` approve for session
+- `d` decline
+- `c` cancel
+- `g?` or `<F1>` open the shortcut sheet for the current surface
+- `q` or `<Esc>` close the top review viewer and return to the previous review layer
 
 ==============================================================================
 MARKDOWN CONTRACT                                     *neovim-codex-markdown*
 
-The transcript and composer are normal markdown scratch buffers with these
-buffer variables:
+The transcript, composer, and other plugin-owned markdown surfaces are normal
+markdown scratch buffers with these buffer variables:
 
 - `b:neovim_codex = true`
-- `b:neovim_codex_role = "transcript" | "composer" | "details" | "events"`
+- `b:neovim_codex_role` commonly includes `"transcript"`, `"composer"`,
+  `"details"`, `"events"`, `"workbench"`, `"compose_review_message"`, or
+  `"compose_review_fragments"`; stacked request and review viewers use their
+  own surface-specific roles
 - `b:neovim_codex_thread_id = <thread-id>`
 
 This lets normal markdown filetype, treesitter, and render plugins apply
@@ -244,10 +286,14 @@ Run >
 <
 to verify:
 
-- NeoVim version support
-- `codex` executable discovery
+- NeoVim `0.11+`
+- the configured Codex executable is available on `PATH`
 - `nui.nvim` availability
-- app-server handshake viability
+- app-server start and initialize handshake viability
+
+For a detailed report buffer with recent protocol events, use >
+    :CodexSmoke
+<
 
 ==============================================================================
 CONFIGURATION                                         *neovim-codex-configuration*
@@ -258,11 +304,12 @@ Call >
 from your plugin manager configuration to override defaults.
 
 Global mappings are disabled by default. Buffer-local overlay mappings have
-conservative defaults.
+conservative defaults. Fast open/reopen actions use
+`keymaps.global_fast_modes`; workflow actions use
+`keymaps.global_workflow_modes`. If you only set the older
+`keymaps.global_modes`, it still acts as the fallback for both lanes.
 
 ==============================================================================
-LIMITATIONS                                            *neovim-codex-limits*
-
 WORKBENCH                                               *neovim-codex-workbench*
 
 The workbench is a thread-local staging area for semantic fragments.
@@ -270,14 +317,47 @@ The workbench is a thread-local staging area for semantic fragments.
 Current capture commands:
 
 - `:CodexCapturePath` adds the current file as a `path_ref`
-- `:CodexCaptureSelection` adds the current visual selection as a `code_range`
+- `:CodexCaptureSelection` adds the current visual selection as a
+  `code_range`
 - `:CodexCaptureDiagnostic` adds the current diagnostic under cursor as a
   `diagnostic`
+
+Workbench tray defaults:
+
+- `<CR>` inspect the selected fragment
+- `dd` remove the selected fragment
+- `D` clear the active thread workbench
+- `o` open compose review
+- `i` open compose review and insert the selected fragment handle
+- `p` park the selected active fragment
+- `u` unpark the selected parked fragment
+- `P` open packet preview
+- `g?` or `<F1>` open the shortcut sheet for the current surface
+- `q` close the tray
 
 Compose review edits a packet template, not a plain appendix. Staged fragments
 receive short handles such as `[[f1]]`. Only referenced handles are expanded
 and sent; unreferenced staged fragments block send until they are removed or
 referenced.
+
+Compose review defaults:
+
+- `<C-s>` send the current packet from normal or insert mode
+- `gS` send the current packet from normal mode
+- `P` preview the compiled packet
+- `<Tab>` focus the staged fragment list
+- `i` insert the selected fragment handle into the packet template
+- `p` park the selected active fragment from the fragment list
+- `u` unpark the selected parked fragment from the fragment list
+- `g?` or `<F1>` open the shortcut sheet for the current surface
+- `q` close compose review
+
+Lua API:
+
+- `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })`
+  stages a first-class `text_note` fragment for runtime context, tool output,
+  logs, or notes
+- workbench capture is code-world first in this slice; chat text can still be copied manually when needed
 
 ==============================================================================
 LIMITATIONS                                            *neovim-codex-limits*
@@ -304,7 +384,3 @@ Then write a short prompt in the composer and send it with `<C-s>`.
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:
-
-
-Lua API:
-- `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })` stages a first-class `text_note` fragment without pretending the text came from a file.

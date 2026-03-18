@@ -99,6 +99,7 @@ local function new_thread(thread_id)
       model = nil,
       effort = nil,
       summary = nil,
+      approvalPolicy = nil,
       collaborationMode = nil,
       ephemeral = nil,
     },

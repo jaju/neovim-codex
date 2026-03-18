@@ -26,6 +26,7 @@ local defaults = {
   max_log_entries = 400,
   thread = {
     cwd = "current",
+    approval_policy = "on-request",
     persist_extended_history = true,
     experimental_raw_events = false,
   },

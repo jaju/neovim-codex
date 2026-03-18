@@ -20,6 +20,24 @@ local function error_message(error)
   return error or "request failed"
 end
 
+local function sync_thread_runtime(store, thread_id, result)
+  if not thread_id or type(result) ~= "table" then
+    return
+  end
+
+  store:dispatch({
+    type = "thread_runtime_updated",
+    thread_id = thread_id,
+    runtime = {
+      model = result.model,
+      effort = result.reasoningEffort,
+      approvalPolicy = result.approvalPolicy,
+      approvalsReviewer = result.approvalsReviewer,
+      sandbox = result.sandbox,
+    },
+  })
+end
+
 function M.new(opts)
   assert(opts and opts.store, "store is required")
   assert(opts and opts.transport, "transport is required")
@@ -241,6 +259,7 @@ function M:thread_start(params, on_result)
         replace_turns = false,
         activate = true,
       })
+      sync_thread_runtime(self.store, result.thread.id, result)
     end
     if on_result then
       on_result(err, result, message)
@@ -257,6 +276,7 @@ function M:thread_resume(params, on_result)
         replace_turns = true,
         activate = true,
       })
+      sync_thread_runtime(self.store, result.thread.id, result)
     end
     if on_result then
       on_result(err, result, message)
@@ -331,6 +351,7 @@ function M:thread_fork(params, on_result)
         replace_turns = true,
         activate = true,
       })
+      sync_thread_runtime(self.store, result.thread.id, result)
     end
     if on_result then
       on_result(err, result, message)

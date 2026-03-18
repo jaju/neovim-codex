@@ -4,6 +4,10 @@ local M = {}
 
 function M.build_thread_start(config, cwd, opts)
   opts = opts or {}
+  local approval_policy = opts.approval_policy
+  if approval_policy == nil then
+    approval_policy = ((config or {}).thread or {}).approval_policy
+  end
   local params = {
     cwd = opts.cwd or (config.thread.cwd == "current" and cwd or config.thread.cwd),
     persistExtendedHistory = config.thread.persist_extended_history,
@@ -31,8 +35,8 @@ function M.build_thread_start(config, cwd, opts)
   if opts.developer_instructions then
     params.developerInstructions = opts.developer_instructions
   end
-  if opts.approval_policy then
-    params.approvalPolicy = opts.approval_policy
+  if approval_policy ~= nil then
+    params.approvalPolicy = approval_policy
   end
   if opts.approvals_reviewer then
     params.approvalsReviewer = opts.approvals_reviewer
@@ -78,7 +82,7 @@ function M.build_thread_resume(config, opts)
   if opts.service_tier then
     params.serviceTier = opts.service_tier
   end
-  if opts.approval_policy then
+  if opts.approval_policy ~= nil then
     params.approvalPolicy = opts.approval_policy
   end
   if opts.approvals_reviewer then
@@ -125,7 +129,7 @@ function M.build_thread_fork(config, opts)
   if opts.developer_instructions then
     params.developerInstructions = opts.developer_instructions
   end
-  if opts.approval_policy then
+  if opts.approval_policy ~= nil then
     params.approvalPolicy = opts.approval_policy
   end
   if opts.approvals_reviewer then
@@ -158,6 +162,13 @@ end
 function M.build_turn_start(_config, thread_id, text, opts)
   opts = opts or {}
   local runtime_settings = vim.deepcopy(opts.thread_runtime or {})
+  local approval_policy = opts.approval_policy
+  if approval_policy == nil then
+    approval_policy = runtime_settings.approvalPolicy
+  end
+  if approval_policy == nil then
+    approval_policy = (((_config or {}).thread or {}).approval_policy)
+  end
   local params = {
     threadId = thread_id,
     input = opts.input or {
@@ -168,8 +179,8 @@ function M.build_turn_start(_config, thread_id, text, opts)
   if opts.cwd then
     params.cwd = opts.cwd
   end
-  if opts.approval_policy then
-    params.approvalPolicy = opts.approval_policy
+  if approval_policy ~= nil then
+    params.approvalPolicy = approval_policy
   end
   if opts.approvals_reviewer then
     params.approvalsReviewer = opts.approvals_reviewer
