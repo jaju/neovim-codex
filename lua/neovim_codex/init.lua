@@ -392,36 +392,8 @@ local function ensure_ready(timeout_ms)
   return rt, nil
 end
 
-local function request_with_wait(request_fn, opts)
-  opts = opts or {}
-  local done = false
-  local result = nil
-  local err_message = nil
-
-  request_fn(function(err, payload)
-    done = true
-    err_message = err
-    result = payload
-  end)
-
-  if opts.wait then
-    local ok = vim.wait(opts.timeout_ms or 4000, function()
-      return done
-    end, 50)
-    if not ok then
-      return nil, "timed out waiting for app-server response"
-    end
-  end
-
-  return result, err_message
-end
-
-local function wait_opts(opts)
-  return {
-    wait = opts.wait ~= false,
-    timeout_ms = opts.timeout_ms,
-  }
-end
+local request_with_wait = thread_api_mod.request_with_wait
+local wait_opts = thread_api_mod.wait_opts
 
 local function current_cwd()
   return vim.fn.getcwd()

@@ -1,4 +1,4 @@
-local command_actions = require("neovim_codex.nvim.chat.document.command_actions")
+local command_actions = require("neovim_codex.nvim.chat.document_command_actions")
 local selectors = require("neovim_codex.core.selectors")
 local text_utils = require("neovim_codex.core.text")
 local thread_identity = require("neovim_codex.nvim.thread_identity")

@@ -46,6 +46,9 @@ local function wait_opts(opts)
   }
 end
 
+M.request_with_wait = request_with_wait
+M.wait_opts = wait_opts
+
 local function current_cwd()
   return vim.fn.getcwd()
 end
