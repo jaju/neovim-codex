@@ -25,6 +25,10 @@ end
 
 local codex = require("neovim_codex")
 local selectors = require("neovim_codex.core.selectors")
+local test_thread_cwd = vim.fn.tempname() .. "-neovim-codex-threads"
+
+vim.fn.mkdir(test_thread_cwd, "p")
+
 codex.setup({})
 
 assert(vim.fn.exists(":CodexStart") == 2, "CodexStart command should exist")
@@ -187,7 +191,7 @@ require("neovim_codex.nvim.presentation").close_viewers()
 local thread_result, thread_err = codex.new_thread({
   notify = false,
   open_chat = false,
-  cwd = repo_root,
+  cwd = test_thread_cwd,
   timeout_ms = 8000,
 })
 assert(thread_err == nil, thread_err or "thread start failed")
@@ -195,7 +199,7 @@ assert(thread_result and thread_result.thread and thread_result.thread.id, "thre
 
 local list_result, list_err = codex.list_threads({
   notify = false,
-  cwd = repo_root,
+  cwd = test_thread_cwd,
   limit = 10,
   timeout_ms = 8000,
 })
@@ -228,7 +232,7 @@ end
 local archive_thread_result, archive_thread_err = codex.new_thread({
   notify = false,
   open_chat = false,
-  cwd = repo_root,
+  cwd = test_thread_cwd,
   timeout_ms = 8000,
 })
 assert(archive_thread_err == nil, archive_thread_err or "archive test thread should start")
@@ -269,10 +273,23 @@ vim.wait(1000, function()
 end, 20)
 assert(codex.get_state().threads.by_id[archive_thread_result.thread.id].archived == false, "thread unarchive should restore the archived thread")
 
+local archive_cleanup_action, archive_cleanup_err = codex.archive_thread({
+  thread_id = archive_thread_result.thread.id,
+  notify = false,
+  timeout_ms = 8000,
+})
+assert(archive_cleanup_err == nil, archive_cleanup_err or "archive cleanup should succeed")
+assert(archive_cleanup_action ~= nil, "archive cleanup should return a result")
+vim.wait(1000, function()
+  local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]
+  return thread and thread.archived == true
+end, 20)
+assert(codex.get_state().threads.by_id[archive_thread_result.thread.id].archived == true, "archive cleanup should hide the archive test thread again")
+
 local capture_thread_result, capture_thread_err = codex.new_thread({
   notify = false,
   open_chat = false,
-  cwd = repo_root,
+  cwd = test_thread_cwd,
   timeout_ms = 8000,
 })
 assert(capture_thread_err == nil, capture_thread_err or "capture thread start failed")
