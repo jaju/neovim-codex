@@ -123,6 +123,14 @@ function M.approval_policy_choices()
   }
 end
 
+function M.developer_instructions_menu_label(text)
+  local compact = M.compact_text(text, 72)
+  if compact == nil then
+    return "Default"
+  end
+  return compact
+end
+
 function M.find_model(model_catalog, model_name)
   if not model_name then
     return nil

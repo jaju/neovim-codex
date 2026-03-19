@@ -23,6 +23,8 @@ Add this to your plugin list to install from the public GitHub repository:
           chat = false, -- toggle the chat overlay globally
           request = "<F2>", -- reopen the current approval or question
           shortcuts = false, -- reopen the current shortcut sheet
+          new_thread = false, -- create a fresh thread immediately
+          new_thread_config = false, -- create a thread through the full setup flow, including developer instructions
           threads = false, -- open the thread picker
           thread_settings = false, -- edit sticky thread runtime settings
           thread_unarchive = false, -- restore an archived thread

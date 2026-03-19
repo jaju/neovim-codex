@@ -430,6 +430,14 @@ function M:collaboration_mode_list(params, on_result)
   end)
 end
 
+function M:config_read(params, on_result)
+  return self:_request("config/read", params or {}, function(err, result, message)
+    if on_result then
+      on_result(err, result, message)
+    end
+  end)
+end
+
 function M:turn_start(params, on_result)
   return self:_request("turn/start", params, function(err, result, message)
     if not err and result.turn then

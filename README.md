@@ -83,6 +83,8 @@ Install from the public GitHub repository:
           chat = false, -- set a mapping like "<C-,>" to toggle the chat overlay
           request = "<F2>", -- reopen the active approval or question
           shortcuts = false, -- reopen the current shortcut sheet
+          new_thread = false, -- create a fresh thread immediately
+          new_thread_config = false, -- create a thread through the full setup flow, including developer instructions
           threads = false, -- open the thread picker
           workbench = false, -- toggle the thread-local workbench tray
           compose = false, -- open compose review for the active thread
@@ -133,7 +135,7 @@ Then:
 Useful thread commands:
 
 - `:CodexThreadNew` - create and activate a fresh thread
-- `:CodexThreadNewConfig` - create a thread with runtime settings like model, effort, mode, name, and ephemeral state
+- `:CodexThreadNewConfig` - create a thread with runtime settings like model, effort, mode, name, ephemeral state, and developer instructions
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
@@ -170,7 +172,7 @@ Workbench and compose commands:
 - `:CodexChatReader` - open the widened reader explicitly
 - `:CodexSend` - send the current composer contents, or open compose review if the workbench is non-empty
 - `:CodexThreadNew` - create a new thread and activate it
-- `:CodexThreadNewConfig` - create a new thread through the runtime configuration flow
+- `:CodexThreadNewConfig` - create a new thread through the runtime configuration flow, prefilled with the effective default developer instructions for the current `cwd`
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
 - `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
@@ -244,6 +246,8 @@ require("neovim_codex").setup({
       chat = "<C-,>",
       request = "<C-.>",
       shortcuts = "<F1>",
+      new_thread = "<leader>cn",
+      new_thread_config = "<leader>cN",
       threads = "<leader>ct",
       read_thread = "<leader>cT",
       thread_settings = "<leader>cs",

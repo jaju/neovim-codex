@@ -71,6 +71,7 @@ local function workflow_entries(config)
   local global = (config.keymaps or {}).global or {}
   local entries = {}
   add_mapping(entries, global.new_thread, "Create a new thread")
+  add_mapping(entries, global.new_thread_config, "Create a new thread with runtime and developer-instruction setup")
   add_mapping(entries, global.threads, "Pick or resume a thread")
   add_mapping(entries, global.read_thread, "Open a thread report")
   add_mapping(entries, global.thread_rename, "Rename the active thread")

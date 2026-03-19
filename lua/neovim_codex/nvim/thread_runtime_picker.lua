@@ -104,31 +104,33 @@ function M:query_runtime_catalogs_async(opts, on_done)
   local timeout_ms = opts.timeout_ms or 4000
   local models = nil
   local modes = self.experimental_api == false and {} or nil
+  local effective_config = opts.include_config_read == true and nil or {}
   local mode_err = nil
+  local config_err = nil
 
-  local function finish(models_value, modes_value, err_value, mode_warning)
+  local function finish(models_value, modes_value, config_value, err_value, mode_warning, config_warning)
     if finished then
       return
     end
     finished = true
     vim.schedule(function()
-      on_done(models_value, modes_value, err_value, mode_warning)
+      on_done(models_value, modes_value, config_value, err_value, mode_warning, config_warning)
     end)
   end
 
   vim.defer_fn(function()
-    finish(nil, nil, "timed out waiting for thread runtime options", nil)
+    finish(nil, nil, nil, "timed out waiting for thread runtime options", nil, nil)
   end, timeout_ms)
 
   local function maybe_finish()
-    if models ~= nil and modes ~= nil then
-      finish(models, modes, nil, mode_err)
+    if models ~= nil and modes ~= nil and effective_config ~= nil then
+      finish(models, modes, effective_config, nil, mode_err, config_err)
     end
   end
 
   self.client:model_list({ includeHidden = opts.include_hidden or false }, function(err, result)
     if err then
-      finish(nil, nil, err, nil)
+      finish(nil, nil, nil, err, nil, nil)
       return
     end
     models = result and result.data or {}
@@ -137,12 +139,25 @@ function M:query_runtime_catalogs_async(opts, on_done)
 
   if self.experimental_api == false then
     maybe_finish()
+  else
+    self.client:collaboration_mode_list({}, function(err, result)
+      mode_err = err
+      modes = result and result.data or {}
+      maybe_finish()
+    end)
+  end
+
+  if opts.include_config_read ~= true then
+    maybe_finish()
     return
   end
 
-  self.client:collaboration_mode_list({}, function(err, result)
-    mode_err = err
-    modes = result and result.data or {}
+  self.client:config_read({
+    includeLayers = false,
+    cwd = opts.cwd,
+  }, function(err, result)
+    config_err = err
+    effective_config = result and result.config or {}
     maybe_finish()
   end)
 end
@@ -230,6 +245,10 @@ function M:pick_async(opts, on_done)
   local function current_approval_policy_label()
     local default_policy = (((self.config or {}).thread or {}).approval_policy)
     return runtime.approval_policy_menu_label(settings.approvalPolicy, default_policy)
+  end
+
+  local function current_developer_instructions_label()
+    return runtime.developer_instructions_menu_label(settings.developerInstructions)
   end
 
   local function choose_name(next_step)
@@ -354,6 +373,21 @@ function M:pick_async(opts, on_done)
     end)
   end
 
+  local function choose_developer_instructions(next_step)
+    input_async({
+      prompt = "Codex developer instructions (empty uses default): ",
+      default = settings.developerInstructions or "",
+    }, function(value)
+      if value == nil then
+        finish(nil, "cancelled")
+        return
+      end
+      local trimmed = vim.trim(value or "")
+      settings.developerInstructions = trimmed ~= "" and trimmed or nil
+      next_step()
+    end)
+  end
+
   local function show_menu()
     local items = {}
     if opts.include_name ~= false then
@@ -366,6 +400,12 @@ function M:pick_async(opts, on_done)
     items[#items + 1] = { key = "model", label = string.format("Model: %s", current_model_label()) }
     items[#items + 1] = { key = "effort", label = string.format("Effort: %s", current_effort_label()) }
     items[#items + 1] = { key = "approval_policy", label = string.format("Approval policy: %s", current_approval_policy_label()) }
+    if opts.include_developer_instructions == true then
+      items[#items + 1] = {
+        key = "developer_instructions",
+        label = string.format("Developer instructions: %s", current_developer_instructions_label()),
+      }
+    end
     items[#items + 1] = { key = "done", label = "Save settings" }
     items[#items + 1] = { key = "cancel", label = "Cancel" }
 
@@ -407,11 +447,15 @@ function M:pick_async(opts, on_done)
         choose_approval_policy(show_menu)
         return
       end
+      if choice.key == "developer_instructions" then
+        choose_developer_instructions(show_menu)
+        return
+      end
       show_menu()
     end)
   end
 
-  self:query_runtime_catalogs_async(opts, function(models, modes, catalogs_err, mode_err)
+  self:query_runtime_catalogs_async(opts, function(models, modes, effective_config_value, catalogs_err, mode_err, config_err)
     if catalogs_err then
       finish(nil, catalogs_err)
       return
@@ -419,6 +463,16 @@ function M:pick_async(opts, on_done)
     settings.modelCatalog = models or {}
     settings.modeCatalog = type(modes) == "table" and modes or {}
     settings.modeError = mode_err
+    settings.effectiveConfig = effective_config_value or {}
+    if settings.developerInstructions == nil then
+      settings.developerInstructions = settings.effectiveConfig.developer_instructions
+    end
+    if mode_err then
+      self.notify(mode_err, vim.log.levels.WARN, opts.notify)
+    end
+    if config_err then
+      self.notify(config_err, vim.log.levels.WARN, opts.notify)
+    end
     show_menu()
   end)
 end

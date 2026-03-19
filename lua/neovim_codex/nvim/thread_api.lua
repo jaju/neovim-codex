@@ -465,6 +465,9 @@ function M.new(deps)
     pick_thread_runtime_async(deps, rt, {
       include_name = true,
       include_ephemeral = true,
+      include_developer_instructions = true,
+      include_config_read = true,
+      cwd = opts.cwd or current_cwd(),
       seed = opts.seed,
       timeout_ms = opts.timeout_ms,
       notify = opts.notify,
@@ -483,6 +486,7 @@ function M.new(deps)
         effort = settings.effort,
         approval_policy = settings.approvalPolicy,
         collaboration_mode_mask = settings.collaborationModeMask,
+        developer_instructions = settings.developerInstructions,
       }))
     end)
 

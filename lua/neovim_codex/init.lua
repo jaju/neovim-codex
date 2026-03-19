@@ -101,6 +101,7 @@ local defaults = {
     global = {
       chat = false,
       new_thread = false,
+      new_thread_config = false,
       threads = false,
       read_thread = false,
       thread_rename = false,
@@ -230,6 +231,9 @@ local function apply_global_keymaps()
   map_if(keymaps.new_thread, workflow_modes, function()
     require("neovim_codex").new_thread()
   end, "Create a new Codex thread")
+  map_if(keymaps.new_thread_config, workflow_modes, function()
+    require("neovim_codex").create_thread_with_settings()
+  end, "Create a configured Codex thread")
   map_if(keymaps.threads, workflow_modes, function()
     require("neovim_codex").pick_thread({ action = "resume" })
   end, "Pick a Codex thread")

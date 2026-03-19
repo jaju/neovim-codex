@@ -104,7 +104,7 @@ It reports whether Codex is running, waiting for a request response, idle, stopp
 ## Thread commands
 
 - `:CodexThreadNew` - start a fresh thread explicitly
-- `:CodexThreadNewConfig` - start a thread through the runtime settings flow
+- `:CodexThreadNewConfig` - start a thread through the runtime settings flow, including editable developer instructions seeded from the effective current-`cwd` config
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a thread without resuming it
 - `:CodexThreadRename [name]` - rename the active thread
