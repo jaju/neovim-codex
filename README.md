@@ -135,7 +135,7 @@ Then:
 Useful thread commands:
 
 - `:CodexThreadNew` - create and activate a fresh thread
-- `:CodexThreadNewConfig` - create a thread with runtime settings like model, effort, mode, name, ephemeral state, and developer instructions
+- `:CodexThreadNewConfig` - create a thread with runtime settings like model, effort, mode, name, ephemeral state, and an optional developer-instructions override
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
@@ -172,7 +172,7 @@ Workbench and compose commands:
 - `:CodexChatReader` - open the widened reader explicitly
 - `:CodexSend` - send the current composer contents, or open compose review if the workbench is non-empty
 - `:CodexThreadNew` - create a new thread and activate it
-- `:CodexThreadNewConfig` - create a new thread through the runtime configuration flow, prefilled with the effective default developer instructions for the current `cwd`
+- `:CodexThreadNewConfig` - create a new thread through the runtime configuration flow, prefilled from any configured `developer_instructions` override for the current `cwd`; a blank field keeps Codex's built-in defaults
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead [thread-id]` - read a thread into a report buffer
 - `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
@@ -379,6 +379,8 @@ require("neovim_codex").setup({
       chat = "<C-,>", -- toggle the chat overlay
       request = "<C-.>", -- reopen the active approval or question
       shortcuts = "<F1>", -- reopen the current shortcut sheet
+      new_thread = "<leader>cn", -- create a fresh thread immediately
+      new_thread_config = "<leader>cN", -- create a thread through the configurable setup flow
       threads = "<leader>ct", -- open the thread picker
       thread_settings = "<leader>cs", -- edit sticky thread runtime settings
       thread_unarchive = "<leader>cu", -- restore an archived thread
