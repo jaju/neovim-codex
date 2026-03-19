@@ -214,13 +214,13 @@ Transcript buffer defaults:
 Composer buffer defaults:
 
 - `<C-s>` - send the current draft from normal or insert mode
-- `gS` - send the current draft from normal mode
-- `gT` - steer the running turn with the current draft
+- `gS` in normal mode - send the current draft
+- `gT` in normal mode - steer the running turn with the current draft
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - hide the overlay
-- `gr` - reopen the active thread inbox
-- `gs` - open the active thread settings
-- `gR` - toggle between rail and reader widths
+- `gr` in normal mode - reopen the active thread inbox
+- `gs` in normal mode - open the active thread settings
+- `gR` in normal mode - toggle between rail and reader widths
 - `g?` or `<F1>` in normal mode - open the Codex shortcut sheet for the current surface
 - `<CR>` - insert a newline
 

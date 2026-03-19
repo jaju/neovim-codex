@@ -48,7 +48,7 @@ function Composer:_bind_keymaps(bufnr)
   map_if(keymaps.send_normal, "n", function()
     self.handlers.send()
   end, { buffer = bufnr, desc = "Send Codex prompt" })
-  map_if(keymaps.steer, { "i", "n" }, function()
+  map_if(keymaps.steer, "n", function()
     if self.handlers.steer then
       self.handlers.steer()
     end
@@ -58,17 +58,17 @@ function Composer:_bind_keymaps(bufnr)
       self.handlers.focus_transcript()
     end
   end, { buffer = bufnr, desc = "Switch Codex chat pane" })
-  map_if(keymaps.request, { "n", "i" }, function()
+  map_if(keymaps.request, "n", function()
     if self.handlers.open_request then
       self.handlers.open_request()
     end
   end, { buffer = bufnr, desc = "Open Codex inbox" })
-  map_if(keymaps.settings, { "n", "i" }, function()
+  map_if(keymaps.settings, "n", function()
     if self.handlers.open_thread_settings then
       self.handlers.open_thread_settings()
     end
   end, { buffer = bufnr, desc = "Open Codex thread settings" })
-  map_if(keymaps.toggle_reader, { "n", "i" }, function()
+  map_if(keymaps.toggle_reader, "n", function()
     if self.handlers.toggle_reader then
       self.handlers.toggle_reader()
     end
@@ -76,7 +76,7 @@ function Composer:_bind_keymaps(bufnr)
   map_if(keymaps.close, "n", function()
     self.handlers.hide()
   end, { buffer = bufnr, desc = "Hide Codex overlay" })
-  surface_help.bind(map_if, self.opts, keymaps.help, { "n", "i" }, function()
+  surface_help.bind(map_if, self.opts, keymaps.help, "n", function()
     self.handlers.open_help()
   end, { buffer = bufnr, desc = "Codex chat help" })
 end
