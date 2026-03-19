@@ -258,9 +258,10 @@ function M.new(deps)
       return nil, request_err
     end
 
-    if result and result.thread then
-      local runtime_seed = clone_runtime_settings(selectors.get_thread(rt.client:get_state(), result.thread.id))
-      update_thread_runtime(deps, result.thread.id, {
+    local started_thread = result and result.thread or nil
+    if started_thread then
+      local runtime_seed = clone_runtime_settings(selectors.get_thread(rt.client:get_state(), started_thread.id))
+      update_thread_runtime(deps, started_thread.id, {
         model = runtime_seed.model,
         effort = runtime_seed.effort,
         summary = opts.summary,
@@ -269,7 +270,7 @@ function M.new(deps)
         ephemeral = opts.ephemeral ~= nil and opts.ephemeral or runtime_seed.ephemeral,
       })
       if opts.name and vim.trim(tostring(opts.name)) ~= "" then
-        submit_thread_rename(deps, rt, result.thread, opts.name, {
+        submit_thread_rename(deps, rt, started_thread, opts.name, {
           wait = true,
           notify = false,
           timeout_ms = opts.timeout_ms,
@@ -277,7 +278,8 @@ function M.new(deps)
       end
     end
 
-    deps.notify(string.format("Started thread %s", result.thread.id), vim.log.levels.INFO, opts.notify)
+    local started_label = started_thread and started_thread.id or "(unknown id)"
+    deps.notify(string.format("Started thread %s", started_label), vim.log.levels.INFO, opts.notify)
     return result, nil
   end
 
