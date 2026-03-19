@@ -46,6 +46,7 @@
     "v2/ReasoningTextDeltaNotification.ts",
     "v2/CommandExecutionOutputDeltaNotification.ts",
     "v2/FileChangeOutputDeltaNotification.ts",
+    "v2/CommandExecutionSource.ts",
     "v2/CommandAction.ts",
     "v2/ThreadItem.ts",
     "v2/CommandExecutionRequestApprovalParams.ts",
