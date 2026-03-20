@@ -1,26 +1,39 @@
 # neovim-codex
 
-A NeoVim-hosted client for `codex app-server`.
+NeoVim-native Codex for developers who want AI help without leaving the editor or flattening everything into a terminal pane.
 
-This is not Codex inside a floating terminal. `neovim-codex` speaks the app-server protocol directly and keeps thread, turn, request, workbench, and packet state inside NeoVim.
+`neovim-codex` speaks the `codex app-server` protocol directly. It keeps thread, turn, request, workbench, and packet state inside NeoVim, and it treats code context as something you stage and compose deliberately rather than paste into a prompt box.
+
+This is not Codex inside a floating terminal.
+
+## Why This Exists
+
+Generic AI chat tools are fine for question answering, but they are usually weak at staying close to code and weak at respecting how NeoVim users already work.
+
+`neovim-codex` is built around a different idea:
+
+- keep the conversation inside NeoVim
+- keep code, diagnostics, and follow-up context close together
+- use editor-native review, inspection, and navigation flows
+- make AI interaction feel like part of editing, not a detour out of the editor
+
+If you already think in buffers, motions, selections, diagnostics, and window layouts, this plugin is trying to meet you there.
 
 ## What You Get
 
-- a rail-first markdown-native chat shell with a widened reader mode
-- thread-aware approvals and `requestUserInput` flows that reopen safely
-- thread/session controls for create, switch, fork, archive, rename, model, effort, approval policy, and collaboration mode
+- a rail-first markdown chat shell with a widened reader mode
+- protocol-backed approvals and request flows that reopen safely
+- thread and session controls for create, switch, fork, archive, rename, model, effort, approval policy, and collaboration mode
 - a workbench and compose review flow for packet-backed follow-up context
-- a pure Lua client/state core instead of a terminal wrapper
+- a pure Lua client and state core instead of a terminal wrapper
 
-Today, the plugin already supports the usable core loop:
+In practice, that means you can:
 
 - start and talk to `codex app-server`
 - create, resume, read, fork, rename, archive, and tune threads
-- inspect activity without drowning the main transcript in raw command noise
+- inspect activity without drowning the transcript in raw command noise
 - stage code, diagnostics, and runtime notes into a workbench
 - preview and send compiled packets with explicit `[[fN]]` fragment handles
-
-It does **not** yet implement dynamic tools or language-specific adapter daemons, but the app-server-native chat/session/workbench loop is already in place.
 
 ## Screenshots
 
@@ -28,25 +41,25 @@ It does **not** yet implement dynamic tools or language-specific adapter daemons
 
 ![Main chat overlay](docs/assets/screenshots/chat-overlay-main.png)
 
-App-server-native chat inside NeoVim, with a rail-first shell, explicit inbox state, and visible thread/workbench status.
+A NeoVim-native Codex surface with a rail-first shell, explicit thread state, and a transcript that stays readable instead of turning into a log.
 
 ### Workbench and compose review
 
 ![Workbench and compose review](docs/assets/screenshots/workbench-compose-review.png)
 
-Stage fragments from the code world, park the ones you do not want yet, place `[[fN]]` handles where they matter, and preview the compiled packet before sending.
+Stage fragments from the code world, keep the useful ones, place `[[fN]]` handles where they matter, and review the packet before you send it.
 
 ### Thread and session controls
 
 ![Thread and session controls](docs/assets/screenshots/thread-session-controls.png)
 
-Switch threads, fork from earlier turns, and steer sticky runtime settings like model, effort, approval policy, and collaboration mode without leaving the editor.
+Switch threads, fork from earlier turns, and adjust sticky runtime settings without leaving the editor.
 
 ## Requirements
 
 - NeoVim `0.11+`
 - local `codex` executable on `PATH`
-- [`MunifTanjim/nui.nvim`](https://github.com/MunifTanjim/nui.nvim) for the overlay layout
+- [`MunifTanjim/nui.nvim`](https://github.com/MunifTanjim/nui.nvim)
 
 Optional but useful:
 
@@ -61,12 +74,24 @@ Check prerequisites inside NeoVim:
 
 Both commands should print `1`.
 
+## Quick Start
+
+If you want the shortest path to a first successful run:
+
+1. install the plugin
+2. confirm `codex` is available to NeoVim
+3. run `:checkhealth neovim_codex`
+4. run `:CodexSmoke`
+5. open the overlay with `:CodexChat`
+6. write a prompt in the composer and send it with `<C-s>` or `:CodexSend`
+
+If you want the full setup walkthrough, use [docs/usage/lazy-nvim.md](docs/usage/lazy-nvim.md).
+
 ## Installation
 
-### lazy.nvim
+### `lazy.nvim`
 
-For a normal install from a Git remote, add a plugin spec like this to your `lazy.nvim` setup.
-Install from the public GitHub repository:
+Add a plugin spec like this to your `lazy.nvim` setup:
 
 ```lua
 {
@@ -77,24 +102,20 @@ Install from the public GitHub repository:
   config = function()
     require("neovim_codex").setup({
       keymaps = {
-        global_fast_modes = { "n", "i", "x" }, -- fast open/reopen actions can stay available across common modes
-        global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
+        global_fast_modes = { "n", "i", "x" },
+        global_workflow_modes = { "n" },
         global = {
           chat = false, -- set a mapping like "<C-,>" to toggle the chat overlay
           request = "<F2>", -- reopen the active approval or question
-          shortcuts = false, -- reopen the current shortcut sheet
-          new_thread = false, -- create a fresh thread immediately
-          new_thread_config = false, -- create a thread through the full setup flow, including developer instructions
-          threads = false, -- open the thread picker
-          workbench = false, -- toggle the thread-local workbench tray
-          compose = false, -- open compose review for the active thread
-          thread_settings = false, -- edit sticky model/effort/approval/mode settings for the active thread
-          thread_unarchive = false, -- restore an archived thread from the picker
-          thread_compact = false, -- start manual history compaction for a thread
-          turn_steer = false, -- steer the currently running turn explicitly
-          capture_path = false, -- stage the current file path into the workbench
-          capture_selection = false, -- stage the current visual selection as a code fragment
-          capture_diagnostic = false, -- stage the diagnostic under cursor
+          shortcuts = false,
+          threads = false,
+          workbench = false,
+          compose = false,
+          thread_settings = false,
+          turn_steer = false,
+          capture_path = false,
+          capture_selection = false,
+          capture_diagnostic = false,
         },
       },
     })
@@ -102,24 +123,13 @@ Install from the public GitHub repository:
 }
 ```
 
-For local development or dogfooding, use a `dir = ...` spec instead. That workflow is documented in [`docs/usage/lazy-nvim.md`](docs/usage/lazy-nvim.md).
+For local development or dogfooding, use a `dir = ...` spec instead. The full setup flow is documented in [docs/usage/lazy-nvim.md](docs/usage/lazy-nvim.md).
 
-`client_info`, `experimental_api`, and `max_log_entries` are plugin-managed defaults. They are omitted here on purpose because they are not meaningful day-to-day user configuration knobs.
+`client_info`, `experimental_api`, and `max_log_entries` are plugin-managed defaults. They are omitted on purpose because they are not meaningful day-to-day user settings.
 
-Then inside NeoVim:
+## First Flow
 
-```vim
-:Lazy sync
-:Lazy load neovim-codex
-:checkhealth neovim_codex
-:CodexSmoke
-```
-
-A more explicit step-by-step guide lives in [`docs/usage/lazy-nvim.md`](docs/usage/lazy-nvim.md).
-
-## First Chat Flow
-
-From your normal NeoVim session:
+From a normal NeoVim session:
 
 ```vim
 :CodexChat
@@ -132,314 +142,90 @@ Then:
 3. watch the transcript stream above it
 4. run `:CodexChat` again to hide the overlay
 
-Useful thread commands:
+Useful commands for the common loop:
 
 - `:CodexThreadNew` - create and activate a fresh thread
-- `:CodexThreadNewConfig` - create a thread with runtime settings like model, effort, mode, name, ephemeral state, and an optional developer-instructions override
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread without resuming it
-- `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
-- `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
-- `:CodexThreadArchive [thread-id]` - archive the active thread, or pick/archive another thread
-- `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
-- `:CodexThreadSettings [thread-id]` - open the editable thread settings sheet for model, effort, approval policy, and collaboration mode
-- `:CodexThreadCompact [thread-id]` - start manual history compaction for the active thread, or pick one
+- `:CodexRequest` - reopen the active approval or question request
 - `:CodexInterrupt` - interrupt the running turn, if any
-- `:CodexSteer [text]` - steer the currently running turn, or use the current chat draft when the shell is open
-- `:CodexRequest` - reopen the active approval or question request if one is pending
-- `:CodexReview [request-key]` - open the current pending file-change review, or reopen a specific pending file-change request by key
-- `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
+- `:CodexSteer [text]` - steer the currently running turn
+- `:CodexShortcuts` - open the shortcut sheet for the current surface
 
-Workbench and compose commands:
+## Workbench And Compose Review
 
-- `:CodexWorkbench` - toggle the thread-local workbench tray
-- `:CodexCompose` - open compose review for the current thread
-- `:CodexCapturePath` - stage the current file as a `path_ref` fragment
-- `:CodexCaptureSelection` - stage the current visual selection as a `code_range` fragment
-- `:CodexCaptureDiagnostic` - stage the current diagnostic under cursor as a `diagnostic` fragment
-- Lua API: `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })` stages a first-class `text_note` fragment for runtime context, tool output, logs, or notes
-- workbench capture is code-world first in this slice; chat text can still be copied manually when needed
+The workbench is where the plugin stops being “chat in NeoVim” and starts becoming an editor-native context tool.
 
-## Commands
+Use it when you want to gather structured context from the code world:
 
-- `:CodexStart` - start `codex app-server` and complete the initialize handshake
-- `:CodexStop` - stop the running app-server process
-- `:CodexStatus` - print current connection state and active thread id
-- `:CodexEvents` - open the protocol event log in the stacked viewer layer
-- `:CodexSmoke` - run the current smoke checks and open a report buffer
-- `:CodexChat` - toggle the default Codex shell mode
-- `:CodexChatRail` - open the narrow side-rail shell explicitly
-- `:CodexChatReader` - open the widened reader explicitly
-- `:CodexSend` - send the current composer contents, or open compose review if the workbench is non-empty
-- `:CodexThreadNew` - create a new thread and activate it
-- `:CodexThreadNewConfig` - create a new thread through the runtime configuration flow, prefilled from any configured `developer_instructions` override for the current `cwd`; a blank field keeps Codex's built-in defaults
-- `:CodexThreads` - pick and resume a stored thread
-- `:CodexThreadRead [thread-id]` - read a thread into a report buffer
-- `:CodexThreadRename [name]` - rename the active thread, or prompt for a name
-- `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
-- `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
-- `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
-- `:CodexThreadSettings [thread-id]` - adjust sticky model, effort, approval policy, and collaboration mode for a thread
-- `:CodexThreadCompact [thread-id]` - start manual history compaction for a thread
-- `:CodexInspect` - push a details viewer for the selected transcript block
-- `:CodexInterrupt` - interrupt the active turn
-- `:CodexSteer [text]` - steer the current running turn
-- `:CodexRequest` - reopen the active pending Codex request
-- `:CodexReview [request-key]` - open the current pending file-change review
-- `:CodexShortcuts` - open the Codex shortcut sheet for the current surface
-- `:CodexWorkbench` - toggle the workbench tray for the active thread
+- `:CodexCapturePath` - stage the current file
+- `:CodexCaptureSelection` - stage the current visual selection
+- `:CodexCaptureDiagnostic` - stage the diagnostic under cursor
+- `:CodexWorkbench` - open the staged-fragment tray
 - `:CodexCompose` - open compose review for the active thread
-- `:CodexCapturePath` - stage the current file as a fragment
-- `:CodexCaptureSelection` - stage the current visual selection as a code fragment
-- `:CodexCaptureDiagnostic` - stage the current diagnostic under cursor as a fragment
-- `:checkhealth neovim_codex` - verify NeoVim version, `codex` availability, `nui.nvim`, and handshake viability
 
-## Keymaps
+The intended flow is:
 
-Global mappings are mostly disabled by default. The one fast-path exception is request reopen on `<F2>`, so hidden approvals or questions are always one movement away. Fast open/reopen actions use `keymaps.global_fast_modes`; workflow actions use `keymaps.global_workflow_modes`. If you only set the older `keymaps.global_modes`, it still works as the fallback for both lanes. Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or `<F1>` inside a Codex surface to reopen the current shortcut sheet, which is grouped into "This surface", "Global fast", and "Global workflow" lanes.
+1. capture context from code buffers
+2. inspect the staged fragments in the workbench
+3. remove or park stale fragments if needed
+4. open compose review or send from chat
+5. review the packet and send it
 
-Transcript buffer defaults:
+Chat text can still be copied manually when needed, but workbench capture is intentionally code-world first.
 
-- `q` - hide the overlay
-- `gr` - reopen the active thread inbox
-- `gR` - toggle between rail and reader widths
-- `i` - focus the composer
-- insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode in the read-only transcript
-- `<C-w>w` - switch between transcript and composer without leaving the overlay
-- `<CR>` - push the selected transcript block onto the viewer stack
-- `[[` - jump to the previous turn boundary
-- `]]` - jump to the next turn boundary
-- `g?` or `<F1>` - open the Codex shortcut sheet for the current surface
+## Ambient Status
 
-Composer buffer defaults:
-
-- `<C-s>` - send the current draft from normal or insert mode
-- `gS` in normal mode - send the current draft
-- `gT` in normal mode - steer the running turn with the current draft
-- `<C-w>w` in normal mode - switch back to the transcript
-- `q` in normal mode - hide the overlay
-- `gr` in normal mode - reopen the active thread inbox
-- `gs` in normal mode - open the active thread settings
-- `gR` in normal mode - toggle between rail and reader widths
-- `g?` or `<F1>` in normal mode - open the Codex shortcut sheet for the current surface
-- `<CR>` - insert a newline
-
-Pending request viewer defaults:
-
-- the viewer is read-only and opens in normal mode
-- `<CR>` - resolve the current request
-- `a` - approve once when that decision exists
-- `s` - approve for session when that decision exists
-- `d` - decline
-- `c` - cancel
-- `g?` or `<F1>` - open the Codex shortcut sheet for the current surface
-- `q` or `<Esc>` - hide the request viewer without resolving the request
-
-All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_fast_modes = { "n", "i", "x" }` to keep fast global Codex actions available without changing modes, and `keymaps.global_workflow_modes = { "n" }` to keep workflow actions normal-mode only.
-
-```lua
-require("neovim_codex").setup({
-  keymaps = {
-    global_fast_modes = { "n", "i", "x" },
-    global_workflow_modes = { "n" },
-    global = {
-      chat = "<C-,>",
-      request = "<C-.>",
-      shortcuts = "<F1>",
-      new_thread = "<leader>cn",
-      new_thread_config = "<leader>cN",
-      threads = "<leader>ct",
-      read_thread = "<leader>cT",
-      thread_settings = "<leader>cs",
-      thread_unarchive = "<leader>cu",
-      thread_compact = "<leader>ck",
-      turn_steer = "<leader>cS",
-      workbench = "<leader>cw",
-      compose = "<leader>cp",
-      capture_path = "<leader>cf",
-      capture_selection = "<leader>cx",
-    },
-    transcript = {
-      focus_composer = "i",
-      inspect = "<CR>",
-      next_turn = "]c",
-      prev_turn = "[c",
-    },
-    composer = {
-      send = "<C-s>",
-      send_normal = false,
-      steer = "gT",
-    },
-  },
-})
-```
-
-If `<C-s>` is captured by terminal flow control, either run `stty -ixon` for that shell or remap `keymaps.composer.send` and `keymaps.compose_review.send`.
-
-## Protocol-First Transcript Mapping
-
-The transcript is derived from the app-server protocol types, not from shell-string heuristics.
-
-Blocking app-server server requests are also protocol-first. Command approvals, file-change approvals, and tool questions do not render as transcript items. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses. Use `:CodexRequest` to reopen the current request if you close it before responding, and use `:CodexReview` or the request-local `o` mapping to inspect a structured file-change review. Inside that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer before you decide.
-
-For ambient awareness outside the chat shell, expose the built-in statusline component in your own statusline:
+The plugin exposes a built-in statusline component if you want Codex state visible while staying in normal editing windows:
 
 ```vim
 set statusline+=%{%v:lua.require('neovim_codex').statusline()%}
 ```
 
-It shows the current Codex state (`RUN`, `WAIT`, `IDLE`, `ERR`, `OFF`), the active thread, any pending request count plus reopen hint, and the active workbench count.
+It reports:
 
-Examples:
+- whether Codex is running, waiting, idle, stopped, or in error
+- the active thread
+- the pending request count and reopen hint
+- the active workbench count
 
-- successful `commandExecution` items with typed `commandActions` like `read`, `listFiles`, or `search` are compacted into single-line activity summaries
-- in-progress execution stays in the footer instead of occupying transcript space
-- failed or unknown commands stay compact in the transcript but open into a details inspector on demand
-- typed item families such as file changes, tool calls, review mode, and context compaction each map to their own UI surface with their raw protocol preserved
+The default fast reopen shortcut for hidden request dialogs is `<F2>`.
 
-The raw wire payload for each rendered item is preserved in transcript block metadata for future plucking, filtering, export, or enrichment flows. Secondary viewers like `:CodexInspect`, `:CodexEvents`, reports, the workbench tray, and packet preview now share a popup stack so the latest focused viewer can be closed back to the previous one with `q` or `<Esc>`.
+## Why It Feels Different
 
-For the design contract, see [`docs/architecture/protocol-first.md`](docs/architecture/protocol-first.md).
+This project is a good fit if you want:
 
-## Markdown Buffer Contract
+- NeoVim to stay the center of gravity
+- Codex to feel like part of the editor, not an external detour
+- structured thread and workbench state instead of ad hoc prompt stuffing
+- a transcript that supports reading and follow-up, not just logging
+- protocol-backed approvals and file review flows instead of shell scraping
 
-The overlay transcript and composer are plain markdown buffers with normal NeoVim buffer contracts:
+It is probably not the right tool if you want:
 
-- `buftype=nofile`
-- `bufhidden=hide`
-- `swapfile=false`
-- `filetype=markdown`
+- a generic chat client
+- a browser-first experience
+- a terminal wrapper with minimal editor integration
 
-The plugin tags its buffers with buffer variables so your own markdown autocommands or renderers can target them cleanly:
+## Docs
 
-- `b:neovim_codex = true`
-- `b:neovim_codex_role = "transcript" | "composer" | "details" | "events"`
-- `b:neovim_codex_thread_id = <thread-id>`
+Start here after the landing page:
 
-That means existing markdown treesitter, conceal, render-markdown, and ftplugin customization can apply naturally inside the overlay. Foldable secondary sections are projected as markdown headings with attribute markers such as `### Command {.foldable}`, so your own markdown tooling can choose how to treat them.
+- [docs/usage/lazy-nvim.md](docs/usage/lazy-nvim.md) - installation and dogfood setup
+- [docs/usage/chat.md](docs/usage/chat.md) - day-to-day chat, thread, request, and workbench flows
+- [docs/usage/reference.md](docs/usage/reference.md) - command surface, keymaps, transcript rules, and configuration details
+- [docs/vision/README.md](docs/vision/README.md) - where the product is trying to go
+- [docs/contracts/README.md](docs/contracts/README.md) - the app-server and NeoVim boundaries this plugin tracks
+- [docs/development/workflow.md](docs/development/workflow.md) - local development and verification loop
 
-The overlay also exposes heading highlight groups you can override in your own config:
+## Current Status
 
-- `NeovimCodexChatTurnHeading`
-- `NeovimCodexChatUserHeading`
-- `NeovimCodexChatAssistantHeading`
-- `NeovimCodexChatPlanHeading`
-- `NeovimCodexChatReasoningHeading`
-- `NeovimCodexChatActivityHeading`
-- `NeovimCodexChatCommandHeading`
-- `NeovimCodexChatFileChangeHeading`
-- `NeovimCodexChatToolHeading`
-- `NeovimCodexChatReviewHeading`
-- `NeovimCodexChatNoticeHeading`
+The current slice already supports the usable core loop:
 
-## Current Limitations
+- start and talk to `codex app-server`
+- create, resume, read, fork, rename, archive, and tune threads
+- inspect activity without drowning the main transcript in raw command noise
+- stage code, diagnostics, and runtime notes into a workbench
+- preview and send compiled packets with explicit fragment handles
 
-- a newly created thread without a persisted user turn may not appear in `thread/list` yet and may not be resumable from storage yet
-- `thread/read` with `includeTurns=true` can fail for an empty thread before the first user message is persisted; the plugin falls back to a metadata-only read in that case
-- the transcript now keeps activity terse by default and routes verbose execution detail through `:CodexInspect`; raw protocol remains in `:CodexEvents`
-
-
-## Contract Tracking
-
-The plugin keeps a narrow watched contract for the Codex app-server surface it depends on.
-
-- the upstream source of truth is the local Codex checkout at `CODEX_REPO_ROOT`
-- `CODEX_REPO_ROOT` is intended to come from a local `.envrc` loaded by `direnv`
-- human-facing contract docs live under `docs/contracts/`
-- the machine-checked manifest lives at `contracts/codex-app-server/watch-manifest.json`
-- checked snapshots of the watched generated TypeScript files live under `contracts/codex-app-server/snapshots/`
-- `scripts/check_codex_app_server_contracts.py` compares the current Codex schema against those snapshots
-- `./scripts/contracts-check` is the preferred drift-check entrypoint
-
-Create a local `.envrc` from `.envrc.example`, point `CODEX_REPO_ROOT` at your Codex checkout root, then run `direnv allow`.
-
-Use `./scripts/contracts-check` when the local Codex source tree changes and `./scripts/contracts-check --generate` when you intentionally want to compare against the installed `codex` binary instead of the configured checkout.
-
-## Development Workflow
-
-- Run the automated checks with `./scripts/test`
-- Use the in-editor dogfood loop:
-  1. `:Lazy reload neovim-codex`
-  2. `:checkhealth neovim_codex`
-  3. `:CodexChat`
-  4. `:CodexThreadNew`
-  5. write a short prompt in the composer and press `<C-s>`
-  6. inspect `:CodexEvents` if something looks wrong
-
-A fuller workflow note lives in [`docs/development/workflow.md`](docs/development/workflow.md).
-
-## Configuration
-
-```lua
-require("neovim_codex").setup({
-  keymaps = {
-    global_fast_modes = { "n", "i", "x" }, -- fast open/reopen actions can stay available across common modes
-    global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
-    global = {
-      chat = "<C-,>", -- toggle the chat overlay
-      request = "<C-.>", -- reopen the active approval or question
-      shortcuts = "<F1>", -- reopen the current shortcut sheet
-      new_thread = "<leader>cn", -- create a fresh thread immediately
-      new_thread_config = "<leader>cN", -- create a thread through the configurable setup flow
-      threads = "<leader>ct", -- open the thread picker
-      thread_settings = "<leader>cs", -- edit sticky thread runtime settings
-      thread_unarchive = "<leader>cu", -- restore an archived thread
-      thread_compact = "<leader>ck", -- start manual thread compaction
-      turn_steer = "<leader>cS", -- steer the currently running turn
-      workbench = "<leader>cw", -- toggle the workbench tray
-      compose = "<leader>cp", -- open compose review
-      capture_path = "<leader>cf", -- stage the current file path
-      capture_selection = "<leader>cx", -- stage the current visual selection
-      capture_diagnostic = "<leader>cd", -- stage the diagnostic under cursor
-    },
-  },
-  ui = {
-    chat = {
-      layout = {
-        width = 0.88, -- relative editor width for the main chat overlay
-        height = 0.84, -- relative editor height for the main chat overlay
-        border = "rounded", -- border style passed through to the floating layout
-      },
-      composer = {
-        min_height = 6, -- keep the composer comfortably multiline
-        max_height = 12, -- cap the composer so transcript space is preserved
-      },
-    },
-    workbench = {
-      tray = {
-        width = 0.34, -- compact peek window for staged fragments
-        height = 0.30,
-      },
-    },
-  },
-})
-```
-
-Most users only need `keymaps.global`.
-
-Use `codex_cmd` only if `codex` is not on your `PATH` or you want to point at a specific binary. The `client_info`, `experimental_api`, and log-limit fields are plugin-owned defaults and are intentionally left out of normal user config examples.
-
-The older `ui.chat.width`, `ui.chat.prompt_height`, `ui.chat.wrap`, and `keymaps.prompt` values are normalized into the new layout/composer shape so your local config does not break immediately.
-
-## Repository Layout
-
-- `lua/neovim_codex/core/` - pure Lua protocol, selectors, and state logic
-- `lua/neovim_codex/nvim/chat/` - semantic document projection, overlay surface, and composer modules
-- `lua/neovim_codex/nvim/` - NeoVim runtime bridge and presentation helpers
-- `plugin/` - user command registration
-- `docs/architecture/` - stable architecture notes
-- `docs/development/` - local development and dogfooding workflow
-- `docs/episodes/` - episodic progress notes for future context injection
-- `docs/usage/` - installation and usage flows
-- `tests/` - headless unit and integration test runners
-- `scripts/` - local development commands
-
-## Next Steps
-
-1. add thread history UI with server-backed fork and rollback
-2. add explicit prompt composition from buffer, LSP, and tree-sitter context
-3. add dynamic tools and the first TypeScript adapter daemon
-
-
-Lua API:
-- `require("neovim_codex").capture_text_fragment({ label = "Latest test run", text = "...", filetype = "markdown", source = "neotest", category = "runtime" })` stages a first-class `text_note` fragment without pretending the text came from a file.
+It does not yet implement dynamic tools or language-specific adapter daemons, but the app-server-native chat/session/workbench loop is already in place.

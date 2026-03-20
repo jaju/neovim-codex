@@ -69,6 +69,7 @@ Use these to install and exercise the plugin.
 
 - `usage/lazy-nvim.md` - step-by-step setup for a local `lazy.nvim` configuration
 - `usage/chat.md` - daily chat, thread, and report flows inside NeoVim
+- `usage/reference.md` - commands, keymaps, transcript rules, and configuration notes
 
 ## Episodic Notes
 
