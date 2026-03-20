@@ -288,6 +288,7 @@ function RailSplit:_sync_windows()
     vim.wo[self.transcript_win].linebreak = transcript_opts.wrap ~= false
     vim.wo[self.transcript_win].scrollbind = false
     vim.wo[self.transcript_win].cursorbind = false
+    vim.wo[self.transcript_win].scrolloff = math.max(1, self:_composer_total_height())
     vim.wo[self.transcript_win].winfixwidth = true
   end
 
