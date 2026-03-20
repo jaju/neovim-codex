@@ -527,6 +527,11 @@ function M.chat()
   if not chat.is_visible() and not rt.client:status().initialized then
     M.start()
   end
+  local chat_state = chat.inspect()
+  if chat_state.visible and chat_state.mode == "rail" then
+    chat.close()
+    return true
+  end
   return reveal_chat(rt, "rail")
 end
 

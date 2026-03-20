@@ -76,7 +76,13 @@ assert(chat_state.composer_buf and vim.api.nvim_buf_is_valid(chat_state.composer
 assert(vim.bo[chat_state.transcript_buf].filetype == "markdown", "transcript should use markdown")
 assert(vim.bo[chat_state.composer_buf].filetype == "markdown", "composer should use markdown")
 assert(vim.bo[chat_state.composer_buf].buftype == "nofile", "composer should be a normal scratch buffer")
-assert(count_chat_shell_windows() == 2, "rail mode should mount exactly two split windows")
+assert(count_chat_shell_windows() == 2, "rail mode should mount exactly two chat windows")
+local rail_composer_config = vim.api.nvim_win_get_config(chat_state.composer_win)
+assert(rail_composer_config.relative == "editor", "rail composer should be a child float instead of a second real split")
+assert(vim.wo[chat_state.transcript_win].scrollbind == false, "rail transcript should not inherit scrollbind")
+assert(vim.wo[chat_state.transcript_win].cursorbind == false, "rail transcript should not inherit cursorbind")
+assert(vim.wo[chat_state.composer_win].scrollbind == false, "rail composer should not inherit scrollbind")
+assert(vim.wo[chat_state.composer_win].cursorbind == false, "rail composer should not inherit cursorbind")
 
 vim.api.nvim_set_current_win(chat_state.transcript_win)
 vim.api.nvim_feedkeys(termcodes("<C-w>w"), "xt", false)
@@ -108,8 +114,11 @@ assert(codex.get_chat_state().visible == true, "leaving the rail for an editor w
 assert(vim.api.nvim_get_current_win() == base_window, "editor focus should return to the original code window")
 
 codex.chat()
-assert(codex.get_chat_state().visible == true, "chat command should keep the rail available")
-assert(codex.get_chat_state().mode == "rail", "chat command should keep the side rail active")
+assert(codex.get_chat_state().visible == false, "chat command should toggle the rail closed when it is already open")
+
+codex.chat()
+assert(codex.get_chat_state().visible == true, "chat command should reopen the rail")
+assert(codex.get_chat_state().mode == "rail", "chat command should reopen the side rail")
 
 local visible_again_state = codex.get_chat_state()
 vim.api.nvim_set_current_win(visible_again_state.composer_win)

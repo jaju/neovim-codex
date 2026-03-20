@@ -48,6 +48,17 @@ local function define_default_highlight(name, target)
   })
 end
 
+local function escape_winbar(text)
+  return tostring(text or ""):gsub("%%", "%%%%"):gsub("<", ""):gsub(">", "")
+end
+
+local function normalized_border(value)
+  if value == nil or value == "" then
+    return "rounded"
+  end
+  return value
+end
+
 local function map_if(lhs, mode, rhs, opts)
   if not lhs then
     return
@@ -226,12 +237,42 @@ end
 
 function RailSplit:_refresh_titles()
   if valid_window(self.transcript_win) then
-    vim.wo[self.transcript_win].winbar = chat_layout.shell_title("rail", self.last_render)
-    vim.wo[self.transcript_win].statusline = self.last_render and (self.last_render.footer or "") or ""
+    vim.wo[self.transcript_win].winbar = escape_winbar(chat_layout.shell_title("rail", self.last_render))
+    vim.wo[self.transcript_win].statusline = ""
   end
   if valid_window(self.composer_win) then
-    vim.wo[self.composer_win].winbar = chat_layout.composer_title(self.opts, "rail")
+    pcall(vim.api.nvim_win_set_config, self.composer_win, self:_composer_config())
   end
+end
+
+function RailSplit:_composer_config()
+  local position = { 0, 0 }
+  local width = 48
+  local height = self:_composer_total_height()
+
+  if valid_window(self.transcript_win) then
+    position = vim.api.nvim_win_get_position(self.transcript_win)
+    width = vim.api.nvim_win_get_width(self.transcript_win)
+    local transcript_height = vim.api.nvim_win_get_height(self.transcript_win)
+    height = math.min(height, math.max(4, transcript_height))
+    position[1] = position[1] + math.max(0, transcript_height - height)
+  end
+
+  local layout_opts = ((self.opts.ui or {}).chat or {}).layout or {}
+
+  return {
+    relative = "editor",
+    row = position[1],
+    col = position[2],
+    width = width,
+    height = height,
+    style = "minimal",
+    border = normalized_border(layout_opts.border),
+    title = chat_layout.composer_title(self.opts, "rail"),
+    title_pos = "left",
+    zindex = 60,
+    noautocmd = true,
+  }
 end
 
 function RailSplit:_sync_windows()
@@ -245,13 +286,17 @@ function RailSplit:_sync_windows()
     vim.wo[self.transcript_win].foldcolumn = "0"
     vim.wo[self.transcript_win].wrap = transcript_opts.wrap ~= false
     vim.wo[self.transcript_win].linebreak = transcript_opts.wrap ~= false
+    vim.wo[self.transcript_win].scrollbind = false
+    vim.wo[self.transcript_win].cursorbind = false
     vim.wo[self.transcript_win].winfixwidth = true
   end
 
   if valid_window(self.composer_win) then
     vim.w[self.composer_win].neovim_codex_chat_shell = true
     vim.w[self.composer_win].neovim_codex_chat_role = "composer"
-    vim.wo[self.composer_win].winfixwidth = true
+    vim.wo[self.composer_win].scrollbind = false
+    vim.wo[self.composer_win].cursorbind = false
+    pcall(vim.api.nvim_win_set_config, self.composer_win, self:_composer_config())
   end
 
   self.composer:set_window(self.composer_win)
@@ -289,10 +334,7 @@ function RailSplit:_ensure_windows()
   vim.api.nvim_win_set_buf(self.transcript_win, transcript_bufnr)
   vim.api.nvim_win_set_width(self.transcript_win, dimensions.width)
 
-  vim.cmd("belowright split")
-  self.composer_win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(self.composer_win, composer_bufnr)
-  vim.api.nvim_win_set_height(self.composer_win, self:_composer_total_height())
+  self.composer_win = vim.api.nvim_open_win(composer_bufnr, false, self:_composer_config())
 
   if valid_window(self.transcript_win) then
     vim.api.nvim_set_current_win(self.transcript_win)
