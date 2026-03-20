@@ -144,6 +144,18 @@ function RailSplit:_apply_transcript_contract(bufnr)
   vim.b[bufnr].neovim_codex_role = "transcript"
 end
 
+function RailSplit:_apply_container_contract(bufnr)
+  vim.bo[bufnr].buftype = "nofile"
+  vim.bo[bufnr].bufhidden = "hide"
+  vim.bo[bufnr].swapfile = false
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].filetype = ""
+  vim.api.nvim_buf_set_name(bufnr, "neovim-codex://chat/rail")
+  vim.b[bufnr].neovim_codex = true
+  vim.b[bufnr].neovim_codex_role = "rail_container"
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "" })
+end
+
 function RailSplit:_bind_transcript_keymaps(bufnr)
   local keymaps = self.opts.keymaps.transcript or {}
   map_if(keymaps.close, "n", function()
@@ -224,6 +236,17 @@ function RailSplit:_ensure_transcript_buffer()
   return bufnr
 end
 
+function RailSplit:_ensure_container_buffer()
+  if valid_buffer(self.container_bufnr) then
+    return self.container_bufnr
+  end
+
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  self.container_bufnr = bufnr
+  self:_apply_container_contract(bufnr)
+  return bufnr
+end
+
 function RailSplit:_update_thread_context(thread_id)
   local current = thread_id or ""
   if valid_buffer(self.transcript_bufnr) then
@@ -236,6 +259,10 @@ function RailSplit:_update_thread_context(thread_id)
 end
 
 function RailSplit:_refresh_titles()
+  if valid_window(self.container_win) then
+    vim.wo[self.container_win].winbar = ""
+    vim.wo[self.container_win].statusline = ""
+  end
   if valid_window(self.transcript_win) then
     vim.wo[self.transcript_win].winbar = escape_winbar(chat_layout.shell_title("rail", self.last_render))
     vim.wo[self.transcript_win].statusline = ""
@@ -245,37 +272,79 @@ function RailSplit:_refresh_titles()
   end
 end
 
-function RailSplit:_composer_config()
+function RailSplit:_container_geometry()
   local position = { 0, 0 }
   local width = 48
-  local height = self:_composer_total_height()
+  local height = math.max(12, vim.o.lines - 2)
 
-  if valid_window(self.transcript_win) then
-    position = vim.api.nvim_win_get_position(self.transcript_win)
-    width = vim.api.nvim_win_get_width(self.transcript_win)
-    local transcript_height = vim.api.nvim_win_get_height(self.transcript_win)
-    height = math.min(height, math.max(4, transcript_height))
-    position[1] = position[1] + math.max(0, transcript_height - height)
+  if valid_window(self.container_win) then
+    position = vim.api.nvim_win_get_position(self.container_win)
+    width = vim.api.nvim_win_get_width(self.container_win)
+    height = vim.api.nvim_win_get_height(self.container_win)
   end
+
+  return {
+    row = position[1],
+    col = position[2],
+    width = width,
+    height = height,
+  }
+end
+
+function RailSplit:_transcript_config()
+  local geometry = self:_container_geometry()
+  local composer_height = self:_composer_total_height()
+  local transcript_height = math.max(4, geometry.height - composer_height)
+
+  return {
+    relative = "editor",
+    row = geometry.row,
+    col = geometry.col,
+    width = geometry.width,
+    height = transcript_height,
+    style = "minimal",
+    noautocmd = true,
+    zindex = 50,
+  }
+end
+
+function RailSplit:_composer_config()
+  local geometry = self:_container_geometry()
+  local height = math.min(self:_composer_total_height(), math.max(4, geometry.height - 4))
+  local row = geometry.row + math.max(0, geometry.height - height)
 
   local layout_opts = ((self.opts.ui or {}).chat or {}).layout or {}
 
   return {
     relative = "editor",
-    row = position[1],
-    col = position[2],
-    width = width,
+    row = row,
+    col = geometry.col,
+    width = geometry.width,
     height = height,
     style = "minimal",
-    border = normalized_border(layout_opts.border),
-    title = chat_layout.composer_title(self.opts, "rail"),
-    title_pos = "left",
+    border = normalized_border(layout_opts.border or "none"),
+    title = escape_winbar(chat_layout.composer_title(self.opts, "rail")),
+    title_pos = "center",
     zindex = 60,
     noautocmd = true,
   }
 end
 
 function RailSplit:_sync_windows()
+  if valid_window(self.container_win) then
+    vim.w[self.container_win].neovim_codex_chat_backing = true
+    vim.wo[self.container_win].number = false
+    vim.wo[self.container_win].relativenumber = false
+    vim.wo[self.container_win].signcolumn = "no"
+    vim.wo[self.container_win].foldcolumn = "0"
+    vim.wo[self.container_win].wrap = false
+    vim.wo[self.container_win].scrollbind = false
+    vim.wo[self.container_win].cursorbind = false
+    vim.wo[self.container_win].winfixwidth = true
+    vim.wo[self.container_win].winbar = ""
+    vim.wo[self.container_win].statusline = ""
+  end
+
   if valid_window(self.transcript_win) then
     local transcript_opts = self.opts.ui.chat.transcript or {}
     vim.w[self.transcript_win].neovim_codex_chat_shell = true
@@ -288,8 +357,7 @@ function RailSplit:_sync_windows()
     vim.wo[self.transcript_win].linebreak = transcript_opts.wrap ~= false
     vim.wo[self.transcript_win].scrollbind = false
     vim.wo[self.transcript_win].cursorbind = false
-    vim.wo[self.transcript_win].scrolloff = math.max(1, self:_composer_total_height())
-    vim.wo[self.transcript_win].winfixwidth = true
+    pcall(vim.api.nvim_win_set_config, self.transcript_win, self:_transcript_config())
   end
 
   if valid_window(self.composer_win) then
@@ -306,9 +374,10 @@ end
 
 function RailSplit:_ensure_windows()
   local stale = self.visible
-    and (not valid_window(self.transcript_win) or not valid_window(self.composer_win))
+    and (not valid_window(self.container_win) or not valid_window(self.transcript_win) or not valid_window(self.composer_win))
   if stale then
     self.visible = false
+    self.container_win = nil
     self.transcript_win = nil
     self.composer_win = nil
   end
@@ -319,6 +388,7 @@ function RailSplit:_ensure_windows()
   end
 
   local transcript_bufnr = self:_ensure_transcript_buffer()
+  local container_bufnr = self:_ensure_container_buffer()
   local composer_bufnr = self.composer:bufnr_value()
   local dimensions = chat_layout.rail_dimensions(self.opts)
   local current = vim.api.nvim_get_current_win()
@@ -331,10 +401,11 @@ function RailSplit:_ensure_windows()
   end
 
   vim.cmd("botright vsplit")
-  self.transcript_win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(self.transcript_win, transcript_bufnr)
-  vim.api.nvim_win_set_width(self.transcript_win, dimensions.width)
+  self.container_win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(self.container_win, container_bufnr)
+  vim.api.nvim_win_set_width(self.container_win, dimensions.width)
 
+  self.transcript_win = vim.api.nvim_open_win(transcript_bufnr, true, self:_transcript_config())
   self.composer_win = vim.api.nvim_open_win(composer_bufnr, false, self:_composer_config())
 
   if valid_window(self.transcript_win) then
@@ -400,6 +471,7 @@ end
 
 function RailSplit:hide()
   if not self.visible
+    and not valid_window(self.container_win)
     and not valid_window(self.transcript_win)
     and not valid_window(self.composer_win)
   then
@@ -410,7 +482,9 @@ function RailSplit:hide()
 
   local composer_win = self.composer_win
   local transcript_win = self.transcript_win
+  local container_win = self.container_win
   self.visible = false
+  self.container_win = nil
   self.composer_win = nil
   self.transcript_win = nil
 
@@ -419,6 +493,9 @@ function RailSplit:hide()
   end
   if valid_window(transcript_win) then
     pcall(vim.api.nvim_win_close, transcript_win, true)
+  end
+  if valid_window(container_win) then
+    pcall(vim.api.nvim_win_close, container_win, true)
   end
 
   if valid_window(self.last_editor_win) then
@@ -436,6 +513,7 @@ end
 
 function RailSplit:is_visible()
   return self.visible
+    and valid_window(self.container_win)
     and valid_window(self.transcript_win)
     and valid_window(self.composer_win)
 end
@@ -570,7 +648,7 @@ function RailSplit:inspect()
     visible = self:is_visible(),
     transcript_buf = self.transcript_bufnr,
     transcript_win = self.transcript_win,
-    container_win = nil,
+    container_win = self.container_win,
     composer_buf = self.composer:bufnr_value(),
     composer_win = self.composer_win,
     prompt_buf = self.composer:bufnr_value(),
@@ -588,6 +666,8 @@ function M.new(opts, handlers)
     opts = opts,
     handlers = handlers,
     composer = handlers.composer,
+    container_bufnr = nil,
+    container_win = nil,
     transcript_bufnr = nil,
     transcript_win = nil,
     composer_win = nil,
