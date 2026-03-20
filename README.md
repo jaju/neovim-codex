@@ -21,7 +21,7 @@ If you already think in buffers, motions, selections, diagnostics, and window la
 
 ## What You Get
 
-- a rail-first markdown chat shell with a widened reader mode
+- a real right-side split rail plus a separate centered overlay shell
 - protocol-backed approvals and request flows that reopen safely
 - thread and session controls for create, switch, fork, archive, rename, model, effort, approval policy, and collaboration mode
 - a workbench and compose review flow for packet-backed follow-up context
@@ -82,7 +82,7 @@ If you want the shortest path to a first successful run:
 2. confirm `codex` is available to NeoVim
 3. run `:checkhealth neovim_codex`
 4. run `:CodexSmoke`
-5. open the overlay with `:CodexChat`
+5. open the side rail with `:CodexChat`
 6. write a prompt in the composer and send it with `<C-s>` or `:CodexSend`
 
 If you want the full setup walkthrough, use [docs/usage/lazy-nvim.md](docs/usage/lazy-nvim.md).
@@ -105,7 +105,8 @@ Add a plugin spec like this to your `lazy.nvim` setup:
         global_fast_modes = { "n", "i", "x" },
         global_workflow_modes = { "n" },
         global = {
-          chat = false, -- set a mapping like "<C-,>" to toggle the chat overlay
+          chat = "<C-,>", -- open the side rail
+          chat_overlay = false, -- consider "<C-.>" if your terminal supports it
           request = "<F2>", -- reopen the active approval or question
           shortcuts = false,
           threads = false,
@@ -137,10 +138,10 @@ From a normal NeoVim session:
 
 Then:
 
-1. write your prompt in the composer at the bottom of the overlay
+1. write your prompt in the composer at the bottom of the side rail
 2. press `<C-s>` or run `:CodexSend`
 3. watch the transcript stream above it
-4. run `:CodexChat` again to hide the overlay
+4. use `q` inside the current chat shell to close it
 
 Useful commands for the common loop:
 

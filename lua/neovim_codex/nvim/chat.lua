@@ -1,5 +1,5 @@
-local presentation = require("neovim_codex.nvim.presentation")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
+local presentation = require("neovim_codex.nvim.presentation")
 local value = require("neovim_codex.core.value")
 
 local M = {}
@@ -10,13 +10,15 @@ local state = {
   opts = nil,
   unsubscribe = nil,
   composer = nil,
-  surface = nil,
-  document = nil,
+  overlay_surface = nil,
+  rail_surface = nil,
+  details = nil,
   render = nil,
   projector = nil,
   last_document = nil,
   last_render = nil,
   mode = nil,
+  visible_mode = nil,
   render_job = nil,
 }
 
@@ -28,8 +30,30 @@ local function open_help()
   require("neovim_codex").open_shortcuts()
 end
 
+local function normalize_mode(mode)
+  return require("neovim_codex.nvim.chat.layout").normalize_mode(mode, state.opts)
+end
+
 local function preferred_mode()
-  return require("neovim_codex.nvim.chat.layout").normalize_mode(state.mode, state.opts)
+  return normalize_mode(state.mode)
+end
+
+local function visible_surface()
+  if state.rail_surface and state.rail_surface:is_visible() then
+    return state.rail_surface
+  end
+  if state.overlay_surface and state.overlay_surface:is_visible() then
+    return state.overlay_surface
+  end
+  return nil
+end
+
+local function surface_for_mode(mode)
+  local resolved = normalize_mode(mode)
+  if resolved == "rail" then
+    return state.rail_surface
+  end
+  return state.overlay_surface
 end
 
 local function ensure_modules()
@@ -54,8 +78,24 @@ local function ensure_modules()
   return true
 end
 
-local function ensure_surface()
-  if state.surface and state.composer and state.details then
+local function focus_transcript()
+  local surface = visible_surface()
+  if surface then
+    surface:focus_transcript()
+  end
+end
+
+local function set_composer_height(height)
+  if state.rail_surface then
+    state.rail_surface:set_composer_height(height)
+  end
+  if state.overlay_surface then
+    state.overlay_surface:set_composer_height(height)
+  end
+end
+
+local function ensure_surfaces()
+  if state.overlay_surface and state.rail_surface and state.composer and state.details then
     return true
   end
 
@@ -65,9 +105,15 @@ local function ensure_surface()
     return false
   end
 
-  local ok_surface, surface_mod = pcall(require, "neovim_codex.nvim.chat.surface")
-  if not ok_surface then
-    notify(string.format("Failed to load chat overlay. Install nui.nvim and reload: %s", surface_mod))
+  local ok_overlay, overlay_mod = pcall(require, "neovim_codex.nvim.chat.surface")
+  if not ok_overlay then
+    notify(string.format("Failed to load chat overlay. Install nui.nvim and reload: %s", overlay_mod))
+    return false
+  end
+
+  local ok_rail, rail_mod = pcall(require, "neovim_codex.nvim.chat.rail_split")
+  if not ok_rail then
+    notify(string.format("Failed to load rail chat surface: %s", rail_mod))
     return false
   end
 
@@ -87,11 +133,7 @@ local function ensure_surface()
     hide = function()
       M.close()
     end,
-    focus_transcript = function()
-      if state.surface then
-        state.surface:focus_transcript()
-      end
-    end,
+    focus_transcript = focus_transcript,
     open_request = function()
       require("neovim_codex").open_request()
     end,
@@ -102,16 +144,12 @@ local function ensure_surface()
       M.toggle_reader()
     end,
     open_help = open_help,
-    on_height_changed = function(height)
-      if state.surface then
-        state.surface:set_composer_height(height)
-      end
-    end,
+    on_height_changed = set_composer_height,
   })
 
   state.details = details_mod.new(state.opts)
 
-  state.surface = surface_mod.new(state.opts, {
+  local common_handlers = {
     composer = state.composer,
     close_overlay = function()
       M.close()
@@ -132,13 +170,15 @@ local function ensure_surface()
       M.toggle_reader()
     end,
     open_help = open_help,
-  })
+  }
 
+  state.overlay_surface = overlay_mod.new(state.opts, common_handlers)
+  state.rail_surface = rail_mod.new(state.opts, common_handlers)
   return true
 end
 
 local function render()
-  if not state.store or not ensure_modules() or not ensure_surface() then
+  if not state.store or not ensure_modules() or not ensure_surfaces() then
     return false
   end
 
@@ -147,7 +187,11 @@ local function render()
   local render_result = state.render.render(document)
   state.last_document = document
   state.last_render = render_result
-  state.surface:update(render_result)
+
+  local current_surface = visible_surface()
+  if current_surface then
+    current_surface:update(render_result)
+  end
   return true
 end
 
@@ -164,26 +208,38 @@ local function attach(store)
   state.store = store
   state.render_job = coalesced_schedule.new(render)
   state.unsubscribe = store:subscribe(function()
-    if not (state.surface and state.surface:is_visible()) then
+    if not state.visible_mode then
       return
     end
     state.render_job:trigger()
   end)
 end
 
-local function show_overlay(mode)
-  if not ensure_surface() then
+local function show_surface(mode)
+  if not ensure_surfaces() then
     return false
   end
-  local reuse_render = state.surface and state.surface:is_visible() and state.last_render ~= nil
-  state.mode = require("neovim_codex.nvim.chat.layout").normalize_mode(mode or state.mode, state.opts)
-  state.surface:set_mode(state.mode)
-  state.surface:show()
+
+  local target_mode = normalize_mode(mode or state.mode)
+  local next_surface = surface_for_mode(target_mode)
+  local current_surface = visible_surface()
+  local reuse_render = current_surface == next_surface and state.last_render ~= nil
+
+  if current_surface and current_surface ~= next_surface then
+    current_surface:hide()
+  end
+
+  state.mode = target_mode
+  state.visible_mode = target_mode
+  next_surface:set_mode(target_mode)
+  next_surface:show()
+
   if reuse_render and state.last_render then
-    state.surface:update(state.last_render)
+    next_surface:update(state.last_render)
   else
     render()
   end
+
   state.composer:focus()
   return true
 end
@@ -193,43 +249,44 @@ function M.open(store, opts, actions)
   state.actions = actions or {}
   state.mode = preferred_mode()
   attach(store)
-  return show_overlay(state.mode)
+  return show_surface(state.mode)
 end
 
 function M.open_with_mode(store, opts, actions, mode)
   state.opts = opts
   state.actions = actions or {}
-  state.mode = require("neovim_codex.nvim.chat.layout").normalize_mode(mode, opts)
+  state.mode = normalize_mode(mode)
   attach(store)
-  return show_overlay(state.mode)
+  return show_surface(state.mode)
 end
 
 function M.toggle(store, opts, actions)
   state.opts = opts
   state.actions = actions or {}
   attach(store)
-  if not ensure_surface() then
+  if not ensure_surfaces() then
     return false
   end
 
   local target_mode = preferred_mode()
-  if state.surface:is_visible() and state.surface:mode() == target_mode then
+  local current_surface = visible_surface()
+  if current_surface and current_surface:mode() == target_mode then
     M.close()
     return true
   end
 
-  return show_overlay(target_mode)
+  return show_surface(target_mode)
 end
 
 function M.read_draft()
-  if not ensure_surface() then
+  if not ensure_surfaces() then
     return ""
   end
   return state.composer:read()
 end
 
 function M.set_draft(text)
-  if not ensure_surface() then
+  if not ensure_surfaces() then
     return false
   end
   state.composer:set_text(text or "")
@@ -237,7 +294,7 @@ function M.set_draft(text)
 end
 
 function M.clear_draft()
-  if not ensure_surface() then
+  if not ensure_surfaces() then
     return false
   end
   state.composer:clear()
@@ -245,15 +302,16 @@ function M.clear_draft()
 end
 
 function M.current_block()
-  if not ensure_surface() then
+  if not ensure_surfaces() then
     return nil
   end
-  return state.surface:current_block()
+  local surface = visible_surface() or surface_for_mode(preferred_mode())
+  return surface and surface:current_block() or nil
 end
 
 function M.submit()
-  if not ensure_surface() then
-    return nil, "chat overlay is unavailable"
+  if not ensure_surfaces() then
+    return nil, "chat shell is unavailable"
   end
 
   local text = state.composer:read()
@@ -270,15 +328,16 @@ function M.submit()
 end
 
 function M.inspect_current_block()
-  if not ensure_surface() then
-    return nil, "chat overlay is unavailable"
+  if not ensure_surfaces() then
+    return nil, "chat shell is unavailable"
   end
 
-  if not state.surface:is_visible() then
-    return nil, "chat overlay is hidden"
+  local surface = visible_surface()
+  if not surface then
+    return nil, "chat shell is hidden"
   end
 
-  local block = state.surface:current_block()
+  local block = surface:current_block()
   if not block then
     return nil, "no transcript block is selected"
   end
@@ -288,19 +347,22 @@ function M.inspect_current_block()
 end
 
 function M.toggle_reader()
-  if not ensure_surface() then
+  if not ensure_surfaces() then
     return false
   end
-  local next_mode = state.surface:mode() == "reader" and "rail" or "reader"
+  local current_surface = visible_surface()
+  local current_mode = current_surface and current_surface:mode() or preferred_mode()
+  local next_mode = current_mode == "reader" and "rail" or "reader"
   state.mode = next_mode
-  return show_overlay(next_mode)
+  return show_surface(next_mode)
 end
 
 function M.focus_composer()
-  if not ensure_surface() then
+  if not ensure_surfaces() then
     return false
   end
-  return state.surface:focus_composer()
+  local surface = visible_surface() or surface_for_mode(preferred_mode())
+  return surface and surface:focus_composer() or false
 end
 
 function M.close()
@@ -308,20 +370,25 @@ function M.close()
   if state.details then
     state.details:hide()
   end
-  if state.surface then
-    state.surface:hide()
+  if state.overlay_surface then
+    state.overlay_surface:hide()
   end
+  if state.rail_surface then
+    state.rail_surface:hide()
+  end
+  state.visible_mode = nil
 end
 
 function M.is_visible()
-  return state.surface and state.surface:is_visible() or false
+  return visible_surface() ~= nil
 end
 
 function M.inspect()
-  local surface_state = state.surface and state.surface:inspect() or {}
+  local surface = visible_surface() or surface_for_mode(preferred_mode())
+  local surface_state = surface and surface:inspect() or {}
   surface_state.document = value.deep_copy(state.last_document)
   surface_state.render = value.deep_copy(state.last_render)
-  surface_state.mode = state.surface and state.surface:mode() or preferred_mode()
+  surface_state.mode = surface and surface:mode() or preferred_mode()
   surface_state.details = state.details and state.details:inspect() or {}
   surface_state.viewers = presentation.inspect_viewers()
   return surface_state

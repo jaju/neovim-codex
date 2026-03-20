@@ -24,13 +24,16 @@ COMMANDS                                               *neovim-codex-commands*
     Run the current smoke checks and open a report buffer.
 
 :CodexChat
-    Toggle the default Codex shell mode.
+    Open or focus the side rail.
 
 :CodexChatRail
     Open the narrow side-rail shell explicitly.
 
+:CodexChatOverlay
+    Open the centered overlay explicitly.
+
 :CodexChatReader
-    Open the widened reader explicitly.
+    Backward-compatible alias for :CodexChatOverlay.
 
 :CodexSend
     Send the current composer contents, or open compose review when staged
@@ -105,20 +108,21 @@ COMMANDS                                               *neovim-codex-commands*
 ==============================================================================
 CHAT                                                           *neovim-codex-chat*
 
-The current chat UI is rail-first:
+The current chat UI has two explicit shells:
 
 - the default shell is a narrow right-side rail
-- the reader is a wider centered view of the same thread state
+- the overlay is a wider centered view of the same thread state
 - both modes keep the markdown transcript above the multiline markdown
   composer
 
 Run >
     :CodexChat
 <
-to toggle the default shell mode.
+to open or focus the side rail.
 
 Use >
     :CodexChatRail
+    :CodexChatOverlay
     :CodexChatReader
 <
 when you want an explicit mode.
@@ -132,10 +136,7 @@ Usage:
    If the workbench is non-empty, compose review opens first so you can place
    fragment handles such as [[f1]] into the packet template.
 3. Use <CR> for newlines.
-4. Run >
-    :CodexChat
-<
-   again to hide the overlay.
+4. Use `q` inside the current shell to close it.
 
 The transcript is protocol-first. It projects app-server item types into stable
 surfaces instead of dumping shell output directly.
@@ -151,12 +152,12 @@ Examples:
 
 Default transcript mappings:
 
-- `q` hide the overlay
+- `q` close the current chat shell
 - `gr` reopen the active thread inbox
-- `gR` toggle between rail and reader widths
+- `gR` switch between the side rail and the centered overlay
 - `i` focus the composer
 - insert-like keys (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
-- `<C-w>w` switch between transcript and composer without leaving the overlay
+- `<C-w>w` switch between transcript and composer without leaving the current shell
 - `<CR>` inspect the selected transcript block in the stacked viewer layer
 - `[[` jump to the previous turn
 - `]]` jump to the next turn
@@ -169,10 +170,10 @@ Default composer mappings:
 - `gS` send the current draft from normal mode
 - `gT` steer the running turn with the current draft
 - `<C-w>w` in normal mode switches back to the transcript
-- `q` in normal mode hides the overlay
+- `q` in normal mode closes the current chat shell
 - `gr` reopen the active thread inbox
 - `gs` open the active thread settings sheet
-- `gR` toggle between rail and reader widths
+- `gR` switch between the side rail and the centered overlay
 - `g?` or `<F1>` in normal mode opens the shortcut sheet for the current surface
 - `<CR>` inserts a newline
 
@@ -221,7 +222,7 @@ reopened with `<F2>`.
 If `<C-s>` is captured by terminal flow control, remap
 `keymaps.composer.send` or run `stty -ixon`.
 
-Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one. If focus leaves plugin-owned windows, the chat overlay closes so the cursor never disappears behind the modal.
+Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one. The side rail and the centered overlay are mutually exclusive alternate views over the same chat state.
 
 Blocking request flows are protocol-first and do not render inline as transcript content. When Codex asks for command approval, file-change approval, or tool input, the plugin opens a dedicated request viewer above the chat overlay in normal mode. Use `:CodexRequest` to reopen the active request if you hide it before responding. File-change approvals also expose a dedicated review surface through `:CodexReview` or the request-local `o` mapping. Within that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
 

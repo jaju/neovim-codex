@@ -2,29 +2,30 @@
 
 This is the day-to-day user flow for the current plugin slice.
 
-## Open the overlay
+## Open chat
 
 ```vim
 :CodexChat
 ```
 
-This toggles the default Codex shell mode, which is now a narrow right-side rail.
+This opens or focuses the side rail, which is a real right-side split.
 
 Use these when you want an explicit mode:
 
 ```vim
 :CodexChatRail
+:CodexChatOverlay
 :CodexChatReader
 ```
 
-The rail keeps Codex available as an operational shell. The reader opens the same transcript/composer state in a wider centered view for comfortable reading.
+The rail keeps Codex visible while you keep editing. The overlay opens the same transcript/composer state in a centered float for focused reading. `:CodexChatReader` remains as a compatibility alias for the overlay.
 
 The shell contains:
 
 - a markdown transcript at the top
 - a multiline markdown composer at the bottom
 
-Run `:CodexChat` again to hide it.
+Use `q` inside the current shell to close it.
 
 ## Send a turn
 
@@ -53,7 +54,7 @@ You should expect to see:
 
 You should not expect the main transcript to become a raw protocol dump or a live execution log.
 
-Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing. Both now open in the same stacked viewer layer above the chat overlay, so `q` or `<Esc>` closes the latest viewer and returns you to the previous one. If focus leaves all plugin-owned windows, the chat overlay closes instead of leaving a hidden cursor behind the modal.
+Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing. Both now open in the same stacked viewer layer above the centered overlay when it is active. The side rail and the centered overlay are mutually exclusive alternate views over the same chat state.
 
 ## Blocking requests
 
@@ -118,16 +119,16 @@ It reports whether Codex is running, waiting for a request response, idle, stopp
 - `:CodexReview [request-key]` - open the current pending file-change review, or reopen one by request key
 - `:CodexInterrupt` - interrupt the current turn
 
-## Default overlay mappings
+## Default shell mappings
 
 Transcript buffer:
 
-- `q` - hide the overlay
+- `q` - close the current chat shell
 - `gr` - reopen the active thread inbox
-- `gR` - toggle between rail and reader widths
+- `gR` - switch between the side rail and the centered overlay
 - `i` - jump to the composer
 - insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
-- `<C-w>w` - switch to the composer without leaving the overlay
+- `<C-w>w` - switch to the composer without leaving the current shell
 - `<CR>` - inspect the selected transcript block in the stacked viewer layer
 - `[[` - previous turn
 - `]]` - next turn
@@ -139,10 +140,10 @@ Composer buffer:
 - `gS` in normal mode - send the current draft
 - `gT` in normal mode - steer the running turn with the current draft
 - `<C-w>w` in normal mode - switch back to the transcript
-- `q` in normal mode - hide the overlay
+- `q` in normal mode - close the current chat shell
 - `gr` in normal mode - reopen the active thread inbox
 - `gs` in normal mode - open the active thread settings sheet
-- `gR` in normal mode - toggle between rail and reader widths
+- `gR` in normal mode - switch between the side rail and the centered overlay
 - `g?` or `<F1>` in normal mode - open the shortcut sheet for the current surface
 - `<CR>` - insert a newline
 

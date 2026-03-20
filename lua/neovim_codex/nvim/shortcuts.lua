@@ -61,7 +61,8 @@ end
 local function fast_entries(config)
   local global = (config.keymaps or {}).global or {}
   local entries = {}
-  add_mapping(entries, global.chat, "Toggle the Codex shell")
+  add_mapping(entries, global.chat, "Open the Codex side rail")
+  add_mapping(entries, global.chat_overlay, "Open the centered Codex overlay")
   add_mapping(entries, global.request, "Reopen the active thread inbox")
   add_mapping(entries, global.shortcuts, "Open this shortcut sheet from anywhere")
   return entries
@@ -99,10 +100,10 @@ local function surface_entries(config, surface)
     add_mapping(entries, keymaps.switch_pane, "Switch between transcript and composer")
     add_mapping(entries, keymaps.request, "Reopen the active thread inbox")
     add_mapping(entries, keymaps.settings, "Edit the active thread settings")
-    add_mapping(entries, keymaps.toggle_reader, "Toggle between rail and reader widths")
-    add_mapping(entries, keymaps.prev_turn, "Jump to the previous turn")
+    add_mapping(entries, keymaps.toggle_reader, "Switch between side rail and centered overlay")
     add_mapping(entries, keymaps.next_turn, "Jump to the next turn")
-    add_mapping(entries, keymaps.close, "Hide the chat overlay")
+    add_mapping(entries, keymaps.prev_turn, "Jump to the previous turn")
+    add_mapping(entries, keymaps.close, "Close the current chat shell")
     add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
   elseif surface == "composer" then
     local keymaps = (config.keymaps or {}).composer or {}
@@ -112,8 +113,8 @@ local function surface_entries(config, surface)
     add_mapping(entries, keymaps.switch_pane, "Switch between composer and transcript")
     add_mapping(entries, keymaps.request, "Reopen the active thread inbox")
     add_mapping(entries, keymaps.settings, "Edit the active thread settings")
-    add_mapping(entries, keymaps.toggle_reader, "Toggle between rail and reader widths")
-    add_mapping(entries, keymaps.close, "Hide the chat overlay")
+    add_mapping(entries, keymaps.toggle_reader, "Switch between side rail and centered overlay")
+    add_mapping(entries, keymaps.close, "Close the current chat shell")
     add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
   elseif surface == "request" then
     local keymaps = (config.keymaps or {}).request or {}

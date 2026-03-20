@@ -40,26 +40,6 @@ function M.overlay_config(opts, mode)
   local layout_opts = chat_opts.layout or {}
   local shell_mode = M.normalize_mode(mode, opts)
   local ui_width, ui_height = ui_size()
-
-  if shell_mode == "rail" then
-    local rail_opts = layout_opts.rail or {}
-    local width = resolve_dimension(rail_opts.width or 0.42, ui_width, 48)
-    local height = resolve_dimension(rail_opts.height or (ui_height - 2), ui_height, 16)
-    local margin_top = resolve_dimension(rail_opts.margin_top or 1, ui_height, 0)
-    local margin_right = resolve_dimension(rail_opts.margin_right or 1, ui_width, 0)
-    return {
-      mode = shell_mode,
-      position = {
-        row = math.max(0, margin_top),
-        col = math.max(0, ui_width - width - margin_right),
-      },
-      size = {
-        width = width,
-        height = math.min(height, math.max(16, ui_height - margin_top)),
-      },
-    }
-  end
-
   local reader_opts = layout_opts.reader or {}
   local width = resolve_dimension(reader_opts.width or layout_opts.width or 0.88, ui_width, 60)
   local height = resolve_dimension(reader_opts.height or layout_opts.height or 0.84, ui_height, 16)
@@ -73,6 +53,17 @@ function M.overlay_config(opts, mode)
       width = width,
       height = height,
     },
+  }
+end
+
+function M.rail_dimensions(opts)
+  local chat_opts = ((opts or {}).ui or {}).chat or {}
+  local layout_opts = chat_opts.layout or {}
+  local rail_opts = layout_opts.rail or {}
+  local ui_width, ui_height = ui_size()
+  return {
+    width = resolve_dimension(rail_opts.width or 0.42, ui_width, 48),
+    height = resolve_dimension(rail_opts.height or (ui_height - 2), ui_height, 16),
   }
 end
 
@@ -92,8 +83,8 @@ function M.composer_title(opts, mode)
   local send = keymaps.send or "<C-s>"
   local inbox = keymaps.request or "gr"
   local reader = keymaps.toggle_reader or "gR"
-  local shell = mode == "reader" and "reader" or "rail"
-  return string.format(" Compose · %s send · %s inbox · %s %s ", send, inbox, reader, shell == "reader" and "rail" or "reader")
+  local shell = mode == "reader" and "overlay" or "rail"
+  return string.format(" Compose · %s send · %s inbox · %s %s ", send, inbox, reader, shell == "overlay" and "rail" or "overlay")
 end
 
 return M

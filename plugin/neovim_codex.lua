@@ -26,8 +26,12 @@ vim.api.nvim_create_user_command("CodexChatRail", function()
   require("neovim_codex").open_chat_rail()
 end, {})
 
+vim.api.nvim_create_user_command("CodexChatOverlay", function()
+  require("neovim_codex").open_chat_overlay()
+end, {})
+
 vim.api.nvim_create_user_command("CodexChatReader", function()
-  require("neovim_codex").open_chat_reader()
+  require("neovim_codex").open_chat_overlay()
 end, {})
 
 vim.api.nvim_create_user_command("CodexSend", function()

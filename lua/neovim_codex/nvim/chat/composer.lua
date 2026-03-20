@@ -72,10 +72,10 @@ function Composer:_bind_keymaps(bufnr)
     if self.handlers.toggle_reader then
       self.handlers.toggle_reader()
     end
-  end, { buffer = bufnr, desc = "Toggle Codex reader width" })
+  end, { buffer = bufnr, desc = "Switch Codex chat shell" })
   map_if(keymaps.close, "n", function()
     self.handlers.hide()
-  end, { buffer = bufnr, desc = "Hide Codex overlay" })
+  end, { buffer = bufnr, desc = "Close Codex chat shell" })
   surface_help.bind(map_if, self.opts, keymaps.help, "n", function()
     self.handlers.open_help()
   end, { buffer = bufnr, desc = "Codex chat help" })

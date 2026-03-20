@@ -189,7 +189,7 @@ function Surface:_bind_transcript_keymaps(bufnr)
       return
     end
     self:hide()
-  end, { buffer = bufnr, desc = "Hide Codex overlay" })
+  end, { buffer = bufnr, desc = "Close Codex chat shell" })
   map_if(keymaps.focus_composer, "n", function()
     self.handlers.focus_composer()
   end, { buffer = bufnr, desc = "Focus Codex composer" })
@@ -220,7 +220,7 @@ function Surface:_bind_transcript_keymaps(bufnr)
     if self.handlers.toggle_reader then
       self.handlers.toggle_reader()
     end
-  end, { buffer = bufnr, desc = "Toggle Codex reader width" })
+  end, { buffer = bufnr, desc = "Switch Codex chat shell" })
   map_if(keymaps.inspect, "n", function()
     self.handlers.inspect_current_block()
   end, { buffer = bufnr, desc = "Inspect current Codex block" })

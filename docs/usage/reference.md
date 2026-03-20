@@ -10,9 +10,10 @@ Core commands:
 - `:CodexStop` - stop the running app-server process
 - `:CodexStatus` - print current connection state and active thread id
 - `:CodexSmoke` - run the current smoke checks and open a report buffer
-- `:CodexChat` - toggle the default Codex shell mode
+- `:CodexChat` - open or focus the side rail
 - `:CodexChatRail` - open the narrow side-rail shell explicitly
-- `:CodexChatReader` - open the widened reader explicitly
+- `:CodexChatOverlay` - open the centered overlay explicitly
+- `:CodexChatReader` - backward-compatible alias for `:CodexChatOverlay`
 - `:CodexSend` - send the current composer contents, or open compose review if the workbench is non-empty
 - `:CodexInspect` - push a details viewer for the selected transcript block
 - `:CodexEvents` - open the protocol event log in the stacked viewer layer
@@ -55,12 +56,12 @@ Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or 
 
 Transcript buffer defaults:
 
-- `q` - hide the overlay
+- `q` - close the current chat shell
 - `gr` - reopen the active thread inbox
-- `gR` - toggle between rail and reader widths
+- `gR` - switch between the side rail and the centered overlay
 - `i` - focus the composer
 - insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode in the read-only transcript
-- `<C-w>w` - switch between transcript and composer without leaving the overlay
+- `<C-w>w` - switch between transcript and composer without leaving the current shell
 - `<CR>` - push the selected transcript block onto the viewer stack
 - `[[` - jump to the previous turn boundary
 - `]]` - jump to the next turn boundary
@@ -72,10 +73,10 @@ Composer buffer defaults:
 - `gS` in normal mode - send the current draft
 - `gT` in normal mode - steer the running turn with the current draft
 - `<C-w>w` in normal mode - switch back to the transcript
-- `q` in normal mode - hide the overlay
+- `q` in normal mode - close the current chat shell
 - `gr` in normal mode - reopen the active thread inbox
 - `gs` in normal mode - open the active thread settings
-- `gR` in normal mode - toggle between rail and reader widths
+- `gR` in normal mode - switch between the side rail and the centered overlay
 - `g?` or `<F1>` in normal mode - open the Codex shortcut sheet for the current surface
 - `<CR>` - insert a newline
 
@@ -122,7 +123,8 @@ require("neovim_codex").setup({
     global_workflow_modes = { "n" },
     global = {
       chat = "<C-,>",
-      request = "<C-.>",
+      chat_overlay = "<C-.>",
+      request = "<F2>",
       shortcuts = "<F1>",
       new_thread = "<leader>cn",
       new_thread_config = "<leader>cN",
@@ -161,7 +163,7 @@ For the design contract, see [docs/architecture/protocol-first.md](../architectu
 
 ## Markdown Buffer Contract
 
-The overlay transcript and composer are plain markdown buffers with normal NeoVim buffer contracts:
+The chat transcript and composer are plain markdown buffers with normal NeoVim buffer contracts:
 
 - `buftype=nofile`
 - `bufhidden=hide`

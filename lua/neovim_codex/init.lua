@@ -99,7 +99,8 @@ local defaults = {
     global_modes = { "n", "i", "x" },
     surface_help = "<F1>",
     global = {
-      chat = false,
+      chat = "<C-,>",
+      chat_overlay = false,
       new_thread = false,
       new_thread_config = false,
       threads = false,
@@ -220,7 +221,10 @@ local function apply_global_keymaps()
 
   map_if(keymaps.chat, fast_modes, function()
     require("neovim_codex").chat()
-  end, "Toggle Codex chat")
+  end, "Open the Codex side rail")
+  map_if(keymaps.chat_overlay, fast_modes, function()
+    require("neovim_codex").open_chat_overlay()
+  end, "Open the centered Codex overlay")
   map_if(keymaps.request, fast_modes, function()
     require("neovim_codex").open_request()
   end, "Open the active Codex request")
@@ -428,10 +432,6 @@ local function reveal_chat(rt, mode)
   return chat.open(rt.store, config, chat_actions())
 end
 
-local function toggle_chat(rt)
-  return chat.toggle(rt.store, config, chat_actions())
-end
-
 local function normalize_legacy_config(opts)
   opts = vim.deepcopy(opts or {})
   local chat_opts = ((opts.ui or {}).chat) or {}
@@ -527,7 +527,7 @@ function M.chat()
   if not chat.is_visible() and not rt.client:status().initialized then
     M.start()
   end
-  return toggle_chat(rt)
+  return reveal_chat(rt, "rail")
 end
 
 function M.open_chat_rail()
@@ -538,12 +538,16 @@ function M.open_chat_rail()
   return reveal_chat(rt, "rail")
 end
 
-function M.open_chat_reader()
+function M.open_chat_overlay()
   local rt = ensure_runtime()
   if not chat.is_visible() and not rt.client:status().initialized then
     M.start()
   end
   return reveal_chat(rt, "reader")
+end
+
+function M.open_chat_reader()
+  return M.open_chat_overlay()
 end
 
 function M.inspect_current_block(opts)
