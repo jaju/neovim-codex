@@ -148,12 +148,13 @@ function RailSplit:_apply_container_contract(bufnr)
   vim.bo[bufnr].buftype = "nofile"
   vim.bo[bufnr].bufhidden = "hide"
   vim.bo[bufnr].swapfile = false
-  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].modifiable = true
   vim.bo[bufnr].filetype = ""
   vim.api.nvim_buf_set_name(bufnr, "neovim-codex://chat/rail")
   vim.b[bufnr].neovim_codex = true
   vim.b[bufnr].neovim_codex_role = "rail_container"
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "" })
+  vim.bo[bufnr].modifiable = false
 end
 
 function RailSplit:_bind_transcript_keymaps(bufnr)
