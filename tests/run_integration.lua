@@ -348,10 +348,34 @@ assert(codex.get_workbench_state().tray.visible == false, "workbench tray should
 
 vim.fn.setpos("'<", { 0, 1, 1, 0 })
 vim.fn.setpos("'>", { 0, 3, 1, 0 })
-local selection_fragment, selection_err = codex.capture_visual_selection({ notify = false })
+local selection_fragment, selection_err = codex.capture_visual_selection({
+  notify = false,
+  selection_mode = "V",
+  start_pos = { 0, 1, 1, 0 },
+  end_pos = { 0, 3, 1, 0 },
+})
 assert(selection_err == nil, selection_err or "visual selection capture should succeed")
 assert(selection_fragment.kind == "code_range", "visual selection capture should stage a code_range fragment")
 assert(selection_fragment.handle == "f2", "second captured fragment should get the second stable handle")
+assert(selection_fragment.text:match("^# neovim%-codex"), "linewise selection capture should preserve the selected lines")
+
+vim.api.nvim_buf_set_lines(0, 0, -1, false, {
+  "abcde",
+  "fghij",
+  "klmno",
+})
+vim.fn.setpos("'<", { 0, 1, 2, 0 })
+vim.fn.setpos("'>", { 0, 3, 4, 0 })
+local block_fragment, block_err = codex.capture_visual_selection({
+  notify = false,
+  selection_mode = "\22",
+  start_pos = { 0, 1, 2, 0 },
+  end_pos = { 0, 3, 4, 0 },
+})
+assert(block_err == nil, block_err or "blockwise visual selection capture should succeed")
+assert(block_fragment.kind == "code_range", "blockwise capture should stage a code_range fragment")
+assert(block_fragment.text == "bcd\nghi\nlmn", "blockwise visual capture should preserve the rectangular text")
+assert(block_fragment.handle == "f3", "third captured fragment should get the next stable handle")
 
 local diagnostic_ns = vim.api.nvim_create_namespace("neovim_codex_test")
 vim.diagnostic.set(diagnostic_ns, 0, {
@@ -377,7 +401,7 @@ local note_fragment, note_err = codex.capture_text_fragment({
 })
 assert(note_err == nil, note_err or "text fragment capture should succeed")
 assert(note_fragment.kind == "text_note", "text fragment capture should stage a text_note fragment")
-assert(type(note_fragment.handle) == "string" and note_fragment.handle:match("^f%d+$"), "text fragment should get a stable workbench handle")
+assert(note_fragment.handle == "f4", "text fragment should get the next stable workbench handle")
 
 local before_review_count = #codex.get_workbench_state().workbench.fragments_order
 local review_result, review_err = codex.open_compose_review({ seed_message = "Preserve this review draft with [[f1]], [[f2]], [[f3]], and [[f4]]." })

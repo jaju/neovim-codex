@@ -4,6 +4,7 @@ local text_utils = require("neovim_codex.core.text")
 local value = require("neovim_codex.core.value")
 local coalesced_schedule = require("neovim_codex.nvim.coalesced_schedule")
 local presentation = require("neovim_codex.nvim.presentation")
+local visual_selection = require("neovim_codex.nvim.visual_selection")
 local viewer_stack = require("neovim_codex.nvim.viewer_stack")
 local thread_identity = require("neovim_codex.nvim.thread_identity")
 
@@ -389,20 +390,12 @@ function M.add_selection(opts)
     return nil, err
   end
 
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
-  local start_line = tonumber(start_pos[2])
-  local end_line = tonumber(end_pos[2])
-  if not start_line or not end_line or start_line == 0 or end_line == 0 then
-    return nil, "Visual selection is required"
-  end
-  if end_line < start_line then
-    start_line, end_line = end_line, start_line
+  local selection, selection_err = visual_selection.capture(target.bufnr, opts)
+  if selection_err then
+    return nil, selection_err
   end
 
-  local lines = vim.api.nvim_buf_get_lines(target.bufnr, start_line - 1, end_line, false)
-  local text = table.concat(lines, "\n")
-  if vim.trim(text) == "" then
+  if vim.trim(selection.text or "") == "" then
     return nil, "Visual selection is empty"
   end
 
@@ -411,15 +404,20 @@ function M.add_selection(opts)
     return nil, err
   end
 
-  local label = string.format("%s:%d-%d", text_utils.display_path(target.path), start_line, end_line)
+  local label = string.format(
+    "%s:%d-%d",
+    text_utils.display_path(target.path),
+    selection.range.start_line,
+    selection.range.end_line
+  )
   local fragment = {
     id = now_id("code"),
     kind = "code_range",
     label = label,
     path = target.path,
     filetype = target.filetype,
-    range = { start_line = start_line, end_line = end_line },
-    text = text,
+    range = selection.range,
+    text = selection.text,
     source = "visual_selection",
   }
 

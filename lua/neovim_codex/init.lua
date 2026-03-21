@@ -279,7 +279,11 @@ local function apply_global_keymaps()
   end, "Add the current file to the Codex workbench")
   if keymaps.capture_selection then
     vim.keymap.set("x", keymaps.capture_selection, function()
-      require("neovim_codex").capture_visual_selection()
+      require("neovim_codex").capture_visual_selection({
+        selection_mode = vim.fn.mode(),
+        start_pos = vim.fn.getpos("v"),
+        end_pos = vim.fn.getcurpos(),
+      })
     end, { silent = true, desc = "Add the current selection to the Codex workbench" })
   end
   map_if(keymaps.capture_diagnostic, workflow_modes, function()
