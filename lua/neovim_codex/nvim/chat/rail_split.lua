@@ -129,8 +129,20 @@ end
 
 function RailSplit:_composer_total_height()
   local body_height = self.composer:body_height_value()
-  local wanted = body_height + 2
-  return math.min(math.max(wanted, 5), math.max(5, vim.o.lines - 8))
+  return math.min(math.max(body_height, 3), math.max(3, vim.o.lines - 10))
+end
+
+function RailSplit:_composer_border_rows()
+  local layout_opts = ((self.opts.ui or {}).chat or {}).layout or {}
+  local border = normalized_border(layout_opts.border or "none")
+  if border == "none" then
+    return 0
+  end
+  return 2
+end
+
+function RailSplit:_composer_outer_height()
+  return self:_composer_total_height() + self:_composer_border_rows()
 end
 
 function RailSplit:_apply_transcript_contract(bufnr)
@@ -294,8 +306,7 @@ end
 
 function RailSplit:_transcript_config()
   local geometry = self:_container_geometry()
-  local composer_height = self:_composer_total_height()
-  local transcript_height = math.max(4, geometry.height - composer_height)
+  local transcript_height = math.max(4, geometry.height - self:_composer_outer_height())
 
   return {
     relative = "editor",
@@ -311,8 +322,8 @@ end
 
 function RailSplit:_composer_config()
   local geometry = self:_container_geometry()
-  local height = math.min(self:_composer_total_height(), math.max(4, geometry.height - 4))
-  local row = geometry.row + math.max(0, geometry.height - height)
+  local height = math.min(self:_composer_total_height(), math.max(3, geometry.height - 6))
+  local row = geometry.row + math.max(0, geometry.height - (height + self:_composer_border_rows()))
 
   local layout_opts = ((self.opts.ui or {}).chat or {}).layout or {}
 
