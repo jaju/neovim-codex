@@ -1,5 +1,5 @@
-local presentation = require("neovim_codex.nvim.presentation")
-local renderer = require("neovim_codex.nvim.thread_renderer")
+local history = require("neovim_codex.nvim.chat.history")
+local history_pager = require("neovim_codex.nvim.history_pager")
 local selectors = require("neovim_codex.core.selectors")
 local thread_identity = require("neovim_codex.nvim.thread_identity")
 local thread_params = require("neovim_codex.nvim.thread_params")
@@ -378,9 +378,64 @@ function M.new(deps)
       return nil, err
     end
 
-    local view = renderer.render_thread(result.thread, { title = "# Codex Thread" })
-    presentation.open_report(string.format("thread-%s", result.thread.id), view.lines)
+    history_pager.open(result.thread, {
+      config = deps.get_config(),
+      chunk_index = opts.chunk_index,
+    })
     return result, nil
+  end
+
+  function api.open_history(opts)
+    opts = opts or {}
+
+    local rt, err = deps.ensure_ready(opts.timeout_ms)
+    if not rt then
+      deps.notify(err, vim.log.levels.ERROR, opts.notify)
+      return nil, err
+    end
+
+    local snapshot = rt.client:get_state()
+    local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+    if not thread and not opts.thread_id then
+      return api.pick_thread({
+        action = "history",
+        archived = false,
+        prompt = "Select Codex thread history",
+        notify = opts.notify,
+        timeout_ms = opts.timeout_ms,
+      })
+    end
+
+    if (not thread or #history.list_turns(thread) == 0) and opts.thread_id then
+      local result, read_err = api.read_thread({
+        thread_id = opts.thread_id,
+        include_turns = true,
+        notify = false,
+        timeout_ms = opts.timeout_ms,
+      })
+      if read_err and read_err:match("includeTurns is unavailable") then
+        result, read_err = api.read_thread({
+          thread_id = opts.thread_id,
+          include_turns = false,
+          notify = false,
+          timeout_ms = opts.timeout_ms,
+        })
+      end
+      if read_err then
+        deps.notify(read_err, vim.log.levels.ERROR, opts.notify)
+        return nil, read_err
+      end
+      thread = result.thread
+    end
+
+    if not thread then
+      return nil, "no active thread"
+    end
+
+    return history_pager.open(thread, {
+      config = deps.get_config(),
+      chunk_index = opts.chunk_index,
+    }), nil
   end
 
   function api.pick_thread(opts)
@@ -422,6 +477,10 @@ function M.new(deps)
 
       if opts.action == "read" then
         api.open_thread_report({ thread_id = choice.id, notify = opts.notify })
+        return
+      end
+      if opts.action == "history" then
+        api.open_history({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
         return
       end
       if opts.action == "archive" then

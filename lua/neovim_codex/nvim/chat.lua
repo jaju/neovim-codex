@@ -30,6 +30,10 @@ local function open_help()
   require("neovim_codex").open_shortcuts()
 end
 
+local function open_history()
+  require("neovim_codex").open_history()
+end
+
 local function normalize_mode(mode)
   return require("neovim_codex.nvim.chat.layout").normalize_mode(mode, state.opts)
 end
@@ -144,6 +148,7 @@ local function ensure_surfaces()
       M.toggle_reader()
     end,
     open_help = open_help,
+    open_history = open_history,
     on_height_changed = set_composer_height,
   })
 
@@ -170,6 +175,7 @@ local function ensure_surfaces()
       M.toggle_reader()
     end,
     open_help = open_help,
+    open_history = open_history,
   }
 
   state.overlay_surface = overlay_mod.new(state.opts, common_handlers)
@@ -183,7 +189,7 @@ local function render()
   end
 
   local snapshot = state.store:get_state()
-  local document = state.projector.project_active(snapshot)
+  local document = state.projector.project_active(snapshot, { config = state.opts })
   local render_result = state.render.render(document)
   state.last_document = document
   state.last_render = render_result
@@ -340,6 +346,11 @@ function M.inspect_current_block()
   local block = surface:current_block()
   if not block then
     return nil, "no transcript block is selected"
+  end
+
+  if block.kind == "history_notice" then
+    open_history()
+    return block, nil
   end
 
   state.details:show(block)

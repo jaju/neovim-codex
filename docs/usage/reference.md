@@ -24,7 +24,8 @@ Thread controls:
 - `:CodexThreadNew` - create and activate a fresh thread
 - `:CodexThreadNewConfig` - create a thread with runtime settings like model, effort, approval policy, collaboration mode, name, and ephemeral state
 - `:CodexThreads` - pick and resume a stored thread
-- `:CodexThreadRead [thread-id]` - inspect a stored thread without resuming it
+- `:CodexThreadRead [thread-id]` - inspect a stored thread in the history pager without resuming it
+- `:CodexHistory [thread-id]` - open the active thread history pager, or inspect a specific thread by id
 - `:CodexThreadRename [name]` - rename the active thread, or prompt asynchronously for a name
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick/archive another thread
@@ -59,6 +60,7 @@ Transcript buffer defaults:
 - `q` - close the current chat shell
 - `gr` - reopen the active thread inbox
 - `gR` - switch between the side rail and the centered overlay
+- `gh` - open the active thread history pager
 - `i` - focus the composer
 - insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode in the read-only transcript
 - `<C-w>w` - switch between transcript and composer without leaving the current shell
@@ -75,6 +77,7 @@ Composer buffer defaults:
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - close the current chat shell
 - `gr` in normal mode - reopen the active thread inbox
+- `gh` in normal mode - open the active thread history pager
 - `gs` in normal mode - open the active thread settings
 - `gR` in normal mode - switch between the side rail and the centered overlay
 - `g?` or `<F1>` in normal mode - open the Codex shortcut sheet for the current surface
@@ -112,6 +115,17 @@ Compose review defaults:
 - `i` - insert the selected fragment handle into the packet template
 - `q` - close compose review
 
+History pager defaults:
+
+- `[h` - move to the previous history chunk
+- `]h` - move to the next history chunk
+- `[[` - move to the previous turn in the current chunk
+- `]]` - move to the next turn in the current chunk
+- `<CR>` - inspect the current history block
+- `o` - open the current turn in a focused history view
+- `g?` or `<F1>` - open the Codex shortcut sheet for the current surface
+- `q` or `<Esc>` - close the history pager
+
 All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_fast_modes = { "n", "i", "x" }` to keep fast global Codex actions available without changing modes, and `keymaps.global_workflow_modes = { "n" }` to keep workflow actions normal-mode only.
 
 Example:
@@ -147,6 +161,8 @@ require("neovim_codex").setup({
 ## Protocol-First Transcript
 
 The transcript is derived from app-server protocol types, not from shell-string heuristics.
+
+The active chat shell is also bounded by design. It keeps a recent working set instead of trying to render the full thread indefinitely. When multiple compaction boundaries are known, the visible chat prefers the penultimate compaction boundary; otherwise it falls back to a recent tail budget and trims further if the active render line budget is exceeded.
 
 Blocking app-server requests are protocol-first too. Command approvals, file-change approvals, and tool questions do not render inline as transcript content. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses.
 
@@ -208,11 +224,20 @@ Most users only need `keymaps.global`.
 
 Use `codex_cmd` only if `codex` is not on your `PATH` or you want to point at a specific binary. The `client_info`, `experimental_api`, and log-limit fields are plugin-owned defaults and are intentionally left out of normal user config examples.
 
+Transcript scale controls live under:
+
+- `ui.chat.history.max_turns`
+- `ui.chat.history.max_lines`
+- `ui.chat.history.prefer_penultimate_compaction`
+- `ui.history_pager.max_turns_per_chunk`
+- `ui.history_pager.max_lines_per_chunk`
+
 The older `ui.chat.width`, `ui.chat.prompt_height`, `ui.chat.wrap`, and `keymaps.prompt` values are normalized into the new layout/composer shape so older local configs do not break immediately.
 
 ## Known Behavior
 
 - a fresh thread that has not accumulated turns can still be missing from the persisted `thread/list` view after a restart, depending on backend persistence behavior; within the current NeoVim session the picker merges locally known threads so they remain reachable
 - a brand-new empty thread may not be resumable yet because the rollout is not materialized
-- reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports
+- reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports and history opens
+- history paging is render-efficient but not yet payload-efficient for unloaded threads because the current app-server contract still returns full turns for `thread/read includeTurns=true`
 - raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript stays terse and uses `:CodexInspect` for verbose detail

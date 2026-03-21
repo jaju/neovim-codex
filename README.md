@@ -31,7 +31,8 @@ In practice, that means you can:
 
 - start and talk to `codex app-server`
 - create, resume, read, fork, rename, archive, and tune threads
-- inspect activity without drowning the transcript in raw command noise
+- keep the active chat bounded to a recent working set instead of rendering an infinite transcript
+- inspect older history in a dedicated Vim-native pager instead of drowning the main transcript in raw command noise
 - stage code, diagnostics, and runtime notes into a workbench
 - preview and send compiled packets with explicit `[[fN]]` fragment handles
 
@@ -147,11 +148,35 @@ Useful commands for the common loop:
 
 - `:CodexThreadNew` - create and activate a fresh thread
 - `:CodexThreads` - pick and resume a stored thread
-- `:CodexThreadRead` - inspect a stored thread without resuming it
+- `:CodexThreadRead` - inspect a stored thread in the history pager without resuming it
+- `:CodexHistory` - open the active thread history pager, or a specific thread by id
 - `:CodexRequest` - reopen the active approval or question request
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexSteer [text]` - steer the currently running turn
 - `:CodexShortcuts` - open the shortcut sheet for the current surface
+
+Inside the chat shell, `gh` opens the same history pager for the active thread.
+
+## Transcript Scale
+
+The active chat shell is intentionally bounded.
+
+- it keeps a recent working set instead of trying to render every turn forever
+- when the thread has multiple compaction points, it prefers to keep history from the penultimate compaction boundary onward
+- when that is still too large, it trims further to stay inside the active render budget
+- older material is replaced with an explicit `Older History Hidden` block at the top of the transcript
+
+Use `:CodexHistory`, `:CodexThreadRead`, or press `gh` inside the transcript or composer when you want the full stored history.
+
+The history pager is chunked and Vim-native:
+
+- `[h` and `]h` move between history chunks
+- `[[` and `]]` move between turns in the current chunk
+- `<CR>` inspects the current block
+- `o` opens the current turn in a focused history view
+- `/` uses normal Vim search inside the loaded chunk
+
+For unloaded threads, full history still depends on `thread/read includeTurns=true`, so the pager is render-efficient inside NeoVim without pretending the app-server is paginating the payload yet.
 
 ## Workbench And Compose Review
 
@@ -225,7 +250,7 @@ The current slice already supports the usable core loop:
 
 - start and talk to `codex app-server`
 - create, resume, read, fork, rename, archive, and tune threads
-- inspect activity without drowning the main transcript in raw command noise
+- keep the live transcript bounded and responsive while still exposing older history on demand
 - stage code, diagnostics, and runtime notes into a workbench
 - preview and send compiled packets with explicit fragment handles
 

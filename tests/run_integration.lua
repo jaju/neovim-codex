@@ -42,6 +42,7 @@ assert(vim.fn.exists(":CodexThreadRead") == 2, "CodexThreadRead command should e
 assert(vim.fn.exists(":CodexThreadRename") == 2, "CodexThreadRename command should exist")
 assert(vim.fn.exists(":CodexThreadUnarchive") == 2, "CodexThreadUnarchive command should exist")
 assert(vim.fn.exists(":CodexThreadCompact") == 2, "CodexThreadCompact command should exist")
+assert(vim.fn.exists(":CodexHistory") == 2, "CodexHistory command should exist")
 assert(vim.fn.exists(":CodexRequest") == 2, "CodexRequest command should exist")
 assert(vim.fn.exists(":CodexReview") == 2, "CodexReview command should exist")
 assert(vim.fn.exists(":CodexWorkbench") == 2, "CodexWorkbench command should exist")
@@ -171,6 +172,7 @@ assert(shortcuts_body:find("Restore an archived thread", 1, true), "shortcut she
 assert(shortcuts_body:find("Start manual history compaction", 1, true), "shortcut sheet should expose thread compaction in the workflow lane")
 assert(shortcuts_body:find("Steer the running Codex turn", 1, true), "shortcut sheet should expose global steer actions in the workflow lane")
 assert(shortcuts_body:find("Steer the running turn with the current draft", 1, true), "shortcut sheet should expose the composer-local steer path")
+assert(shortcuts_body:find("Open the active thread history pager", 1, true), "shortcut sheet should expose the history pager path")
 require("neovim_codex.nvim.presentation").close_viewers()
 
 vim.cmd("startinsert")
@@ -258,6 +260,30 @@ local archive_turn_result, archive_turn_err = codex.submit_text("materialize arc
 })
 assert(archive_turn_err == nil, archive_turn_err or "archive test turn should start cleanly")
 assert(archive_turn_result ~= nil, "archive test turn should return a result")
+vim.wait(2000, function()
+  local live_chat_state = codex.get_chat_state()
+  return live_chat_state.transcript_buf
+    and vim.api.nvim_buf_is_valid(live_chat_state.transcript_buf)
+    and vim.api.nvim_buf_line_count(live_chat_state.transcript_buf) > 1
+end, 20)
+local live_chat_state = codex.get_chat_state()
+local transcript_line_count = vim.api.nvim_buf_line_count(live_chat_state.transcript_buf)
+local transcript_cursor = vim.api.nvim_win_get_cursor(live_chat_state.transcript_win)
+assert(transcript_cursor[1] == transcript_line_count, "live chat should keep the transcript cursor at the tail after new output")
+local history_result, history_err = codex.open_history({
+  thread_id = archive_thread_result.thread.id,
+  notify = false,
+  timeout_ms = 8000,
+})
+assert(history_err == nil, history_err or "history pager should open for an explicit thread")
+assert(history_result ~= nil and history_result.chunk_count >= 1, "history pager should return chunk state")
+local history_viewers = require("neovim_codex.nvim.viewer_stack").inspect()
+assert(history_viewers.top and history_viewers.top.role == "history_pager", "history should open in the stacked history pager")
+local history_shortcuts_surface, history_shortcuts_lines = codex.open_shortcuts({ surface = "history_pager" })
+assert(history_shortcuts_surface == "history_pager", "shortcut sheet should target the history pager surface")
+local history_shortcuts_body = table.concat(history_shortcuts_lines, "\n")
+assert(history_shortcuts_body:find("Open the current turn in a focused history view", 1, true), "history pager shortcuts should expose focused turn opening")
+require("neovim_codex.nvim.presentation").close_viewers()
 vim.wait(15000, function()
   local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]
   return thread ~= nil and type(thread.path) == "string" and thread.path ~= "" and vim.uv.fs_stat(thread.path) ~= nil

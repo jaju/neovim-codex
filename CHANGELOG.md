@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `:CodexHistory` plus a read-only, Vim-native history pager that renders one history chunk at a time through the shared viewer stack.
+- Transcript and composer `gh` mappings for opening the active thread history pager.
+
+### Changed
+- The active chat transcript now keeps a bounded recent working set instead of trying to render every turn forever.
+- When multiple compaction turns are present, the active transcript now prefers the penultimate compaction boundary before falling back to a recent-tail budget.
+- `:CodexThreadRead` now opens the same history pager flow instead of projecting an unbounded thread report into one buffer.
+- Watched Codex app-server snapshots now include the latest additive drift around `ThreadItem` variants and `imageGeneration.savedPath`.
+
+### Fixed
+- Rail and overlay transcript updates now patch only the changed line range instead of replacing the entire transcript buffer on every redraw.
+- Shared transcript highlight and buffer-update logic is now centralized instead of duplicated across the rail and overlay shells.
+
 ## [0.4.0] - 2026-03-21
 
 ### Added

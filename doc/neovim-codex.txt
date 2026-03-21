@@ -49,7 +49,7 @@ COMMANDS                                               *neovim-codex-commands*
     Pick and resume a stored thread.
 
 :CodexThreadRead [thread-id]
-    Read a thread into a report buffer without resuming it.
+    Read a thread into the history pager without resuming it.
 
 :CodexThreadRename [name]
     Rename the active thread, or prompt for a new name.
@@ -69,6 +69,9 @@ COMMANDS                                               *neovim-codex-commands*
 
 :CodexThreadCompact [thread-id]
     Start manual history compaction for a thread.
+
+:CodexHistory [thread-id]
+    Open the active thread history pager, or inspect a specific thread by id.
 
 :CodexInspect
     Open a details viewer for the selected transcript block.
@@ -141,6 +144,12 @@ Usage:
 The transcript is protocol-first. It projects app-server item types into stable
 surfaces instead of dumping shell output directly.
 
+The active chat transcript is intentionally bounded. It keeps a recent working
+set instead of rendering the full thread forever. When multiple compaction
+turns are known, the visible chat prefers the penultimate compaction boundary.
+If that retained window still exceeds the active render budget, it trims
+further and inserts an explicit "Older History Hidden" block at the top.
+
 Examples:
 
 - user messages and final responses stay primary
@@ -155,6 +164,7 @@ Default transcript mappings:
 - `q` close the current chat shell
 - `gr` reopen the active thread inbox
 - `gR` switch between the side rail and the centered overlay
+- `gh` open the active thread history pager
 - `i` focus the composer
 - insert-like keys (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
 - `<C-w>w` switch between transcript and composer without leaving the current shell
@@ -172,6 +182,7 @@ Default composer mappings:
 - `<C-w>w` in normal mode switches back to the transcript
 - `q` in normal mode closes the current chat shell
 - `gr` reopen the active thread inbox
+- `gh` open the active thread history pager
 - `gs` open the active thread settings sheet
 - `gR` switch between the side rail and the centered overlay
 - `g?` or `<F1>` in normal mode opens the shortcut sheet for the current surface
@@ -223,6 +234,26 @@ If `<C-s>` is captured by terminal flow control, remap
 `keymaps.composer.send` or run `stty -ixon`.
 
 Secondary viewers like `:CodexInspect`, `:CodexEvents`, request prompts, and thread or smoke reports now share a popup stack. `q` or `<Esc>` closes the latest viewer and returns to the previous one. The side rail and the centered overlay are mutually exclusive alternate views over the same chat state.
+
+The history pager is also a shared read-only viewer. Use >
+    :CodexHistory
+<
+or >
+    :CodexThreadRead
+<
+when you want the full stored history without growing the active chat shell
+indefinitely.
+
+Default history pager mappings:
+
+- `[h` move to the previous history chunk
+- `]h` move to the next history chunk
+- `[[` move to the previous turn in the current chunk
+- `]]` move to the next turn in the current chunk
+- `<CR>` inspect the current history block
+- `o` open the current turn in a focused history view
+- `g?` or `<F1>` open the shortcut sheet for the current surface
+- `q` or `<Esc>` close the history pager
 
 Blocking request flows are protocol-first and do not render inline as transcript content. When Codex asks for command approval, file-change approval, or tool input, the plugin opens a dedicated request viewer above the chat overlay in normal mode. Use `:CodexRequest` to reopen the active request if you hide it before responding. File-change approvals also expose a dedicated review surface through `:CodexReview` or the request-local `o` mapping. Within that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
 
@@ -318,6 +349,14 @@ conservative defaults. Fast open/reopen actions use
 `keymaps.global_fast_modes`; workflow actions use
 `keymaps.global_workflow_modes`. If you only set the older
 `keymaps.global_modes`, it still acts as the fallback for both lanes.
+
+Transcript scale controls live under:
+
+- `ui.chat.history.max_turns`
+- `ui.chat.history.max_lines`
+- `ui.chat.history.prefer_penultimate_compaction`
+- `ui.history_pager.max_turns_per_chunk`
+- `ui.history_pager.max_lines_per_chunk`
 
 ==============================================================================
 WORKBENCH                                               *neovim-codex-workbench*

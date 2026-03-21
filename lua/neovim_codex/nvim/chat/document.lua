@@ -1,4 +1,5 @@
 local command_actions = require("neovim_codex.nvim.chat.document_command_actions")
+local history = require("neovim_codex.nvim.chat.history")
 local selectors = require("neovim_codex.core.selectors")
 local text_utils = require("neovim_codex.core.text")
 local thread_identity = require("neovim_codex.nvim.thread_identity")
@@ -9,6 +10,11 @@ local M = {}
 local display_path = text_utils.display_path
 local present = value.present
 local split_lines = text_utils.split_lines
+local DEFAULT_HISTORY = {
+  max_turns = 18,
+  max_lines = 1200,
+  prefer_penultimate_compaction = true,
+}
 
 local IN_PROGRESS_ITEM_TYPES = {
   commandExecution = true,
@@ -165,6 +171,16 @@ local function new_block(spec)
     header_lines = spec.header_lines or 1,
     lines = spec.lines or {},
     protocol = spec.protocol,
+  }
+end
+
+local function history_config(opts)
+  local configured = (((opts or {}).config or {}).ui or {}).chat or {}
+  local history_opts = configured.history or {}
+  return {
+    max_turns = tonumber(history_opts.max_turns) or DEFAULT_HISTORY.max_turns,
+    max_lines = tonumber(history_opts.max_lines) or DEFAULT_HISTORY.max_lines,
+    prefer_penultimate_compaction = history_opts.prefer_penultimate_compaction ~= false,
   }
 end
 
@@ -640,25 +656,9 @@ local function list_turn_items(turn)
   return {}
 end
 
-local function list_thread_turns(thread)
-  if type(thread) ~= "table" then
-    return {}
-  end
-
-  if type(thread.turns_order) == "table" and type(thread.turns_by_id) == "table" then
-    return selectors.list_turns(thread)
-  end
-
-  if type(thread.turns) == "table" then
-    return thread.turns
-  end
-
-  return {}
-end
-
 local function in_progress_item_count(turn)
   local count = 0
-  for _, item in ipairs(selectors.list_items(turn)) do
+  for _, item in ipairs(list_turn_items(turn)) do
     if IN_PROGRESS_ITEM_TYPES[item.type] and value_or(item.status, "") == "inProgress" then
       count = count + 1
     end
@@ -667,7 +667,7 @@ local function in_progress_item_count(turn)
 end
 
 local function turn_title(turn, index)
-  local current_items = selectors.list_items(turn)
+  local current_items = list_turn_items(turn)
 
   for _, item in ipairs(current_items) do
     if item.type == "userMessage" then
@@ -728,8 +728,8 @@ local function token_usage_summary(token_usage_state)
   return table.concat(parts, " / ")
 end
 
-local function thread_footer(state, thread, pending_requests)
-  local turns = list_thread_turns(thread)
+local function thread_footer(state, thread, pending_requests, visible_window)
+  local turns = history.list_turns(thread)
   local status = thread.status and thread.status.type or "unknown"
   local active_turn = turns[#turns]
   local status_text, status_highlight = footer_status_label(status)
@@ -762,12 +762,18 @@ local function thread_footer(state, thread, pending_requests)
     workbench_summary = string.format("workbench %d fragment%s", fragment_counts.total, fragment_counts.total == 1 and "" or "s")
   end
 
+  local total_turns = #turns
+  local visible_turns = visible_window and visible_window.visible_turn_count or total_turns
   local token_summary = token_usage_summary(token_usage)
   local detail_parts = { workbench_summary }
   if token_summary then
     detail_parts[#detail_parts + 1] = token_summary
   end
-  detail_parts[#detail_parts + 1] = string.format("%d turn%s", #turns, #turns == 1 and "" or "s")
+  if visible_window and visible_window.hidden_turn_count > 0 then
+    detail_parts[#detail_parts + 1] = string.format("showing %d/%d turns", visible_turns, total_turns)
+  else
+    detail_parts[#detail_parts + 1] = string.format("%d turn%s", total_turns, total_turns == 1 and "" or "s")
+  end
 
   local footer = string.format("thread %s · %s · %s · %s", short_id, title, table.concat(detail_parts, " · "), status_text)
   local segments = {
@@ -808,55 +814,48 @@ local function turn_heading(index, turn)
   })
 end
 
-local function project_thread(thread, opts)
-  opts = opts or {}
-
-  local pending_requests = opts.state and selectors.pending_request_count(opts.state) or 0
-  local thread_pending_requests = opts.state and selectors.pending_request_count_for_thread(opts.state, thread.id) or 0
-  local footer, footer_segments = thread_footer(opts.state, thread, thread_pending_requests)
-  local doc = {
-    title = opts.title,
-    thread_id = thread.id,
-    footer = footer,
-    footer_segments = footer_segments,
-    pending_requests = pending_requests,
-    blocks = {},
-  }
-
-  if opts.title then
-    add_block(doc.blocks, new_block({
-      kind = "metadata",
-      surface = "notice",
-      lines = {
-        opts.title,
-        string.format("_Thread `%s`_", thread.id),
-      },
-    }))
+local function history_notice(hidden_turn_count, total_turns, anchor)
+  local anchor_text = "- The visible chat is limited to a recent working set."
+  if anchor == "penultimate_compaction" then
+    anchor_text = "- The visible chat starts at the penultimate compaction boundary when available."
+  elseif anchor == "line_budget" then
+    anchor_text = "- The visible chat was trimmed further to stay inside the active render budget."
   end
+  return new_block({
+    kind = "history_notice",
+    surface = "notice",
+    collapsed_by_default = false,
+    lines = {
+      markdown_heading(3, "Older History Hidden"),
+      string.format("- Hidden turns: `%d` of `%d` total.", hidden_turn_count, total_turns),
+      anchor_text,
+      "- Press `<CR>` on this block or run `:CodexHistory` to open the history pager.",
+    },
+  })
+end
 
-  local turns = list_thread_turns(thread)
-  if #turns == 0 then
-    add_block(doc.blocks, new_block({
-      kind = "metadata",
-      surface = "notice",
-      lines = {
-        "## Ready",
-        "- The thread has no turns yet.",
-        "- Write in the composer and send when ready.",
-      },
-    }))
-    return doc
+local function document_line_count(blocks)
+  local total = 0
+  for index, block in ipairs(blocks or {}) do
+    total = total + #(block.lines or {})
+    if index < #(blocks or {}) then
+      total = total + 1
+    end
   end
+  return total
+end
 
-  for index, turn in ipairs(turns) do
-    local heading = turn_heading(index, turn)
+local function append_turn_blocks(blocks, turns, start_index, end_index)
+  for turn_index = start_index, end_index do
+    local turn = turns[turn_index]
+    local heading = turn_heading(turn_index, turn)
     heading.id = string.format("turn:%s", turn.id)
     heading.turn_id = turn.id
-    add_block(doc.blocks, heading)
+    add_block(blocks, heading)
 
     local turn_items = list_turn_items(turn)
     if #turn_items == 0 then
-      add_block(doc.blocks, {
+      add_block(blocks, {
         id = string.format("turn:%s:pending", turn.id),
         kind = "metadata",
         surface = "notice",
@@ -872,11 +871,119 @@ local function project_thread(thread, opts)
           block.id = string.format("turn:%s:item:%s", turn.id, item.id or item.type)
           block.turn_id = turn.id
           block.item_id = item.id
-          add_block(doc.blocks, block)
+          add_block(blocks, block)
         end
       end
     end
   end
+end
+
+local function resolved_turn_range(turns, opts)
+  local total_turns = #turns
+  if total_turns == 0 then
+    return {
+      start_index = 1,
+      end_index = 0,
+      total_turns = 0,
+      hidden_turn_count = 0,
+      visible_turn_count = 0,
+      anchor = "empty",
+      compaction_turn_indices = {},
+    }
+  end
+
+  if opts.turn_range then
+    local start_index = math.max(1, math.min(total_turns, tonumber(opts.turn_range.start_index) or 1))
+    local end_index = math.max(start_index, math.min(total_turns, tonumber(opts.turn_range.end_index) or total_turns))
+    return {
+      start_index = start_index,
+      end_index = end_index,
+      total_turns = total_turns,
+      hidden_turn_count = math.max(0, start_index - 1),
+      visible_turn_count = end_index - start_index + 1,
+      anchor = "explicit_range",
+      compaction_turn_indices = history.compaction_turn_indices(turns),
+    }
+  end
+
+  local config = history_config(opts)
+  local range = history.visible_window(turns, config)
+  local max_lines = config.max_lines
+  local max_turns = config.max_turns
+  local initial_start_index = range.start_index
+  local enforce_turn_budget = range.anchor ~= "penultimate_compaction"
+
+  while enforce_turn_budget and range.visible_turn_count > max_turns and range.start_index < range.end_index do
+    range.start_index = range.start_index + 1
+    range.hidden_turn_count = range.start_index - 1
+    range.visible_turn_count = range.end_index - range.start_index + 1
+  end
+
+  while range.start_index < range.end_index do
+    local blocks = {}
+    append_turn_blocks(blocks, turns, range.start_index, range.end_index)
+    if document_line_count(blocks) <= max_lines then
+      break
+    end
+    range.start_index = range.start_index + 1
+    range.hidden_turn_count = range.start_index - 1
+    range.visible_turn_count = range.end_index - range.start_index + 1
+  end
+
+  if range.start_index > initial_start_index then
+    range.anchor = "line_budget"
+  end
+
+  return range
+end
+
+local function project_thread(thread, opts)
+  opts = opts or {}
+
+  local pending_requests = opts.state and selectors.pending_request_count(opts.state) or 0
+  local thread_pending_requests = opts.state and selectors.pending_request_count_for_thread(opts.state, thread.id) or 0
+  local turns = history.list_turns(thread)
+  local visible_window = resolved_turn_range(turns, opts)
+  local footer, footer_segments = thread_footer(opts.state, thread, thread_pending_requests, visible_window)
+  local doc = {
+    title = opts.title,
+    thread_id = thread.id,
+    footer = footer,
+    footer_segments = footer_segments,
+    pending_requests = pending_requests,
+    blocks = {},
+    history = value.deep_copy(visible_window),
+  }
+
+  if opts.title then
+    add_block(doc.blocks, new_block({
+      kind = "metadata",
+      surface = "notice",
+      lines = {
+        opts.title,
+        string.format("_Thread `%s`_", thread.id),
+      },
+    }))
+  end
+
+  if #turns == 0 then
+    add_block(doc.blocks, new_block({
+      kind = "metadata",
+      surface = "notice",
+      lines = {
+        "## Ready",
+        "- The thread has no turns yet.",
+        "- Write in the composer and send when ready.",
+      },
+    }))
+    return doc
+  end
+
+  if opts.show_history_notice ~= false and visible_window.hidden_turn_count > 0 then
+    add_block(doc.blocks, history_notice(visible_window.hidden_turn_count, visible_window.total_turns, visible_window.anchor))
+  end
+
+  append_turn_blocks(doc.blocks, turns, visible_window.start_index, visible_window.end_index)
 
   return doc
 end

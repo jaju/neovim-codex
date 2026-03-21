@@ -73,6 +73,11 @@ function Composer:_bind_keymaps(bufnr)
       self.handlers.toggle_reader()
     end
   end, { buffer = bufnr, desc = "Switch Codex chat shell" })
+  map_if(keymaps.history, "n", function()
+    if self.handlers.open_history then
+      self.handlers.open_history()
+    end
+  end, { buffer = bufnr, desc = "Open Codex history pager" })
   map_if(keymaps.close, "n", function()
     self.handlers.hide()
   end, { buffer = bufnr, desc = "Close Codex chat shell" })

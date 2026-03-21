@@ -732,6 +732,201 @@ test("chat document renders foldable file changes with diff fences", function()
   eq(doc.blocks[2].lines[6], "@@ -1 +1 @@")
 end)
 
+test("chat document bounds visible history and inserts a history notice", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_windowed",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+
+  for index = 1, 8 do
+    store:dispatch({
+      type = "turn_received",
+      thread_id = "thr_windowed",
+      turn = { id = string.format("turn_%d", index), status = "completed", items = {}, error = nil },
+    })
+    store:dispatch({
+      type = "item_received",
+      thread_id = "thr_windowed",
+      turn_id = string.format("turn_%d", index),
+      item = {
+        type = "userMessage",
+        id = string.format("user_%d", index),
+        content = {
+          { type = "text", text = string.format("Request %d", index) },
+        },
+      },
+    })
+  end
+
+  local doc = document.project_active(store:get_state(), {
+    config = {
+      ui = {
+        chat = {
+          history = {
+            max_turns = 3,
+            max_lines = 200,
+          },
+        },
+      },
+    },
+  })
+
+  eq(doc.history.hidden_turn_count, 5)
+  eq(doc.history.visible_turn_count, 3)
+  eq(doc.blocks[1].kind, "history_notice")
+  eq(doc.blocks[2].turn_id, "turn_6")
+  local body = table.concat(require("neovim_codex.nvim.chat.render").render(doc).lines, "\n")
+  assert(body:find("Older History Hidden", 1, true), "rendered transcript should expose the hidden-history sentinel")
+  assert(body:find("Request 6", 1, true), "windowed transcript should start at the retained tail")
+  assert(body:find("Request 1", 1, true) == nil, "trimmed transcript should omit older turns from the active view")
+end)
+
+test("chat document prefers the penultimate compaction boundary when windowing history", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_compact_window",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+
+  for index = 1, 8 do
+    store:dispatch({
+      type = "turn_received",
+      thread_id = "thr_compact_window",
+      turn = { id = string.format("turn_compact_%d", index), status = "completed", items = {}, error = nil },
+    })
+    if index == 3 or index == 6 then
+      store:dispatch({
+        type = "item_received",
+        thread_id = "thr_compact_window",
+        turn_id = string.format("turn_compact_%d", index),
+        item = {
+          type = "contextCompaction",
+          id = string.format("compact_%d", index),
+        },
+      })
+    else
+      store:dispatch({
+        type = "item_received",
+        thread_id = "thr_compact_window",
+        turn_id = string.format("turn_compact_%d", index),
+        item = {
+          type = "userMessage",
+          id = string.format("user_compact_%d", index),
+          content = {
+            { type = "text", text = string.format("Request %d", index) },
+          },
+        },
+      })
+    end
+  end
+
+  local doc = document.project_active(store:get_state(), {
+    config = {
+      ui = {
+        chat = {
+          history = {
+            max_turns = 20,
+            max_lines = 400,
+          },
+        },
+      },
+    },
+  })
+
+  eq(doc.history.anchor, "penultimate_compaction")
+  eq(doc.history.hidden_turn_count, 2)
+  eq(doc.blocks[2].turn_id, "turn_compact_3")
+end)
+
+test("chat document keeps the penultimate compaction boundary even when max_turns is smaller", function()
+  local document = require("neovim_codex.nvim.chat.document")
+  local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })
+
+  store:dispatch({
+    type = "thread_received",
+    thread = {
+      id = "thr_compact_priority",
+      preview = "demo",
+      ephemeral = false,
+      modelProvider = "openai",
+      createdAt = 1,
+      updatedAt = 1,
+      status = { type = "idle" },
+      cwd = "/tmp/demo",
+      turns = {},
+    },
+    activate = true,
+    replace_turns = false,
+  })
+
+  for index = 1, 8 do
+    store:dispatch({
+      type = "turn_received",
+      thread_id = "thr_compact_priority",
+      turn = { id = string.format("turn_priority_%d", index), status = "completed", items = {}, error = nil },
+    })
+    store:dispatch({
+      type = "item_received",
+      thread_id = "thr_compact_priority",
+      turn_id = string.format("turn_priority_%d", index),
+      item = {
+        type = (index == 3 or index == 6) and "contextCompaction" or "userMessage",
+        id = string.format("item_priority_%d", index),
+        content = index == 3 or index == 6 and nil or {
+          { type = "text", text = string.format("Request %d", index) },
+        },
+      },
+    })
+  end
+
+  local doc = document.project_active(store:get_state(), {
+    config = {
+      ui = {
+        chat = {
+          history = {
+            max_turns = 2,
+            max_lines = 400,
+          },
+        },
+      },
+    },
+  })
+
+  eq(doc.history.anchor, "penultimate_compaction")
+  eq(doc.history.hidden_turn_count, 2)
+  eq(doc.history.visible_turn_count, 6)
+  eq(doc.blocks[2].turn_id, "turn_priority_3")
+end)
+
 test("chat footer marks an in-progress turn as running even without counted operations", function()
   local document = require("neovim_codex.nvim.chat.document")
   local store = require("neovim_codex.core.store").new({ max_log_entries = 20 })

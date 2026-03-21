@@ -2,9 +2,10 @@ local Layout = require("nui.layout")
 local Popup = require("nui.popup")
 local Line = require("nui.line")
 local Text = require("nui.text")
-local text_utils = require("neovim_codex.core.text")
 local value = require("neovim_codex.core.value")
 local readonly_surface = require("neovim_codex.nvim.readonly_surface")
+local transcript_view = require("neovim_codex.nvim.chat.transcript_view")
+local view_state = require("neovim_codex.nvim.chat.view_state")
 local chat_layout = require("neovim_codex.nvim.chat.layout")
 
 local M = {}
@@ -12,23 +13,6 @@ local M = {}
 local surface_help = require("neovim_codex.nvim.surface_help")
 
 local namespace = vim.api.nvim_create_namespace("neovim_codex.chat.surface")
-
-local HEADER_HIGHLIGHTS = {
-  turn_heading = "NeovimCodexChatTurnHeading",
-  message_user = "NeovimCodexChatUserHeading",
-  message_assistant = "NeovimCodexChatAssistantHeading",
-  assistant_note = "NeovimCodexChatReasoningHeading",
-  plan = "NeovimCodexChatPlanHeading",
-  reasoning = "NeovimCodexChatReasoningHeading",
-  activity = "NeovimCodexChatActivityHeading",
-  command_detail = "NeovimCodexChatCommandHeading",
-  file_change = "NeovimCodexChatFileChangeHeading",
-  tool = "NeovimCodexChatToolHeading",
-  review = "NeovimCodexChatReviewHeading",
-  notice = "NeovimCodexChatNoticeHeading",
-  metadata = "NeovimCodexChatNoticeHeading",
-  unknown = "NeovimCodexChatNoticeHeading",
-}
 
 local function valid_buffer(bufnr)
   return bufnr and vim.api.nvim_buf_is_valid(bufnr)
@@ -75,73 +59,11 @@ local function map_if(lhs, mode, rhs, opts)
   })
 end
 
-local function define_default_highlight(name, target)
-  vim.api.nvim_set_hl(0, name, {
-    default = true,
-    link = target,
-  })
-end
-
-local function normalize_lines(lines)
-  return text_utils.split_lines(lines, { empty = { "" } })
-end
-
-local function clone_lines(lines)
-  return normalize_lines(lines)
-end
-
-local function block_signature(block)
-  return {
-    id = block.id,
-    kind = block.kind,
-    surface = block.surface,
-    turn_id = block.turn_id,
-    item_id = block.item_id,
-    collapsed_by_default = block.collapsed_by_default == true,
-    line_start = block.line_start,
-    line_end = block.line_end,
-    header_line_start = block.header_line_start,
-    header_line_end = block.header_line_end,
-  }
-end
-
-local function render_signature(render_result)
-  local block_signatures = {}
-  for _, block in ipairs(render_result.blocks or {}) do
-    block_signatures[#block_signatures + 1] = block_signature(block)
-  end
-
-  return {
-    thread_id = render_result.thread_id,
-    footer = render_result.footer,
-    footer_segments = value.deep_copy(render_result.footer_segments),
-    lines = clone_lines(render_result.lines),
-    turn_lines = value.deep_copy(render_result.turn_lines or {}),
-    blocks = block_signatures,
-  }
-end
-
 local Surface = {}
 Surface.__index = Surface
 
 function Surface:_ensure_highlights()
-  define_default_highlight("NeovimCodexChatTurnHeading", "Title")
-  define_default_highlight("NeovimCodexChatUserHeading", "Identifier")
-  define_default_highlight("NeovimCodexChatAssistantHeading", "Function")
-  define_default_highlight("NeovimCodexChatPlanHeading", "Type")
-  define_default_highlight("NeovimCodexChatReasoningHeading", "Comment")
-  define_default_highlight("NeovimCodexChatActivityHeading", "Special")
-  define_default_highlight("NeovimCodexChatCommandHeading", "Statement")
-  define_default_highlight("NeovimCodexChatFileChangeHeading", "PreProc")
-  define_default_highlight("NeovimCodexChatToolHeading", "Type")
-  define_default_highlight("NeovimCodexChatReviewHeading", "MoreMsg")
-  define_default_highlight("NeovimCodexChatNoticeHeading", "Comment")
-  define_default_highlight("NeovimCodexChatFooterMeta", "Comment")
-  define_default_highlight("NeovimCodexChatFooterThread", "Identifier")
-  define_default_highlight("NeovimCodexChatFooterRunning", "DiffAdded")
-  define_default_highlight("NeovimCodexChatFooterWaiting", "WarningMsg")
-  define_default_highlight("NeovimCodexChatFooterIdle", "Comment")
-  define_default_highlight("NeovimCodexChatFooterError", "DiagnosticError")
+  transcript_view.ensure_default_highlights()
 end
 
 function Surface:_overlay_config()
@@ -221,6 +143,11 @@ function Surface:_bind_transcript_keymaps(bufnr)
       self.handlers.toggle_reader()
     end
   end, { buffer = bufnr, desc = "Switch Codex chat shell" })
+  map_if(keymaps.history, "n", function()
+    if self.handlers.open_history then
+      self.handlers.open_history()
+    end
+  end, { buffer = bufnr, desc = "Open Codex history pager" })
   map_if(keymaps.inspect, "n", function()
     self.handlers.inspect_current_block()
   end, { buffer = bufnr, desc = "Inspect current Codex block" })
@@ -453,52 +380,16 @@ function Surface:_update_thread_context(thread_id)
 end
 
 function Surface:_render_blocks(blocks)
-  self.block_ranges = value.deep_copy(blocks or {})
-  vim.api.nvim_buf_clear_namespace(self.transcript_bufnr, namespace, 0, -1)
-
-  for _, block in ipairs(self.block_ranges) do
-    if block.line_start and block.line_end and block.line_end >= block.line_start then
-      vim.api.nvim_buf_set_extmark(self.transcript_bufnr, namespace, block.line_start - 1, 0, {
-        end_row = block.line_end,
-        hl_mode = "combine",
-      })
-    end
-
-    local highlight = HEADER_HIGHLIGHTS[block.surface] or HEADER_HIGHLIGHTS[block.kind]
-    if highlight and block.header_line_start and block.header_line_end then
-      for line = block.header_line_start, block.header_line_end do
-        vim.api.nvim_buf_add_highlight(self.transcript_bufnr, namespace, highlight, line - 1, 0, -1)
-      end
-    end
-  end
+  self.block_ranges = transcript_view.render_blocks(self.transcript_bufnr, namespace, blocks)
 end
 
 function Surface:_set_transcript_lines(lines)
-  local normalized = normalize_lines(lines or { "" })
-  if #normalized == 0 then
-    normalized = { "" }
-  end
-  local cursor_at_end = false
-  local previous_count = self.last_line_count or 1
-
-  if valid_window(self.transcript_popup and self.transcript_popup.winid) then
-    local current = vim.api.nvim_get_current_win()
-    if current ~= self.transcript_popup.winid then
-      cursor_at_end = true
-    else
-      local cursor = vim.api.nvim_win_get_cursor(self.transcript_popup.winid)
-      cursor_at_end = cursor[1] >= math.max(1, previous_count - 1)
-    end
-  end
-
-  vim.bo[self.transcript_bufnr].modifiable = true
-  vim.api.nvim_buf_set_lines(self.transcript_bufnr, 0, -1, false, normalized)
-  vim.bo[self.transcript_bufnr].modifiable = false
-  self.last_line_count = #normalized
-
-  if cursor_at_end and valid_window(self.transcript_popup and self.transcript_popup.winid) then
-    vim.api.nvim_win_set_cursor(self.transcript_popup.winid, { math.max(1, #normalized), 0 })
-  end
+  self.last_line_count = transcript_view.patch_lines(
+    self.transcript_bufnr,
+    self.transcript_popup and self.transcript_popup.winid or nil,
+    lines,
+    self.last_line_count
+  )
 end
 
 function Surface:show()
@@ -590,33 +481,29 @@ end
 function Surface:update(render_result)
   self:_ensure_components()
 
-  local next_signature = render_signature(render_result)
+  local next_signature = view_state.signature(render_result)
   local previous_signature = self.last_signature
-  local thread_changed = not previous_signature or previous_signature.thread_id ~= next_signature.thread_id
-  local footer_changed = not previous_signature or previous_signature.footer ~= next_signature.footer or not vim.deep_equal(previous_signature.footer_segments, next_signature.footer_segments)
-  local lines_changed = not previous_signature or not vim.deep_equal(previous_signature.lines, next_signature.lines)
-  local blocks_changed = not previous_signature or not vim.deep_equal(previous_signature.blocks, next_signature.blocks)
-  local turn_lines_changed = not previous_signature or not vim.deep_equal(previous_signature.turn_lines, next_signature.turn_lines)
+  local diff = view_state.diff(previous_signature, next_signature)
 
   self.last_render = render_result
   self.last_signature = next_signature
 
-  if not (thread_changed or footer_changed or lines_changed or blocks_changed or turn_lines_changed) then
+  if not (diff.thread_changed or diff.footer_changed or diff.lines_changed or diff.blocks_changed) then
     return
   end
 
   self.update_count = (self.update_count or 0) + 1
 
-  if thread_changed then
+  if diff.thread_changed then
     self:_update_thread_context(render_result.thread_id)
   end
-  if footer_changed then
+  if diff.footer_changed then
     self:_set_footer(render_result.footer, render_result.footer_segments)
   end
-  if lines_changed then
+  if diff.lines_changed then
     self:_set_transcript_lines(render_result.lines)
   end
-  if lines_changed or blocks_changed then
+  if diff.lines_changed or diff.blocks_changed then
     self:_render_blocks(render_result.blocks)
   end
 

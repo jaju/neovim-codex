@@ -10,11 +10,13 @@ Use for:
 - plans
 - concise failures
 - concise activity summaries that matter for current understanding
+- a bounded recent working set for the active thread
 
 Do not use it as:
 - a raw protocol log
 - a terminal dump
 - a permanent progress ticker
+- an infinitely growing history buffer
 
 ## Footer / Status Line
 
@@ -59,10 +61,20 @@ Use for:
 - typed item payload detail
 - reasoning detail when explicitly requested
 - stored thread reports
+- chunked full-history paging
 - event log viewing
 - fragment inspection
 
 The viewer stack should be poppable and return the user to the previous context cleanly.
+
+## History Pager
+
+Use for:
+- full stored thread history when the active chat shell hides older turns
+- chunked turn browsing for long conversations
+- focused turn inspection without reopening or resuming the full thread in the main shell
+
+It must remain read-only, Vim-native, and chunked. It is not a second long-lived chat transcript buffer.
 
 ## Modal / Blocking Request Surface
 

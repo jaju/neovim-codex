@@ -50,6 +50,7 @@ function M.render(document)
     footer_segments = value.deep_copy(document.footer_segments),
     thread_id = document.thread_id,
     pending_requests = document.pending_requests or 0,
+    history = value.deep_copy(document.history),
   }
 end
 

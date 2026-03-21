@@ -57,6 +57,11 @@ local defaults = {
       transcript = {
         wrap = true,
       },
+      history = {
+        max_turns = 18,
+        max_lines = 1200,
+        prefer_penultimate_compaction = true,
+      },
       details = {
         width = 0.72,
         height = 0.68,
@@ -75,6 +80,14 @@ local defaults = {
         default_height = 8,
         wrap = true,
       },
+    },
+    history_pager = {
+      width = 0.84,
+      height = 0.76,
+      border = "rounded",
+      wrap = true,
+      max_turns_per_chunk = 10,
+      max_lines_per_chunk = 1200,
     },
     workbench = {
       tray = {
@@ -110,6 +123,7 @@ local defaults = {
       thread_archive = false,
       thread_unarchive = false,
       thread_settings = false,
+      thread_history = false,
       thread_compact = false,
       interrupt = false,
       turn_steer = false,
@@ -131,6 +145,7 @@ local defaults = {
       help = "g?",
       request = "gr",
       toggle_reader = "gR",
+      history = "gh",
       settings = "gs",
     },
     composer = {
@@ -142,6 +157,7 @@ local defaults = {
       help = "g?",
       request = "gr",
       toggle_reader = "gR",
+      history = "gh",
       settings = "gs",
     },
     request = {
@@ -259,6 +275,9 @@ local function apply_global_keymaps()
   map_if(keymaps.thread_settings, workflow_modes, function()
     require("neovim_codex").configure_thread()
   end, "Configure the active Codex thread")
+  map_if(keymaps.thread_history, workflow_modes, function()
+    require("neovim_codex").open_history()
+  end, "Open the active Codex thread history")
   map_if(keymaps.thread_compact, workflow_modes, function()
     require("neovim_codex").compact_thread()
   end, "Compact Codex thread history")
@@ -602,6 +621,7 @@ for _, method_name in ipairs({
   "read_thread",
   "open_thread_report",
   "pick_thread",
+  "open_history",
   "create_thread_with_settings",
   "configure_thread",
   "fork_thread",

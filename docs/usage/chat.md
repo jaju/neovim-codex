@@ -43,6 +43,8 @@ If `<C-s>` is captured by your terminal, remap `keymaps.composer.send` or run `s
 
 The main transcript is protocol-first and conversation-first.
 
+It is also intentionally bounded. The active chat shell keeps a recent working set instead of rendering an unbounded thread forever. When older history is hidden, the transcript shows an explicit sentinel block at the top instead of silently dropping material.
+
 You should expect to see:
 
 - user messages and final assistant responses as the primary reading surface
@@ -55,6 +57,35 @@ You should expect to see:
 You should not expect the main transcript to become a raw protocol dump or a live execution log.
 
 Use `:CodexInspect` on the selected block when you need the full command, output, or typed payload. Use `:CodexEvents` for the underlying wire payloads and event sequencing. Both now open in the same stacked viewer layer above the centered overlay when it is active. The side rail and the centered overlay are mutually exclusive alternate views over the same chat state.
+
+Windowing rules for the active transcript:
+
+- when multiple `contextCompaction` turns exist, the chat shell prefers to keep turns from the penultimate compaction boundary onward
+- otherwise it falls back to a recent-tail budget
+- if the retained window still grows too large, it trims further to stay under the active line budget
+
+When the hidden-history sentinel is selected, press `<CR>` to jump straight into the history pager.
+
+## History pager
+
+Use these when you want older history without turning the main chat surface into a giant markdown buffer:
+
+- `:CodexHistory [thread-id]` - open the active thread history pager, or a specific thread by id
+- `:CodexThreadRead [thread-id]` - inspect a stored thread in the same history pager without resuming it
+- `gh` from the transcript or composer - open history for the active thread
+
+The history pager is Vim-native and read-only. It renders one chunk at a time through the shared viewer stack instead of trying to keep the full thread in one chat buffer.
+
+Default history pager mappings:
+
+- `[h` - previous history chunk
+- `]h` - next history chunk
+- `[[` - previous turn in the current chunk
+- `]]` - next turn in the current chunk
+- `<CR>` - inspect the current history block
+- `o` - open the current turn in a focused subview
+- `g?` or `<F1>` - open the shortcut sheet for the history pager
+- `q` or `<Esc>` - close the pager
 
 ## Blocking requests
 
@@ -107,7 +138,8 @@ It reports whether Codex is running, waiting for a request response, idle, stopp
 - `:CodexThreadNew` - start a fresh thread explicitly
 - `:CodexThreadNewConfig` - start a thread through the runtime settings flow, including editable developer instructions seeded from the effective current-`cwd` config
 - `:CodexThreads` - pick and resume a stored thread
-- `:CodexThreadRead` - inspect a thread without resuming it
+- `:CodexThreadRead` - inspect a thread without resuming it, using the history pager
+- `:CodexHistory [thread-id]` - open the active thread history pager, or inspect a specific thread by id
 - `:CodexThreadRename [name]` - rename the active thread
   - when no name is supplied, the prompt is collected asynchronously so the UI does not freeze first
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
@@ -126,6 +158,7 @@ Transcript buffer:
 - `q` - close the current chat shell
 - `gr` - reopen the active thread inbox
 - `gR` - switch between the side rail and the centered overlay
+- `gh` - open the active thread history pager
 - `i` - jump to the composer
 - insert-like keys in the transcript (`a`, `A`, `i`, `I`, `o`, `O`, `R`) also jump to the composer instead of entering insert mode
 - `<C-w>w` - switch to the composer without leaving the current shell
@@ -142,6 +175,7 @@ Composer buffer:
 - `<C-w>w` in normal mode - switch back to the transcript
 - `q` in normal mode - close the current chat shell
 - `gr` in normal mode - reopen the active thread inbox
+- `gh` in normal mode - open the active thread history pager
 - `gs` in normal mode - open the active thread settings sheet
 - `gR` in normal mode - switch between the side rail and the centered overlay
 - `g?` or `<F1>` in normal mode - open the shortcut sheet for the current surface
@@ -215,7 +249,8 @@ The overlay also exposes highlight groups for transcript headings, so colorschem
 
 - a fresh thread that has not accumulated turns can still be missing from the persisted `thread/list` view after a restart, depending on backend persistence behavior; within the current NeoVim session the picker merges locally known threads so they remain reachable
 - a brand-new empty thread may not be resumable yet because the rollout is not materialized
-- reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports
+- reading an empty thread with turns included can fail until the first user message is persisted; the plugin falls back to metadata-only reads for thread reports and history opens
+- the history pager is render-efficient because it loads one chunk into the viewer at a time, but a full history open for an unloaded thread still depends on the current app-server `thread/read includeTurns=true` response shape
 - raw protocol and low-signal internal activity stay in `:CodexEvents`; the main transcript stays terse and uses `:CodexInspect` for verbose detail
 
 

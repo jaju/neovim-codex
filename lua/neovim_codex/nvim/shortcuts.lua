@@ -35,6 +35,7 @@ local function surface_from_role(role)
   local mapping = {
     transcript = "transcript",
     composer = "composer",
+    history_pager = "history_pager",
     request = "request",
     request_input = "request_input",
     file_change_review = "file_change_review",
@@ -80,6 +81,7 @@ local function workflow_entries(config)
   add_mapping(entries, global.thread_archive, "Archive a thread")
   add_mapping(entries, global.thread_unarchive, "Restore an archived thread")
   add_mapping(entries, global.thread_settings, "Edit the active thread settings")
+  add_mapping(entries, global.thread_history, "Open the active thread history pager")
   add_mapping(entries, global.thread_compact, "Start manual history compaction")
   add_mapping(entries, global.interrupt, "Interrupt the active Codex turn")
   add_mapping(entries, global.turn_steer, "Steer the running Codex turn")
@@ -101,6 +103,7 @@ local function surface_entries(config, surface)
     add_mapping(entries, keymaps.request, "Reopen the active thread inbox")
     add_mapping(entries, keymaps.settings, "Edit the active thread settings")
     add_mapping(entries, keymaps.toggle_reader, "Switch between side rail and centered overlay")
+    add_mapping(entries, keymaps.history, "Open the active thread history pager")
     add_mapping(entries, keymaps.next_turn, "Jump to the next turn")
     add_mapping(entries, keymaps.prev_turn, "Jump to the previous turn")
     add_mapping(entries, keymaps.close, "Close the current chat shell")
@@ -114,6 +117,7 @@ local function surface_entries(config, surface)
     add_mapping(entries, keymaps.request, "Reopen the active thread inbox")
     add_mapping(entries, keymaps.settings, "Edit the active thread settings")
     add_mapping(entries, keymaps.toggle_reader, "Switch between side rail and centered overlay")
+    add_mapping(entries, keymaps.history, "Open the active thread history pager")
     add_mapping(entries, keymaps.close, "Close the current chat shell")
     add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
   elseif surface == "request" then
@@ -165,6 +169,15 @@ local function surface_entries(config, surface)
     add_mapping(entries, ((config.keymaps or {}).workbench or {}).insert_handle, "Insert the selected fragment handle and return to the packet template")
     add_mapping(entries, keymaps.close, "Close compose review")
     add_mappings(entries, surface_help.keys(config, keymaps.help), "Open contextual Codex help")
+  elseif surface == "history_pager" then
+    add_mapping(entries, "[h", "Move to the previous history chunk")
+    add_mapping(entries, "]h", "Move to the next history chunk")
+    add_mapping(entries, "[[", "Move to the previous turn in this chunk")
+    add_mapping(entries, "]]", "Move to the next turn in this chunk")
+    add_mapping(entries, "<CR>", "Inspect the current history block")
+    add_mapping(entries, "o", "Open the current turn in a focused history view")
+    add_mappings(entries, surface_help.keys(config, "g?"), "Open contextual Codex help")
+    add_mapping(entries, "q", "Close the history pager")
   end
   return entries
 end
