@@ -21,7 +21,7 @@ local defaults = {
   client_info = {
     name = "neovim_codex",
     title = "NeoVim Codex",
-    version = "0.4.0",
+    version = "0.5.0-dev",
   },
   experimental_api = true,
   max_log_entries = 400,
