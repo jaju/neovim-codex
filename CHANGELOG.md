@@ -4,50 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-- Thread-create, thread-settings, and thread-fork setup no longer block the UI behind synchronous `vim.ui.input` / `vim.ui.select` waits; runtime configuration now advances asynchronously.
-- Thread pickers now merge locally known threads into the visible list so freshly created empty threads remain reachable within the current session.
-- Guarded chat tool-error rendering against `vim.NIL` payloads so `mcpToolCall` items no longer crash the transcript or details views.
-- Thread rename no longer blocks behind a synchronous prompt path before it sends the protocol request.
-- Request viewers now open in normal mode so direct decision shortcuts like `a`, `s`, `d`, and `c` work without an extra `<Esc>`.
-- Routed the workbench tray and compose review through the shared viewer stack so secondary surfaces always appear above chat.
-- Leaving plugin-owned windows now collapses the chat overlay instead of silently dropping focus to the editor buffer under the modal.
-- Chat overlay reopen now rebuilds a clean NUI layout instead of reusing stale mounted state.
-- Streaming transcript updates no longer force layout refreshes, which removes bottom-border flicker during long responses.
-
-### Changed
-- `:CodexThreadNewConfig` now lets you edit developer instructions while creating a thread, seeded from the effective app-server config for the current `cwd`, and the global shortcut surface now distinguishes plain new-thread vs configured new-thread actions.
-- Expanded the watched Codex app-server contract to include `CommandExecutionSource` and refreshed snapshots for the new `ThreadItem.commandExecution.source` field.
-- Expanded the watched Codex app-server contract to cover the current thread-management responses, archive/rename lifecycle notifications, permissions approvals, and MCP elicitation routes, and refreshed snapshots for the new `agentMessage.memoryCitation` field.
-- Removed transcript-to-workbench capture from the first slice; workbench capture is now explicitly code-world first.
-- Thread pickers now show compact thread ids so more of the thread title or preview text remains visible.
-- `g?` now opens contextual shortcut summaries across Codex surfaces instead of jumping straight into `:help`.
-- `Ctrl-w w` now stays inside the chat surface by switching between the transcript and composer panes.
-- Compose review now preserves an existing thread-local draft instead of silently overwriting it on reopen.
-- Workbench capture now rejects plugin scratch buffers and other non-file buffers.
-- Workbench fragments now receive stable short handles per thread, and compose review inserts them into packet templates instead of appending a distant fragment dump.
-- Sending with staged fragments now requires every fragment to be referenced explicitly before packet compilation succeeds.
+## [0.4.0] - 2026-03-21
 
 ### Added
-- `:CodexThreadNewConfig`, `:CodexThreadSettings`, `:CodexThreadFork`, and `:CodexThreadArchive` as first-class thread/session controls.
-- `.envrc.example` to document the expected local `CODEX_REPO_ROOT` setup for contract drift checks.
-- `:CodexThreadRename` and `:CodexShortcuts`, plus `keymaps.global_modes`, for faster thread control and configurable cross-mode shortcut access.
-- A dedicated stacked text-answer popup for free-form `requestUserInput` answers, reusing `<C-s>` as the submit key.
-- The first thread-local semantic-composition slice: pure-Lua workbench state, a workbench tray, a compose-review overlay, and the initial fragment capture flows.
+- A real side-rail chat shell plus an explicit centered overlay command, with both views sharing the same app-server-backed state.
+- First-class thread/session controls: `:CodexThreadNewConfig`, `:CodexThreadSettings`, `:CodexThreadFork`, `:CodexThreadArchive`, `:CodexThreadUnarchive`, `:CodexThreadCompact`, and `:CodexSteer`.
+- Thread-scoped request inboxes, a dedicated request reopen path, and a statusline component for turn state, pending requests, and workbench counts.
+- Protocol-backed file-change review surfaces with per-file navigation and Vim-native diff tabs.
+- A thread-local workbench model with parked fragments, compose review, packet preview, handle-based packet compilation, and first-class text-note fragments through `capture_text_fragment(...)`.
 - Diagnostic capture under cursor through `:CodexCaptureDiagnostic`.
-- `lua/neovim_codex/core/packet.lua` as the pure-Lua outbound packet compiler for handle-based packet templates.
-- `docs/vision/workbench-model.md`, `docs/contracts/neovim/workbench-packet.md`, and `docs/episodes/0011-workbench-packet-contract.md` to lock the next semantic-composition slice around thread-local workbench state and outbound packet assembly.
-- `scripts/contracts-check` as the stable entrypoint for app-server contract drift checks.
-- Agent-facing repository entry points in `AGENTS.md` so protocol-contract questions start from the docs index and contract docs instead of code spelunking.
+- `:CodexShortcuts` plus structured fast/workflow/surface shortcut lanes.
+- `scripts/contracts-check`, `.envrc.example`, and expanded watched app-server schema snapshots for drift checking.
 
 ### Changed
-- `scripts/check_codex_app_server_contracts.py` now resolves the Codex source-of-truth checkout from `--codex-repo` or `CODEX_REPO_ROOT` before falling back to installed-binary generation.
-- `:CodexSend` now routes through compose review whenever the active thread workbench contains staged fragments.
-- Status lines, chat footers, widget titles, and commands now consistently use the terminology `fragment`, `workbench`, `packet`, and `compose review`.
-- Vision and NeoVim contract docs now describe `fragment -> workbench -> packet` as the next implementation boundary, including the workbench tray and compose-review UI surfaces.
-- Vision and contract docs now record the next accepted workbench direction: keep chat useful without workbench complexity, prefer code-world capture over transcript capture, and move from append-all packet assembly to inline fragment-handle expansion at send time.
-- `./scripts/test` now runs the contract drift check automatically when `CODEX_REPO_ROOT` is present in the environment.
-- Contract and development docs now route protocol-contract work through the configured Codex checkout and the `./scripts/contracts-check` wrapper.
+- `:CodexChat` now opens and toggles the side rail by default, while `:CodexChatOverlay` opens the centered overlay explicitly.
+- The transcript is now projected as semantic, markdown-first conversation output with foldable sections, compact activity summaries, and deeper inspection behind dedicated detail surfaces.
+- Request routing now follows typed protocol families with safe fallbacks instead of assuming a single approval shape.
+- Thread runtime settings are now explicit and sticky per thread, including model, reasoning effort, collaboration mode, and approval policy.
+- Thread creation, forking, and settings flows now use async picker/input paths instead of blocking the UI.
+- The README and docs are now organized around an app-server-native product pitch, with dense reference material moved into `docs/`.
+
+### Fixed
+- Store updates during streaming no longer deep-clone the full state tree on every event; the hot path now uses targeted structural sharing.
+- Store-driven UI refreshes are now coalesced so long streaming responses do not fan out redundant redraw work.
+- Chat footers and status surfaces now distinguish running turns from true pending-request waits more accurately.
+- File edits now surface through explicit thread approval policy settings instead of silently depending on ambient backend defaults.
+- Rail/overlay shell transitions, title rendering, and rail pane partitioning no longer leave stale shells behind or corrupt the editor layout.
+- Thread pickers now preserve locally created threads in-session so fresh threads remain reachable before the backend list catches up.
 
 ## [0.3.0] - 2026-03-06
 
