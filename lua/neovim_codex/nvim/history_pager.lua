@@ -22,6 +22,7 @@ local state = {
   thread = nil,
   chunks = {},
   chunk_index = 1,
+  focus_turn_index = nil,
   last_render = nil,
 }
 
@@ -39,6 +40,20 @@ end
 
 local function chunk_label(chunk)
   return string.format("turns %d-%d", chunk.start_index, chunk.end_index)
+end
+
+local function chunk_index_for_turn(turn_index)
+  if not turn_index then
+    return nil
+  end
+
+  for index, chunk in ipairs(state.chunks) do
+    if turn_index >= chunk.start_index and turn_index <= chunk.end_index then
+      return index
+    end
+  end
+
+  return nil
 end
 
 local current_block
@@ -123,6 +138,24 @@ current_block = function()
   end
 
   return previous and vim.deepcopy(previous) or nil
+end
+
+local function focus_turn_cursor()
+  local winid = viewer_winid()
+  local chunk = state.chunks[state.chunk_index]
+  local turn_index = state.focus_turn_index
+  if not winid or not chunk or not turn_index or not state.last_render then
+    return
+  end
+
+  local offset = turn_index - chunk.start_index + 1
+  local line = (state.last_render.turn_lines or {})[offset]
+  state.focus_turn_index = nil
+  if not line then
+    return
+  end
+
+  vim.api.nvim_win_set_cursor(winid, { line, 0 })
 end
 
 local function goto_turn(direction)
@@ -252,6 +285,23 @@ local function render_spec()
       end,
       desc = "Open the current turn in a focused history view",
     },
+    {
+      mode = "n",
+      lhs = "R",
+      rhs = function()
+        require("neovim_codex").rollback_thread({
+          thread_id = state.thread and state.thread.id or nil,
+          keep_index = current_turn_index(),
+          on_success = function(thread, meta)
+            M.open(thread, {
+              config = state.config,
+              turn_index = meta.keep_index,
+            })
+          end,
+        })
+      end,
+      desc = "Rollback the current thread to this turn",
+    },
   }
 
   for _, lhs in ipairs(surface_help.keys(state.config, "g?")) do
@@ -278,6 +328,12 @@ local function render_spec()
     prevent_insert = true,
     lines = view.lines,
     mappings = mappings,
+    on_show = function()
+      focus_turn_cursor()
+    end,
+    on_refresh = function()
+      focus_turn_cursor()
+    end,
   }
 end
 
@@ -286,7 +342,8 @@ function M.open(thread, opts)
   state.thread = thread
   state.config = opts.config or {}
   state.chunks = build_chunks(thread, state.config)
-  state.chunk_index = clamp_chunk_index(opts.chunk_index or #state.chunks)
+  state.focus_turn_index = tonumber(opts.turn_index)
+  state.chunk_index = clamp_chunk_index(opts.chunk_index or chunk_index_for_turn(state.focus_turn_index) or #state.chunks)
   viewer_stack.open(render_spec())
   return {
     chunk_index = state.chunk_index,

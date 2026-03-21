@@ -154,6 +154,13 @@ def diff_text(expected: str, actual: str, relpath: str) -> str:
     )
 
 
+def normalize_text(text: str) -> str:
+    normalized = "\n".join(line.rstrip() for line in text.splitlines())
+    if text.endswith("\n"):
+        normalized += "\n"
+    return normalized
+
+
 def main() -> int:
     args = parse_args()
     root = repo_root()
@@ -172,7 +179,7 @@ def main() -> int:
             if not source_path.is_file():
                 problems.append(f"missing current schema file ({category}): {relpath}")
                 continue
-            current = source_path.read_text()
+            current = normalize_text(source_path.read_text())
             if args.update:
                 snapshot_path.parent.mkdir(parents=True, exist_ok=True)
                 snapshot_path.write_text(current)
@@ -181,7 +188,7 @@ def main() -> int:
             if not snapshot_path.is_file():
                 problems.append(f"missing snapshot file ({category}): {relpath}")
                 continue
-            expected = snapshot_path.read_text()
+            expected = normalize_text(snapshot_path.read_text())
             if expected != current:
                 problems.append(diff_text(expected, current, relpath))
             checked += 1

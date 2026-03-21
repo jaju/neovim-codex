@@ -124,6 +124,7 @@ local defaults = {
       thread_unarchive = false,
       thread_settings = false,
       thread_history = false,
+      thread_rollback = false,
       thread_compact = false,
       interrupt = false,
       turn_steer = false,
@@ -278,6 +279,9 @@ local function apply_global_keymaps()
   map_if(keymaps.thread_history, workflow_modes, function()
     require("neovim_codex").open_history()
   end, "Open the active Codex thread history")
+  map_if(keymaps.thread_rollback, workflow_modes, function()
+    require("neovim_codex").rollback_thread()
+  end, "Roll back a Codex thread to an earlier turn")
   map_if(keymaps.thread_compact, workflow_modes, function()
     require("neovim_codex").compact_thread()
   end, "Compact Codex thread history")
@@ -628,6 +632,7 @@ for _, method_name in ipairs({
   "rename_thread",
   "archive_thread",
   "unarchive_thread",
+  "rollback_thread",
   "compact_thread",
   "steer",
 }) do

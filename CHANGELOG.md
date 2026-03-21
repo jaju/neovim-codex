@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - `:CodexHistory` plus a read-only, Vim-native history pager that renders one history chunk at a time through the shared viewer stack.
 - Transcript and composer `gh` mappings for opening the active thread history pager.
+- `:CodexThreadRollback` plus history-pager `R` for rewinding a thread to an earlier turn without implying file reverts.
 
 ### Changed
 - The active chat transcript now keeps a bounded recent working set instead of trying to render every turn forever.
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Rail and overlay transcript updates now patch only the changed line range instead of replacing the entire transcript buffer on every redraw.
 - Shared transcript highlight and buffer-update logic is now centralized instead of duplicated across the rail and overlay shells.
+- Explicit `thread_id` actions no longer fall back to the active thread when the requested thread is not loaded locally.
 
 ## [0.4.0] - 2026-03-21
 

@@ -101,11 +101,12 @@ The current workflow validates:
 - markdown transcript and multiline composer creation
 - overlay toggle behavior
 - thread start, list, read, and resume APIs
+- client-side `thread/rollback` request and local-store update wiring
 - semantic chat-document rendering for live assistant replies and compact activity summaries
 
 It does not yet validate:
 
-- rollback/fork
+- fork
 - dynamic tools
 - TypeScript adapter behavior
 

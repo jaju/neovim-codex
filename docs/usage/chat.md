@@ -84,6 +84,7 @@ Default history pager mappings:
 - `]]` - next turn in the current chunk
 - `<CR>` - inspect the current history block
 - `o` - open the current turn in a focused subview
+- `R` - roll back the thread to the current turn after confirmation
 - `g?` or `<F1>` - open the shortcut sheet for the history pager
 - `q` or `<Esc>` - close the pager
 
@@ -145,6 +146,7 @@ It reports whether Codex is running, waiting for a request response, idle, stopp
 - `:CodexThreadFork [thread-id]` - fork from a chosen turn in the active thread, or the supplied thread id
 - `:CodexThreadArchive [thread-id]` - archive the active thread, or pick one to archive
 - `:CodexThreadUnarchive [thread-id]` - restore an archived thread, or pick one from archived threads
+- `:CodexThreadRollback [thread-id]` - roll back a thread to a chosen earlier turn; this edits thread history only and does not revert file changes
 - `:CodexThreadSettings [thread-id]` - edit sticky model, effort, approval policy, and collaboration mode for a thread
 - `:CodexThreadCompact [thread-id]` - start manual history compaction for the active thread, or pick one
 - `:CodexSteer [text]` - steer the currently running turn, or use the active draft when the shell is open

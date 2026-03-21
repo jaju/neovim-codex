@@ -86,6 +86,30 @@ local function new_test_client()
       }, {})
     elseif method == "turn/steer" then
       on_result(nil, { turnId = params.expectedTurnId }, {})
+    elseif method == "thread/rollback" then
+      local turns = {}
+      local keep = math.max(0, 3 - (tonumber(params.numTurns) or 0))
+      for index = 1, keep do
+        turns[#turns + 1] = {
+          id = string.format("turn_rollback_%d", index),
+          status = "completed",
+          items = {},
+          error = nil,
+        }
+      end
+      on_result(nil, {
+        thread = {
+          id = params.threadId,
+          preview = "rolled back",
+          ephemeral = false,
+          modelProvider = "openai",
+          createdAt = 1,
+          updatedAt = 1,
+          status = { type = "idle" },
+          cwd = "/tmp/demo",
+          turns = turns,
+        },
+      }, {})
     else
       on_result(nil, {}, {})
     end
@@ -1315,6 +1339,23 @@ test("client thread_compact_start uses the compact RPC", function()
   eq(calls[1].method, "thread/compact/start")
   eq(calls[1].params.threadId, "thr_compact")
   eq(type(callback_result), "table")
+end)
+
+test("client thread_rollback rewrites the thread and activates it", function()
+  local client, store, calls = new_test_client()
+  local callback_result = nil
+
+  client:thread_rollback({ threadId = "thr_rollback", numTurns = 2 }, function(err, result)
+    eq(err, nil)
+    callback_result = result
+  end)
+
+  eq(calls[1].method, "thread/rollback")
+  eq(calls[1].params.threadId, "thr_rollback")
+  eq(calls[1].params.numTurns, 2)
+  eq(callback_result.thread.id, "thr_rollback")
+  eq(store:get_state().threads.active_id, "thr_rollback")
+  eq(#store:get_state().threads.by_id.thr_rollback.turns_order, 1)
 end)
 
 test("client turn_steer uses expectedTurnId precondition", function()

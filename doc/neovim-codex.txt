@@ -63,6 +63,10 @@ COMMANDS                                               *neovim-codex-commands*
 :CodexThreadUnarchive [thread-id]
     Restore an archived thread, or pick one from archived threads.
 
+:CodexThreadRollback [thread-id]
+    Roll back a thread to an earlier turn. This edits thread history only and
+    does not revert file changes.
+
 :CodexThreadSettings [thread-id]
     Edit sticky model, effort, approval policy, and collaboration mode for a
     thread.
@@ -252,6 +256,7 @@ Default history pager mappings:
 - `]]` move to the next turn in the current chunk
 - `<CR>` inspect the current history block
 - `o` open the current turn in a focused history view
+- `R` roll back the thread to the current turn
 - `g?` or `<F1>` open the shortcut sheet for the current surface
 - `q` or `<Esc>` close the history pager
 

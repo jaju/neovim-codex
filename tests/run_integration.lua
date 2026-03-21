@@ -13,6 +13,8 @@ local function termcodes(value)
   return vim.api.nvim_replace_termcodes(value, true, false, true)
 end
 
+local codex
+
 local function count_chat_shell_windows()
   local count = 0
   for _, winid in ipairs(vim.api.nvim_list_wins()) do
@@ -23,8 +25,7 @@ local function count_chat_shell_windows()
   return count
 end
 
-local codex = require("neovim_codex")
-local selectors = require("neovim_codex.core.selectors")
+codex = require("neovim_codex")
 local test_thread_cwd = vim.fn.tempname() .. "-neovim-codex-threads"
 
 vim.fn.mkdir(test_thread_cwd, "p")
@@ -41,6 +42,7 @@ assert(vim.fn.exists(":CodexThreads") == 2, "CodexThreads command should exist")
 assert(vim.fn.exists(":CodexThreadRead") == 2, "CodexThreadRead command should exist")
 assert(vim.fn.exists(":CodexThreadRename") == 2, "CodexThreadRename command should exist")
 assert(vim.fn.exists(":CodexThreadUnarchive") == 2, "CodexThreadUnarchive command should exist")
+assert(vim.fn.exists(":CodexThreadRollback") == 2, "CodexThreadRollback command should exist")
 assert(vim.fn.exists(":CodexThreadCompact") == 2, "CodexThreadCompact command should exist")
 assert(vim.fn.exists(":CodexHistory") == 2, "CodexHistory command should exist")
 assert(vim.fn.exists(":CodexRequest") == 2, "CodexRequest command should exist")
@@ -154,6 +156,7 @@ codex.setup({
       request = "<leader>cr",
       shortcuts = "<leader>c?",
       thread_unarchive = "<leader>cu",
+      thread_rollback = "<leader>cb",
       thread_compact = "<leader>ck",
       turn_steer = "<leader>ct",
     },
@@ -169,6 +172,7 @@ assert(shortcuts_body:find("## Global workflow", 1, true), "shortcut sheet shoul
 assert(shortcuts_body:find("g? / <F1>", 1, true), "shortcut sheet should explain the local help entrypoints")
 assert(shortcuts_body:find("Edit the active thread settings", 1, true), "shortcut sheet should expose the local thread settings path")
 assert(shortcuts_body:find("Restore an archived thread", 1, true), "shortcut sheet should expose thread restore actions in the workflow lane")
+assert(shortcuts_body:find("Roll back a thread to an earlier turn", 1, true), "shortcut sheet should expose thread rollback actions in the workflow lane")
 assert(shortcuts_body:find("Start manual history compaction", 1, true), "shortcut sheet should expose thread compaction in the workflow lane")
 assert(shortcuts_body:find("Steer the running Codex turn", 1, true), "shortcut sheet should expose global steer actions in the workflow lane")
 assert(shortcuts_body:find("Steer the running turn with the current draft", 1, true), "shortcut sheet should expose the composer-local steer path")
@@ -283,6 +287,7 @@ local history_shortcuts_surface, history_shortcuts_lines = codex.open_shortcuts(
 assert(history_shortcuts_surface == "history_pager", "shortcut sheet should target the history pager surface")
 local history_shortcuts_body = table.concat(history_shortcuts_lines, "\n")
 assert(history_shortcuts_body:find("Open the current turn in a focused history view", 1, true), "history pager shortcuts should expose focused turn opening")
+assert(history_shortcuts_body:find("Roll back the thread to the current turn", 1, true), "history pager shortcuts should expose rollback")
 require("neovim_codex.nvim.presentation").close_viewers()
 vim.wait(15000, function()
   local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]

@@ -77,6 +77,13 @@ local function short_thread_id(thread_id)
   return thread_identity.short_id(thread_id)
 end
 
+local function resolve_thread(snapshot, thread_id)
+  if thread_id then
+    return selectors.get_thread(snapshot, thread_id)
+  end
+  return selectors.get_active_thread(snapshot)
+end
+
 local function thread_title(thread)
   return thread_identity.title(thread)
 end
@@ -110,6 +117,41 @@ local function turn_preview(turn, index)
 
   summary = summary or "(no message preview)"
   return string.format("Turn %d · %s · %s", index, tostring(turn.status or "unknown"), summary)
+end
+
+local function build_turn_choices(turns)
+  local choices = {}
+  choices[#choices + 1] = {
+    cancel = true,
+    label = "Cancel",
+  }
+  for index, turn in ipairs(turns or {}) do
+    choices[#choices + 1] = {
+      index = index,
+      turn = turn,
+    }
+  end
+  return choices
+end
+
+local function format_turn_choice(item)
+  if item.cancel == true then
+    return item.label or "Cancel"
+  end
+  return turn_preview(item.turn, item.index)
+end
+
+local function perform_thread_rollback(rt, thread_id, dropped_turns, opts)
+  if dropped_turns <= 0 then
+    return { threadId = thread_id }, nil
+  end
+
+  return request_with_wait(function(done)
+    rt.client:thread_rollback({ threadId = thread_id, numTurns = dropped_turns }, done)
+  end, {
+    wait = true,
+    timeout_ms = (opts or {}).timeout_ms,
+  })
 end
 
 local function update_thread_runtime(deps, thread_id, runtime_settings)
@@ -236,6 +278,185 @@ end
 
 function M.new(deps)
   local api = {}
+
+  local function ensure_thread_turns(thread, opts)
+    local turns = history.list_turns(thread)
+    if #turns > 0 then
+      return thread, turns, nil
+    end
+
+    local result, err = api.read_thread({
+      thread_id = thread.id,
+      include_turns = true,
+      notify = false,
+      timeout_ms = opts.timeout_ms,
+    })
+    if err and err:match("includeTurns is unavailable") then
+      return nil, nil, "thread history is unavailable for rollback"
+    end
+    if err then
+      return nil, nil, err
+    end
+
+    local loaded_thread = result and result.thread or thread
+    return loaded_thread, history.list_turns(loaded_thread), nil
+  end
+
+  local function ensure_thread_metadata(thread, opts)
+    if thread and thread.status then
+      return thread, nil
+    end
+
+    local result, err = api.read_thread({
+      thread_id = thread.id,
+      include_turns = false,
+      notify = false,
+      timeout_ms = opts.timeout_ms,
+    })
+    if err then
+      return nil, err
+    end
+
+    return result and result.thread or thread, nil
+  end
+
+  local function confirm_rollback_async(thread, keep_index, dropped_turns, opts, on_choice)
+    local choices = {
+      {
+        proceed = true,
+        label = string.format("Rollback to turn %d", keep_index),
+        detail = string.format(
+          "Keep turns 1-%d and drop the last %d newer %s. File changes are not reverted.",
+          keep_index,
+          dropped_turns,
+          dropped_turns == 1 and "turn" or "turns"
+        ),
+      },
+      {
+        proceed = false,
+        label = "Cancel",
+        detail = "Leave this thread history unchanged.",
+      },
+    }
+
+    select_async(choices, {
+      prompt = string.format("Rollback %s?", short_thread_id(thread.id)),
+      format_item = function(item)
+        return string.format("%s · %s", item.label, item.detail)
+      end,
+    }, function(choice)
+      on_choice(choice and choice.proceed == true)
+    end)
+  end
+
+  local function start_rollback_flow(rt, thread, opts)
+    local loaded_thread, turns, turns_err = ensure_thread_turns(thread, opts)
+    if turns_err then
+      deps.notify(turns_err, vim.log.levels.ERROR, opts.notify)
+      return nil, turns_err
+    end
+
+    if #turns == 0 then
+      deps.notify("Thread has no turns to roll back", vim.log.levels.INFO, opts.notify)
+      return nil, "thread has no turns to roll back"
+    end
+
+    local keep_index = tonumber(opts.keep_index)
+    if keep_index == nil and opts.turn_id then
+      keep_index = history.turn_index(turns, opts.turn_id)
+    end
+
+    if keep_index == nil then
+      select_async(build_turn_choices(turns), {
+        prompt = "Rollback to turn",
+        format_item = format_turn_choice,
+      }, function(selected)
+        if not selected or selected.cancel == true then
+          deps.notify("Cancelled thread rollback", vim.log.levels.INFO, opts.notify)
+          return
+        end
+
+        api.rollback_thread(vim.tbl_extend("force", opts, {
+          thread_id = loaded_thread.id,
+          keep_index = selected.index,
+        }))
+      end)
+
+      return { pending = true, threadId = loaded_thread.id }, nil
+    end
+
+    if keep_index < 1 or keep_index > #turns then
+      local err = string.format("turn index %d is out of range for %d turns", keep_index, #turns)
+      deps.notify(err, vim.log.levels.ERROR, opts.notify)
+      return nil, err
+    end
+
+    local dropped_turns = #turns - keep_index
+    if dropped_turns <= 0 then
+      deps.notify(
+        string.format("Turn %d is already the latest turn in %s", keep_index, short_thread_id(loaded_thread.id)),
+        vim.log.levels.INFO,
+        opts.notify
+      )
+      return {
+        threadId = loaded_thread.id,
+        kept_turns = keep_index,
+        dropped_turns = 0,
+      }, nil
+    end
+
+    if opts.confirm ~= false and opts._confirmed ~= true then
+      confirm_rollback_async(loaded_thread, keep_index, dropped_turns, opts, function(confirmed)
+        if not confirmed then
+          deps.notify("Cancelled thread rollback", vim.log.levels.INFO, opts.notify)
+          return
+        end
+
+        api.rollback_thread(vim.tbl_extend("force", opts, {
+          thread_id = loaded_thread.id,
+          keep_index = keep_index,
+          _confirmed = true,
+        }))
+      end)
+
+      return {
+        pending = true,
+        threadId = loaded_thread.id,
+        kept_turns = keep_index,
+      }, nil
+    end
+
+    local result, rollback_err = perform_thread_rollback(rt, loaded_thread.id, dropped_turns, opts)
+    if rollback_err then
+      deps.notify(rollback_err, vim.log.levels.ERROR, opts.notify)
+      return nil, rollback_err
+    end
+
+    if type(opts.on_success) == "function" then
+      opts.on_success((result or {}).thread or loaded_thread, {
+        keep_index = keep_index,
+        dropped_turns = dropped_turns,
+      })
+    end
+
+    deps.notify(
+      string.format(
+        "Rolled back %s to turn %d · dropped %d newer %s",
+        short_thread_id(loaded_thread.id),
+        keep_index,
+        dropped_turns,
+        dropped_turns == 1 and "turn" or "turns"
+      ),
+      vim.log.levels.INFO,
+      opts.notify
+    )
+
+    return result or {
+      threadId = loaded_thread.id,
+      kept_turns = keep_index,
+      dropped_turns = dropped_turns,
+    }, nil
+  end
 
   function api.new_thread(opts)
     opts = opts or {}
@@ -395,7 +616,7 @@ function M.new(deps)
     end
 
     local snapshot = rt.client:get_state()
-    local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+    local thread = resolve_thread(snapshot, opts.thread_id)
     if not thread and not opts.thread_id then
       return api.pick_thread({
         action = "history",
@@ -495,6 +716,10 @@ function M.new(deps)
         api.compact_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
         return
       end
+      if opts.action == "rollback" then
+        api.rollback_thread({ thread_id = choice.id, notify = opts.notify, timeout_ms = opts.timeout_ms })
+        return
+      end
 
       local current_state = deps.ensure_runtime().client:get_state()
       local local_thread = selectors.get_thread(current_state, choice.id)
@@ -563,7 +788,20 @@ function M.new(deps)
     end
 
     local snapshot = rt.client:get_state()
-    local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+    local thread = resolve_thread(snapshot, opts.thread_id)
+    if not thread then
+      if opts.thread_id then
+        local loaded_thread, load_err = ensure_thread_metadata({ id = opts.thread_id }, opts)
+        if load_err then
+          deps.notify(load_err, vim.log.levels.ERROR, opts.notify)
+          return nil, load_err
+        end
+        thread = loaded_thread
+      else
+        return nil, "no active thread"
+      end
+    end
+
     if not thread then
       return nil, "no active thread"
     end
@@ -611,8 +849,10 @@ function M.new(deps)
       return nil, err
     end
 
-    local source_thread = opts.thread_id and selectors.get_thread(rt.client:get_state(), opts.thread_id)
-      or selectors.get_active_thread(rt.client:get_state())
+    local source_thread = resolve_thread(rt.client:get_state(), opts.thread_id)
+    if not source_thread and opts.thread_id then
+      source_thread = { id = opts.thread_id }
+    end
     if not source_thread then
       return nil, "no active thread"
     end
@@ -628,23 +868,18 @@ function M.new(deps)
       return nil, thread_err
     end
 
+    source_thread = thread_result.thread or source_thread
+
     local turns = thread_result.thread.turns or {}
     if #turns == 0 then
       return nil, "thread has no turns to fork"
     end
 
-    local turn_choices = {}
-    for index, turn in ipairs(turns) do
-      turn_choices[#turn_choices + 1] = { index = index, turn = turn }
-    end
-
-    select_async(turn_choices, {
+    select_async(build_turn_choices(turns), {
       prompt = "Fork from turn",
-      format_item = function(item)
-        return turn_preview(item.turn, item.index)
-      end,
+      format_item = format_turn_choice,
     }, function(selected)
-      if not selected then
+      if not selected or selected.cancel == true then
         return
       end
 
@@ -682,9 +917,7 @@ function M.new(deps)
 
         local dropped_turns = #turns - selected.index
         if dropped_turns > 0 then
-          local rollback_result, rollback_err = request_with_wait(function(done)
-            rt.client:thread_rollback({ threadId = fork_result.thread.id, numTurns = dropped_turns }, done)
-          end, wait_opts(opts))
+          local rollback_result, rollback_err = perform_thread_rollback(rt, fork_result.thread.id, dropped_turns, opts)
           if rollback_err then
             deps.notify(rollback_err, vim.log.levels.ERROR, opts.notify)
             return
@@ -734,7 +967,25 @@ function M.new(deps)
     end
 
     local snapshot = rt.client:get_state()
-    local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+    local thread = resolve_thread(snapshot, opts.thread_id)
+    if not thread then
+      if opts.thread_id then
+        if opts.name ~= nil then
+          thread = { id = opts.thread_id }
+        else
+          local loaded_thread, load_err = ensure_thread_metadata({ id = opts.thread_id }, opts)
+          if load_err then
+            deps.notify(load_err, vim.log.levels.ERROR, opts.notify)
+            return nil, load_err
+          end
+          thread = loaded_thread
+        end
+      else
+        deps.notify("No active Codex thread to rename", vim.log.levels.INFO, opts.notify)
+        return nil, "no active thread"
+      end
+    end
+
     if not thread then
       deps.notify("No active Codex thread to rename", vim.log.levels.INFO, opts.notify)
       return nil, "no active thread"
@@ -773,7 +1024,15 @@ function M.new(deps)
     end
 
     local snapshot = rt.client:get_state()
-    local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+    local thread = resolve_thread(snapshot, opts.thread_id)
+    if not thread then
+      if opts.thread_id then
+        thread = { id = opts.thread_id }
+      else
+        return api.pick_thread({ action = "archive", notify = opts.notify, timeout_ms = opts.timeout_ms })
+      end
+    end
+
     if not thread then
       return api.pick_thread({ action = "archive", notify = opts.notify, timeout_ms = opts.timeout_ms })
     end
@@ -833,7 +1092,21 @@ function M.new(deps)
     end
 
     local snapshot = rt.client:get_state()
-    local thread = opts.thread_id and selectors.get_thread(snapshot, opts.thread_id) or selectors.get_active_thread(snapshot)
+    local thread = resolve_thread(snapshot, opts.thread_id)
+    if not thread then
+      if opts.thread_id then
+        thread = { id = opts.thread_id }
+      else
+        return api.pick_thread({
+          action = "compact",
+          archived = false,
+          prompt = "Select Codex thread to compact",
+          notify = opts.notify,
+          timeout_ms = opts.timeout_ms,
+        })
+      end
+    end
+
     if not thread then
       return api.pick_thread({
         action = "compact",
@@ -854,6 +1127,34 @@ function M.new(deps)
 
     deps.notify(string.format("Started compaction for %s", short_thread_id(thread.id)), vim.log.levels.INFO, opts.notify)
     return result or { threadId = thread.id }, nil
+  end
+
+  function api.rollback_thread(opts)
+    opts = opts or {}
+    local rt, err = deps.ensure_ready(opts.timeout_ms)
+    if not rt then
+      deps.notify(err, vim.log.levels.ERROR, opts.notify)
+      return nil, err
+    end
+
+    local snapshot = rt.client:get_state()
+    local thread = resolve_thread(snapshot, opts.thread_id)
+
+    if not thread and opts.thread_id then
+      thread = { id = opts.thread_id }
+    end
+
+    if not thread then
+      return api.pick_thread({
+        action = "rollback",
+        archived = false,
+        prompt = "Select Codex thread to roll back",
+        notify = opts.notify,
+        timeout_ms = opts.timeout_ms,
+      })
+    end
+
+    return start_rollback_flow(rt, thread, opts)
   end
 
   function api.steer(opts)

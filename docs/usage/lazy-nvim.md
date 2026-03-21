@@ -28,6 +28,7 @@ Add this to your plugin list to install from the public GitHub repository:
           threads = false, -- open the thread picker
           thread_settings = false, -- edit sticky thread runtime settings
           thread_unarchive = false, -- restore an archived thread
+          thread_rollback = false, -- roll back a thread to an earlier turn
           thread_compact = false, -- start manual thread compaction
           turn_steer = false, -- steer the currently running turn
           workbench = false, -- toggle the workbench tray

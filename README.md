@@ -111,6 +111,7 @@ Add a plugin spec like this to your `lazy.nvim` setup:
           request = "<F2>", -- reopen the active approval or question
           shortcuts = false,
           threads = false,
+          thread_rollback = false,
           workbench = false,
           compose = false,
           thread_settings = false,
@@ -150,6 +151,7 @@ Useful commands for the common loop:
 - `:CodexThreads` - pick and resume a stored thread
 - `:CodexThreadRead` - inspect a stored thread in the history pager without resuming it
 - `:CodexHistory` - open the active thread history pager, or a specific thread by id
+- `:CodexThreadRollback [thread-id]` - roll back a thread to an earlier turn; this changes thread history, not files
 - `:CodexRequest` - reopen the active approval or question request
 - `:CodexInterrupt` - interrupt the running turn, if any
 - `:CodexSteer [text]` - steer the currently running turn
@@ -174,6 +176,7 @@ The history pager is chunked and Vim-native:
 - `[[` and `]]` move between turns in the current chunk
 - `<CR>` inspects the current block
 - `o` opens the current turn in a focused history view
+- `R` rolls the thread back to the current turn after confirmation
 - `/` uses normal Vim search inside the loaded chunk
 
 For unloaded threads, full history still depends on `thread/read includeTurns=true`, so the pager is render-efficient inside NeoVim without pretending the app-server is paginating the payload yet.
