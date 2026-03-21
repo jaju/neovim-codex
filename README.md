@@ -101,27 +101,7 @@ Add a plugin spec like this to your `lazy.nvim` setup:
     "MunifTanjim/nui.nvim",
   },
   config = function()
-    require("neovim_codex").setup({
-      keymaps = {
-        global_fast_modes = { "n", "i", "x" },
-        global_workflow_modes = { "n" },
-        global = {
-          chat = "<C-,>", -- open the side rail
-          chat_overlay = false, -- consider "<C-.>" if your terminal supports it
-          request = "<F2>", -- reopen the active approval or question
-          shortcuts = false,
-          threads = false,
-          thread_rollback = false,
-          workbench = false,
-          compose = false,
-          thread_settings = false,
-          turn_steer = false,
-          capture_path = false,
-          capture_selection = false,
-          capture_diagnostic = false,
-        },
-      },
-    })
+    require("neovim_codex").setup({})
   end,
 }
 ```
@@ -217,8 +197,6 @@ It reports:
 - the active thread
 - the pending request count and reopen hint
 - the active workbench count
-
-The default fast reopen shortcut for hidden request dialogs is `<F2>`.
 
 ## Why It Feels Different
 

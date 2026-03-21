@@ -100,7 +100,7 @@ This applies to:
 
 These are server-request state machines, not transcript content.
 
-Use `:CodexRequest` or the default global `<F2>` mapping to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses. For file-change approvals, use the request-local `o` mapping or `:CodexReview` to inspect the structured diff review surface before you decide. Inside the review surface, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
+Use `:CodexRequest` or your configured global request mapping to reopen the active request if you hide it before responding. The request viewer opens in normal mode, uses your configured `vim.ui.select` for option choices, and opens a focused stacked text-answer popup for free-form responses. For file-change approvals, use the request-local `o` mapping or `:CodexReview` to inspect the structured diff review surface before you decide. Inside the review surface, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer.
 
 Default request viewer mappings:
 
@@ -190,8 +190,10 @@ Mappings are merged over defaults in `setup()`.
 ```lua
 require("neovim_codex").setup({
   keymaps = {
-    global_fast_modes = { "n", "i", "x" },
-    global_workflow_modes = { "n" },
+    global_modes = {
+      fast = { "n", "i", "x" },
+      workflow = { "n" },
+    },
     transcript = {
       focus_composer = "<CR>",
       next_turn = "]c",

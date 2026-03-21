@@ -15,35 +15,32 @@ Add this to your plugin list to install from the public GitHub repository:
     "MunifTanjim/nui.nvim",
   },
   config = function()
-    require("neovim_codex").setup({
-      keymaps = {
-        global_fast_modes = { "n", "i", "x" }, -- fast open/reopen actions can stay available across common modes
-        global_workflow_modes = { "n" }, -- workflow actions stay normal-mode only by default
-        global = {
-          chat = false, -- toggle the chat overlay globally
-          request = "<F2>", -- reopen the current approval or question
-          shortcuts = false, -- reopen the current shortcut sheet
-          new_thread = false, -- create a fresh thread immediately
-          new_thread_config = false, -- create a thread through the full setup flow, including developer instructions
-          threads = false, -- open the thread picker
-          thread_settings = false, -- edit sticky thread runtime settings
-          thread_unarchive = false, -- restore an archived thread
-          thread_rollback = false, -- roll back a thread to an earlier turn
-          thread_compact = false, -- start manual thread compaction
-          turn_steer = false, -- steer the currently running turn
-          workbench = false, -- toggle the workbench tray
-          compose = false, -- open compose review
-          capture_path = false, -- stage the current file path
-          capture_selection = false, -- stage the current visual selection
-          capture_diagnostic = false, -- stage the current diagnostic
-        },
-      },
-    })
+    require("neovim_codex").setup({})
   end,
 }
 ```
 
 `client_info`, `experimental_api`, and `max_log_entries` are internal plugin defaults. Leave them alone unless you are working on the plugin itself.
+
+Global mappings are disabled by default. If you want them, add only the ones you need:
+
+```lua
+require("neovim_codex").setup({
+  keymaps = {
+    global_modes = {
+      fast = { "n", "i", "x" },
+      workflow = { "n" },
+    },
+    global = {
+      chat = "<C-,>",
+      request = "<F2>",
+      threads = "<leader>at",
+      read_thread = "<leader>aT",
+      thread_settings = "<leader>as",
+    },
+  },
+})
+```
 
 ### Local checkout
 

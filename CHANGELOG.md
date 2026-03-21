@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - When multiple compaction turns are present, the active transcript now prefers the penultimate compaction boundary before falling back to a recent-tail budget.
 - `:CodexThreadRead` now opens the same history pager flow instead of projecting an unbounded thread report into one buffer.
 - Watched Codex app-server snapshots now include the latest additive drift around `ThreadItem` variants and `imageGeneration.savedPath`.
+- Global plugin mappings are now fully opt-in by default, and the canonical lane config is `keymaps.global_modes = { fast = {...}, workflow = {...} }`.
 
 ### Fixed
 - Rail and overlay transcript updates now patch only the changed line range instead of replacing the entire transcript buffer on every redraw.

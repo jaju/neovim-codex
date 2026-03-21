@@ -231,8 +231,7 @@ Compose review defaults:
 - `q` close compose review
 
 These mappings are configurable through `setup()` and can be disabled by setting
-individual mappings to `false`. By default, hidden request dialogs can always be
-reopened with `<F2>`.
+individual mappings to `false`.
 
 If `<C-s>` is captured by terminal flow control, remap
 `keymaps.composer.send` or run `stty -ixon`.
@@ -351,9 +350,11 @@ from your plugin manager configuration to override defaults.
 
 Global mappings are disabled by default. Buffer-local overlay mappings have
 conservative defaults. Fast open/reopen actions use
-`keymaps.global_fast_modes`; workflow actions use
-`keymaps.global_workflow_modes`. If you only set the older
-`keymaps.global_modes`, it still acts as the fallback for both lanes.
+`keymaps.global_modes.fast`; workflow actions use
+`keymaps.global_modes.workflow`. The older
+`keymaps.global_fast_modes`, `keymaps.global_workflow_modes`, and flat
+`keymaps.global_modes` values are still accepted and normalized into the
+nested shape.
 
 Transcript scale controls live under:
 

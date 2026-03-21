@@ -31,6 +31,11 @@ local test_thread_cwd = vim.fn.tempname() .. "-neovim-codex-threads"
 vim.fn.mkdir(test_thread_cwd, "p")
 
 codex.setup({})
+local default_config = codex.get_config()
+assert(default_config.keymaps.global.chat == false, "chat should not have a default global mapping")
+assert(default_config.keymaps.global.request == false, "request should not have a default global mapping")
+assert(vim.deep_equal(default_config.keymaps.global_modes.fast, { "n", "i", "x" }), "fast global modes should stay explicit")
+assert(vim.deep_equal(default_config.keymaps.global_modes.workflow, { "n" }), "workflow global modes should stay explicit")
 
 assert(vim.fn.exists(":CodexStart") == 2, "CodexStart command should exist")
 assert(vim.fn.exists(":CodexSmoke") == 2, "CodexSmoke command should exist")
@@ -151,6 +156,41 @@ assert(count_chat_shell_windows() == 2, "switching back to rail should not leave
 
 codex.setup({
   keymaps = {
+    global_modes = {
+      fast = { "n", "i", "x" },
+      workflow = { "n" },
+    },
+    global = {
+      chat = "<leader>cc",
+      request = "<leader>cr",
+      shortcuts = "<leader>c?",
+      thread_unarchive = "<leader>cu",
+      thread_rollback = "<leader>cb",
+      thread_compact = "<leader>ck",
+      turn_steer = "<leader>ct",
+    },
+  },
+})
+local customized_config = codex.get_config()
+assert(vim.deep_equal(customized_config.keymaps.global_modes.fast, { "n", "i", "x" }), "nested global fast modes should be preserved")
+assert(vim.deep_equal(customized_config.keymaps.global_modes.workflow, { "n" }), "nested global workflow modes should be preserved")
+
+codex.setup({
+  keymaps = {
+    global_fast_modes = { "n", "x" },
+    global_workflow_modes = { "n" },
+  },
+})
+local legacy_mode_config = codex.get_config()
+assert(vim.deep_equal(legacy_mode_config.keymaps.global_modes.fast, { "n", "x" }), "legacy fast global modes should normalize into the nested shape")
+assert(vim.deep_equal(legacy_mode_config.keymaps.global_modes.workflow, { "n" }), "legacy workflow global modes should normalize into the nested shape")
+
+codex.setup({
+  keymaps = {
+    global_modes = {
+      fast = { "n", "i", "x" },
+      workflow = { "n" },
+    },
     global = {
       chat = "<leader>cc",
       request = "<leader>cr",

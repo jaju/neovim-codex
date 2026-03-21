@@ -107,12 +107,13 @@ local defaults = {
     },
   },
   keymaps = {
-    global_fast_modes = { "n", "i", "x" },
-    global_workflow_modes = { "n" },
-    global_modes = { "n", "i", "x" },
+    global_modes = {
+      fast = { "n", "i", "x" },
+      workflow = { "n" },
+    },
     surface_help = "<F1>",
     global = {
-      chat = "<C-,>",
+      chat = false,
       chat_overlay = false,
       new_thread = false,
       new_thread_config = false,
@@ -129,7 +130,7 @@ local defaults = {
       interrupt = false,
       turn_steer = false,
       shortcuts = false,
-      request = "<F2>",
+      request = false,
       workbench = false,
       compose = false,
       capture_path = false,
@@ -225,10 +226,17 @@ end
 
 local function global_modes_for(lane, fallback)
   local keymaps = config.keymaps or {}
-  if lane == "fast" then
-    return keymaps.global_fast_modes or keymaps.global_modes or fallback
+  local modes = keymaps.global_modes
+
+  if vim.islist(modes) then
+    return modes
   end
-  return keymaps.global_workflow_modes or keymaps.global_modes or fallback
+
+  if type(modes) == "table" then
+    return modes[lane] or fallback
+  end
+
+  return fallback
 end
 
 local function apply_global_keymaps()
@@ -492,6 +500,34 @@ local function normalize_legacy_config(opts)
   end
 
   local keymaps = opts.keymaps or {}
+  local global_modes = keymaps.global_modes
+  local nested_global_modes = {}
+
+  if vim.islist(global_modes) then
+    nested_global_modes.fast = vim.deepcopy(global_modes)
+    nested_global_modes.workflow = vim.deepcopy(global_modes)
+  elseif type(global_modes) == "table" then
+    if vim.islist(global_modes.fast) then
+      nested_global_modes.fast = vim.deepcopy(global_modes.fast)
+    end
+    if vim.islist(global_modes.workflow) then
+      nested_global_modes.workflow = vim.deepcopy(global_modes.workflow)
+    end
+  end
+
+  if vim.islist(keymaps.global_fast_modes) and nested_global_modes.fast == nil then
+    nested_global_modes.fast = vim.deepcopy(keymaps.global_fast_modes)
+  end
+  if vim.islist(keymaps.global_workflow_modes) and nested_global_modes.workflow == nil then
+    nested_global_modes.workflow = vim.deepcopy(keymaps.global_workflow_modes)
+  end
+
+  if next(nested_global_modes) ~= nil then
+    keymaps.global_modes = nested_global_modes
+  end
+  keymaps.global_fast_modes = nil
+  keymaps.global_workflow_modes = nil
+
   if keymaps.prompt and not keymaps.composer then
     keymaps.composer = vim.deepcopy(keymaps.prompt)
   end

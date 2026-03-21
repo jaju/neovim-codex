@@ -49,9 +49,9 @@ Workbench and compose commands:
 
 ## Keymaps
 
-Global mappings are mostly disabled by default. The one fast-path exception is request reopen on `<F2>`, so hidden approvals or questions are always one movement away.
+Global mappings are disabled by default.
 
-Fast open/reopen actions use `keymaps.global_fast_modes`; workflow actions use `keymaps.global_workflow_modes`. If you only set the older `keymaps.global_modes`, it still works as the fallback for both lanes.
+Fast open/reopen actions use `keymaps.global_modes.fast`; workflow actions use `keymaps.global_modes.workflow`. Older `keymaps.global_fast_modes`, `keymaps.global_workflow_modes`, and flat `keymaps.global_modes = { ... }` values are still accepted and normalized into the nested shape.
 
 Buffer-local mappings exist only inside plugin-owned Codex buffers. Use `g?` or `<F1>` inside a Codex surface to reopen the current shortcut sheet, which is grouped into `This surface`, `Global fast`, and `Global workflow`.
 
@@ -126,15 +126,17 @@ History pager defaults:
 - `g?` or `<F1>` - open the Codex shortcut sheet for the current surface
 - `q` or `<Esc>` - close the history pager
 
-All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_fast_modes = { "n", "i", "x" }` to keep fast global Codex actions available without changing modes, and `keymaps.global_workflow_modes = { "n" }` to keep workflow actions normal-mode only.
+All mappings are configurable through `setup()` and merged over defaults. Set a mapping to `false` to disable it. Use `keymaps.global_modes.fast = { "n", "i", "x" }` to keep fast global Codex actions available without changing modes, and `keymaps.global_modes.workflow = { "n" }` to keep workflow actions normal-mode only.
 
 Example:
 
 ```lua
 require("neovim_codex").setup({
   keymaps = {
-    global_fast_modes = { "n", "i", "x" },
-    global_workflow_modes = { "n" },
+    global_modes = {
+      fast = { "n", "i", "x" },
+      workflow = { "n" },
+    },
     global = {
       chat = "<C-,>",
       chat_overlay = "<C-.>",
@@ -166,7 +168,7 @@ The active chat shell is also bounded by design. It keeps a recent working set i
 
 Blocking app-server requests are protocol-first too. Command approvals, file-change approvals, and tool questions do not render inline as transcript content. They open in a stacked request viewer in normal mode, use your configured `vim.ui.select` for option choices, and open a focused stacked text-answer popup for free-form responses.
 
-Use `:CodexRequest` or `<F2>` to reopen the current request if you close it before responding. Use `:CodexReview` or the request-local `o` mapping to inspect a structured file-change review. Inside that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer before you decide.
+Use `:CodexRequest` or your configured global request mapping to reopen the current request if you close it before responding. Use `:CodexReview` or the request-local `o` mapping to inspect a structured file-change review. Inside that review, `]f` and `[f` move between changed files and `o` opens a dedicated per-file diff viewer before you decide.
 
 Examples:
 
