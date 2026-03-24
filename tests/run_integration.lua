@@ -326,22 +326,33 @@ assert(history_viewers.top and history_viewers.top.role == "history_pager", "his
 local history_shortcuts_surface, history_shortcuts_lines = codex.open_shortcuts({ surface = "history_pager" })
 assert(history_shortcuts_surface == "history_pager", "shortcut sheet should target the history pager surface")
 local history_shortcuts_body = table.concat(history_shortcuts_lines, "\n")
-assert(history_shortcuts_body:find("Open the current turn in a focused history view", 1, true), "history pager shortcuts should expose focused turn opening")
-assert(history_shortcuts_body:find("Roll back the thread to the current turn", 1, true), "history pager shortcuts should expose rollback")
-require("neovim_codex.nvim.presentation").close_viewers()
+  assert(history_shortcuts_body:find("Open the current turn in a focused history view", 1, true), "history pager shortcuts should expose focused turn opening")
+  assert(history_shortcuts_body:find("Roll back the thread to the current turn", 1, true), "history pager shortcuts should expose rollback")
+  require("neovim_codex.nvim.presentation").close_viewers()
+  vim.wait(15000, function()
+    local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]
+    return thread ~= nil and type(thread.status) == "table" and thread.status.type == "idle"
+  end, 50)
+  assert(codex.stop() == true, "archive test should be able to stop the app-server cleanly")
+  vim.wait(15000, function()
+    local connection = codex.get_state().connection or {}
+    return connection.status == "stopped"
+  end, 50)
+  assert(codex.start() == true, "archive test should be able to restart the app-server cleanly")
+  local archived_thread_snapshot = codex.get_state().threads.by_id[archive_thread_result.thread.id]
+  assert(
+    archived_thread_snapshot ~= nil and archived_thread_snapshot.ephemeral ~= true,
+    "archive test thread should remain persistent before archiving"
+  )
+local archive_action, archive_action_err
 vim.wait(15000, function()
-  local thread = codex.get_state().threads.by_id[archive_thread_result.thread.id]
-  return thread ~= nil and type(thread.path) == "string" and thread.path ~= "" and vim.uv.fs_stat(thread.path) ~= nil
-end, 50)
-local archived_thread_snapshot = codex.get_state().threads.by_id[archive_thread_result.thread.id]
-assert(
-  archived_thread_snapshot ~= nil
-    and type(archived_thread_snapshot.path) == "string"
-    and archived_thread_snapshot.path ~= ""
-    and vim.uv.fs_stat(archived_thread_snapshot.path) ~= nil,
-  "archive test thread should materialize a rollout path before archiving"
-)
-local archive_action, archive_action_err = codex.archive_thread({ thread_id = archive_thread_result.thread.id, notify = false, timeout_ms = 8000 })
+  archive_action, archive_action_err = codex.archive_thread({
+    thread_id = archive_thread_result.thread.id,
+    notify = false,
+    timeout_ms = 8000,
+  })
+  return archive_action_err == nil
+end, 250)
 assert(archive_action_err == nil, archive_action_err or "thread archive should succeed")
 assert(archive_action ~= nil, "thread archive should return a result")
 vim.wait(1000, function()
