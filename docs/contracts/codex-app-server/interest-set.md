@@ -101,7 +101,6 @@ Why:
 
 - these are not transcript items
 - they are blocking request/response flows that must map to modal or stacked viewer state machines
-- `skillMetadata` on command approvals is part of the surfaced request context
 - permissions approvals and MCP elicitations already route through the shared request protocol layer
 - approval and question UX must follow these typed contracts directly
 
